@@ -1,0 +1,43 @@
+S-DEC result file
+[TAXON]
+1	P_hawaiiensis_WaikamoiL1	C
+2	P_mauiensis_Eke	C
+3	P_fauriei2	B
+4	P_hathewayi_1	B
+5	P_kaduana_PuuKukuiAS	C
+6	P_mauiensis_PepeAS	C
+7	P_kaduana_HawaiiLoa	B
+8	P_greenwelliae07	A
+9	P_greenwelliae907	A
+10	P_mariniana_MauiNui	C
+11	P_hawaiiensis_Makaopuhi	D
+12	P_mariniana_Oahu	B
+13	P_mariniana_Kokee2	A
+14	P_wawraeDL7428	A
+15	P_grandiflora_Kal2	A
+16	P_hobdyi_Kuia	A
+17	P_hexandra_K1	A
+18	P_hexandra_M	A
+19	P_hexandra_Oahu	B
+[TREE]
+Tree=((((((((1:0.9656850499,2:0.9656850499):0.7086257935,(3:1.230218511,4:1.230218511):0.4440923324):0.1767115552,(5:1.851022399,6:1.851022399):0.0008897862802):0.3347375986,7:2.185759997):0.302349378,(8:1.131363255,9:1.131363255):1.35674612):1.689170274,((((10:1.994011054,11:1.994011054):0.7328279804,12:2.726839034):0.2574151709,13:2.984254205):0.4601084855,14:3.444362691):0.732916959):0.7345185743,(15:2.479300491,16:2.479300491):2.432497733):0.2873119899,((17:2.363984189,18:2.363984189):0.4630447802,19:2.826939991):2.372081244);
+[RESULT]
+S-DEC results:
+node 20 (anc. of terminals 1-2): C 100.00
+node 21 (anc. of terminals 3-4): B 100.00
+node 22 (anc. of terminals 1-4): BC 100.00
+node 23 (anc. of terminals 5-6): C 100.00
+node 24 (anc. of terminals 1-6): BC 100.00
+node 25 (anc. of terminals 1-7): B 100.00
+node 26 (anc. of terminals 8-9): A 100.00
+node 27 (anc. of terminals 1-9): AB 100.00
+node 28 (anc. of terminals 10-11): A 36.75 AC 29.36 B 18.87 BC 15.02
+node 29 (anc. of terminals 10-12): A 48.57 B 29.83 AB 21.60
+node 30 (anc. of terminals 10-13): A 64.49 AB 35.51
+node 31 (anc. of terminals 10-14): A 87.11 AB 12.89
+node 32 (anc. of terminals 1-14): A 83.21 AB 16.79
+node 33 (anc. of terminals 15-16): A 100.00
+node 34 (anc. of terminals 1-16): A 100.00
+node 35 (anc. of terminals 17-18): A 100.00
+node 36 (anc. of terminals 17-19): AB 80.39 A 19.61
+node 37 (anc. of terminals 1-19): A 50.25 AB 49.76

@@ -1,0 +1,43 @@
+Statistical Dispersal-Vicariance Analysis result file
+[TAXON]
+1	P_hawaiiensis_WaikamoiL1	C
+2	P_mauiensis_Eke	C
+3	P_fauriei2	B
+4	P_hathewayi_1	B
+5	P_kaduana_PuuKukuiAS	C
+6	P_mauiensis_PepeAS	C
+7	P_kaduana_HawaiiLoa	B
+8	P_greenwelliae07	A
+9	P_greenwelliae907	A
+10	P_mariniana_MauiNui	C
+11	P_hawaiiensis_Makaopuhi	D
+12	P_mariniana_Oahu	B
+13	P_mariniana_Kokee2	A
+14	P_wawraeDL7428	A
+15	P_grandiflora_Kal2	A
+16	P_hobdyi_Kuia	A
+17	P_hexandra_K1	A
+18	P_hexandra_M	A
+19	P_hexandra_Oahu	B
+[TREE]
+Tree=((((((((1:0.9656850499,2:0.9656850499):0.7086257935,(3:1.230218511,4:1.230218511):0.4440923324):0.1767115552,(5:1.851022399,6:1.851022399):0.0008897862802):0.3347375986,7:2.185759997):0.302349378,(8:1.131363255,9:1.131363255):1.35674612):1.689170274,((((10:1.994011054,11:1.994011054):0.7328279804,12:2.726839034):0.2574151709,13:2.984254205):0.4601084855,14:3.444362691):0.732916959):0.7345185743,(15:2.479300491,16:2.479300491):2.432497733):0.2873119899,((17:2.363984189,18:2.363984189):0.4630447802,19:2.826939991):2.372081244);
+[RESULT]
+optimal distributions at each node:
+node 20 (anc. of terminals 1-2) (P=0.21): C 100.00
+node 21 (anc. of terminals 3-4) (P=0.21): B 100.00
+node 22 (anc. of terminals 1-4) (P=0.21): BC 100.00
+node 23 (anc. of terminals 5-6) (P=0.21): C 100.00
+node 24 (anc. of terminals 1-6) (P=0.21): BC 50.00 C 50.00
+node 25 (anc. of terminals 1-7) (P=0.21): BC 50.00 B 50.00
+node 26 (anc. of terminals 8-9) (P=0.21): A 100.00
+node 27 (anc. of terminals 1-9) (P=0.21): ABC 33.33 AC 33.33 AB 33.33
+node 28 (anc. of terminals 10-11) (P=0.21): CD 100.00
+node 29 (anc. of terminals 10-12) (P=0.21): BCD 33.33 BD 33.33 BC 33.33
+node 30 (anc. of terminals 10-13) (P=0.21): ABD 14.29 ACD 14.29 ABCD 14.29 AD 14.29 AB 14.29 AC 14.29 ABC 14.29
+node 31 (anc. of terminals 10-14) (P=0.21): A 100.00
+node 32 (anc. of terminals 1-14) (P=0.21): A 100.00
+node 33 (anc. of terminals 15-16) (P=0.21): A 100.00
+node 34 (anc. of terminals 1-16) (P=0.21): A 100.00
+node 35 (anc. of terminals 17-18) (P=0.21): A 100.00
+node 36 (anc. of terminals 17-19) (P=0.21): AB 100.00
+node 37 (anc. of terminals 1-19) (P=0.21): AB 50.00 A 50.00
