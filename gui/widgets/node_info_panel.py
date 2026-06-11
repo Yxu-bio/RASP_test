@@ -268,7 +268,7 @@ class NodeInfoPanel(QWidget):
 
         self.list_table.setRowCount(len(rows))
         self.list_table.setColumnCount(2)
-        summary_header = "Continuous value" if str(self.current_method_name).startswith("BayesTraits Continuous") else "Optimal reconstruction"
+        summary_header = "Continuous value" if self._is_continuous_result() else "Optimal reconstruction"
         self.list_table.setHorizontalHeaderLabels(["节点号", summary_header])
 
         for row_idx, (display_id, summary, clade_key) in enumerate(rows):

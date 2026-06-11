@@ -139,6 +139,14 @@ class ResultSchemaAdapterFactory:
         if class_name == "SDECResult":
             return SDECResultSchemaAdapter(result)
         if class_name == "BioGeoBEARSResult":
+            actual_name = str(getattr(result, "model_name", "") or "")
+            if (
+                actual_name.startswith("phytools")
+                or actual_name.startswith("S-phytools")
+                or actual_name.startswith("ape")
+                or actual_name.startswith("S-ape")
+            ):
+                return PhytoolsDiscreteResultSchemaAdapter(result)
             return BioGeoBEARSResultSchemaAdapter(result)
         if class_name == "ContinuousTraitResult":
             return ContinuousTraitResultSchemaAdapter(result)
@@ -432,12 +440,19 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
         return " ".join(f"{k}({float(v):.1f}%)" for k, v in items[:5])
 
 
-class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
-    method_name = "BayesTraits Continuous ASR"
-    method_type = "continuous_trait_asr"
+class PhytoolsDiscreteResultSchemaAdapter(BaseResultSchemaAdapter):
+    method_name = "ape ace"
+    method_type = "single_tree_discrete_trait"
 
     def build_method_summary(self):
         warnings = list(getattr(self.result, "parse_warnings", []) or [])
+        result_note = str(getattr(self.result, "result_note", "") or "").strip()
+        semantics_note = (
+            "ape discrete trait reconstruction runs ape::ace through bundled R. "
+            "Node pies show ancestral trait-state probabilities, not ancestral geographic ranges."
+        )
+        if result_note:
+            semantics_note = semantics_note + " " + result_note
         return MethodSummarySchema(
             method_name=str(getattr(self.result, "model_name", "") or self.method_name),
             method_type=self.method_type,
@@ -447,10 +462,81 @@ class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
             has_event_model=False,
             has_time_model=False,
             display_id_source="reference_node_id",
-            result_semantics_note=(
+            result_semantics_note=semantics_note,
+            warnings=warnings,
+        )
+
+    def build_node_payload(self, clade_key, node_name=""):
+        node_result = self.result.get_node_result(clade_key)
+        if node_result is None:
+            return None
+
+        state_labels = list(getattr(node_result, "states", []) or [])
+        state_text = self._stringify_states(state_labels)
+        state_supports = dict(getattr(node_result, "state_supports", {}) or {})
+        support_summary = self._format_state_supports(state_supports)
+
+        return NodePayloadSchema(
+            method_name=str(getattr(self.result, "model_name", "") or self.method_name),
+            clade_key=clade_key,
+            display_node_id=self._safe_text(getattr(node_result, "display_node_id", "")),
+            display_id_source="reference_node_id",
+            node_kind="internal",
+            node_name=node_name,
+            state_labels=state_labels,
+            state_text=state_text,
+            state_summary=state_text,
+            support_summary=support_summary,
+            ambiguity_count=len(state_labels),
+            supporting_tree_count=int(getattr(node_result, "supporting_tree_count", 1) or 1),
+            total_tree_count=int(getattr(node_result, "total_tree_count", 1) or 1),
+            state_counts={},
+            state_supports=state_supports,
+            event_summary=str(getattr(node_result, "event_summary", "") or ""),
+            time_summary="not applicable",
+            interpretation_note="Current node pies show phytools/ape ancestral trait-state probabilities.",
+            raw_method_payload=self._to_raw_payload(node_result),
+        )
+
+    def _format_state_supports(self, state_supports):
+        if not state_supports:
+            return "No state support"
+        items = sorted(state_supports.items(), key=lambda x: (-float(x[1]), x[0]))
+        return " ".join(f"{k}({float(v):.1f}%)" for k, v in items[:5])
+
+
+class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
+    method_name = "Continuous Trait ASR"
+    method_type = "continuous_trait_asr"
+
+    def build_method_summary(self):
+        warnings = list(getattr(self.result, "parse_warnings", []) or [])
+        actual_name = str(getattr(self.result, "model_name", "") or self.method_name)
+        if actual_name.startswith("BayesTraits"):
+            semantics_note = (
                 "Continuous ASR shows posterior summaries of BayesTraits unknown internal-node values. "
                 "Branches are visualized by interpolating parent and child node/tip values."
-            ),
+            )
+        elif actual_name.startswith("phytools") or actual_name.startswith("S-phytools"):
+            semantics_note = (
+                "Continuous ASR shows phytools continuous-trait ancestral estimates. "
+                "Branches are visualized by interpolating parent and child node/tip values."
+            )
+        else:
+            semantics_note = (
+                "Continuous ASR shows internal-node continuous trait estimates. "
+                "Branches are visualized by interpolating parent and child node/tip values."
+            )
+        return MethodSummarySchema(
+            method_name=actual_name,
+            method_type=self.method_type,
+            input_tree_count=int(getattr(self.result, "input_tree_count", 1) or 1),
+            effective_tree_count=int(getattr(self.result, "effective_tree_count", 1) or 1),
+            is_tree_set=False,
+            has_event_model=False,
+            has_time_model=False,
+            display_id_source="reference_node_id",
+            result_semantics_note=semantics_note,
             warnings=warnings,
         )
 
@@ -543,6 +629,11 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
             semantics_note = (
                 "BayesTraits MultiState 通过外部 BayesTraitsV5.exe 运行，"
                 "当前节点显示的是性状祖先状态概率。"
+            )
+        elif actual_name.startswith("phytools"):
+            semantics_note = (
+                "phytools discrete trait reconstruction runs ape::ace through bundled R. "
+                "Node pies show ancestral trait-state probabilities, not ancestral geographic ranges."
             )
         elif actual_name.startswith("BBM"):
             semantics_note = (

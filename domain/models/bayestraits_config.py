@@ -24,11 +24,6 @@ BAYESTRAITS_CONTINUOUS_PLOT_SCALES = {
     "original": "Original scale (back-transformed)",
 }
 
-BAYESTRAITS_CONTINUOUS_DTT_WEIGHT_MODES = {
-    "corrected": "Corrected gradual split",
-    "paper_original": "Paper original weighting",
-}
-
 BAYESTRAITS_MODELS = {
     "MULTISTATE": {
         "label": "MultiState",
@@ -135,19 +130,10 @@ class BayesTraitsConfig:
     extra_commands: str = ""
     random_seed: int = 0
     auto_map_categorical: bool = False
-    use_tree_collection: bool = True
     continuous_asr: bool = False
     continuous_transform: str = "none"
     continuous_display_scale: str = "analysis"
     continuous_plot_scale: str = "analysis"
-    continuous_dtt: bool = False
-    continuous_dtt_tree_limit: int = 30
-    continuous_dtt_threads: int = 1
-    continuous_dtt_random_seed: int = 20260608
-    continuous_dtt_time_step: float = 5.0
-    continuous_dtt_age_offset: float = 0.0
-    continuous_dtt_bootstrap_count: int = 100
-    continuous_dtt_weight_mode: str = "corrected"
 
     selected_node_ids: List[str] = field(default_factory=list)
     fossil_states: Dict[str, str] = field(default_factory=dict)
@@ -177,7 +163,6 @@ class BayesTraitsConfig:
         self.model = normalize_bayestraits_model(self.model)
         model_spec = BAYESTRAITS_MODELS[self.model]
         self.continuous_asr = bool(self.continuous_asr)
-        self.continuous_dtt = bool(getattr(self, "continuous_dtt", False))
         self.continuous_transform = normalize_bayestraits_continuous_transform(
             getattr(self, "continuous_transform", "none")
         )
@@ -191,7 +176,6 @@ class BayesTraitsConfig:
             self.continuous_transform = "none"
             self.continuous_display_scale = "analysis"
             self.continuous_plot_scale = "analysis"
-            self.continuous_dtt = False
         if self.continuous_transform == "none":
             self.continuous_display_scale = "analysis"
             self.continuous_plot_scale = "analysis"
@@ -202,25 +186,6 @@ class BayesTraitsConfig:
             if not bool(model_spec.get("supports_continuous_asr", False)):
                 raise ValueError("Continuous ASR visualization is only available for Continuous Model A / Model B.")
             self.analysis_method = "MCMC"
-            self.use_tree_collection = False
-        else:
-            self.continuous_dtt = False
-
-        self.continuous_dtt_tree_limit = int(getattr(self, "continuous_dtt_tree_limit", 30) or 30)
-        self.continuous_dtt_threads = int(getattr(self, "continuous_dtt_threads", 1) or 1)
-        self.continuous_dtt_random_seed = int(getattr(self, "continuous_dtt_random_seed", 20260608) or 20260608)
-        self.continuous_dtt_time_step = float(getattr(self, "continuous_dtt_time_step", 5.0) or 5.0)
-        self.continuous_dtt_age_offset = float(getattr(self, "continuous_dtt_age_offset", 0.0) or 0.0)
-        self.continuous_dtt_bootstrap_count = int(getattr(self, "continuous_dtt_bootstrap_count", 100) or 100)
-        self.continuous_dtt_weight_mode = normalize_bayestraits_continuous_dtt_weight_mode(
-            getattr(self, "continuous_dtt_weight_mode", "corrected")
-        )
-        self.continuous_dtt_tree_limit = max(1, min(30, self.continuous_dtt_tree_limit))
-        self.continuous_dtt_threads = max(1, self.continuous_dtt_threads)
-        self.continuous_dtt_time_step = max(0.000001, self.continuous_dtt_time_step)
-        self.continuous_dtt_bootstrap_count = max(1, self.continuous_dtt_bootstrap_count)
-        if self.continuous_dtt and self.continuous_dtt_random_seed < 0:
-            raise ValueError("DTT random seed cannot be negative.")
 
         requested_traits = [
             str(x).strip()
@@ -304,19 +269,10 @@ class BayesTraitsConfig:
             "extra_commands": str(self.extra_commands or ""),
             "random_seed": int(getattr(self, "random_seed", 0) or 0),
             "auto_map_categorical": bool(self.auto_map_categorical),
-            "use_tree_collection": bool(self.use_tree_collection),
             "continuous_asr": bool(self.continuous_asr),
             "continuous_transform": str(getattr(self, "continuous_transform", "none") or "none"),
             "continuous_display_scale": str(getattr(self, "continuous_display_scale", "analysis") or "analysis"),
             "continuous_plot_scale": str(getattr(self, "continuous_plot_scale", "analysis") or "analysis"),
-            "continuous_dtt": bool(getattr(self, "continuous_dtt", False)),
-            "continuous_dtt_tree_limit": int(getattr(self, "continuous_dtt_tree_limit", 30) or 30),
-            "continuous_dtt_threads": int(getattr(self, "continuous_dtt_threads", 1) or 1),
-            "continuous_dtt_random_seed": int(getattr(self, "continuous_dtt_random_seed", 20260608) or 20260608),
-            "continuous_dtt_time_step": float(getattr(self, "continuous_dtt_time_step", 5.0) or 5.0),
-            "continuous_dtt_age_offset": float(getattr(self, "continuous_dtt_age_offset", 0.0) or 0.0),
-            "continuous_dtt_bootstrap_count": int(getattr(self, "continuous_dtt_bootstrap_count", 100) or 100),
-            "continuous_dtt_weight_mode": str(getattr(self, "continuous_dtt_weight_mode", "corrected") or "corrected"),
             "selected_node_ids": list(self.selected_node_ids or []),
             "fossil_states": dict(self.fossil_states or {}),
         }
@@ -396,19 +352,10 @@ class BayesTraitsConfig:
             extra_commands=str(value("extra_commands", default.extra_commands) or ""),
             random_seed=int(value("random_seed", getattr(default, "random_seed", 0)) or 0),
             auto_map_categorical=bool(value("auto_map_categorical", default.auto_map_categorical)),
-            use_tree_collection=bool(value("use_tree_collection", default.use_tree_collection)),
             continuous_asr=bool(value("continuous_asr", getattr(default, "continuous_asr", False))),
             continuous_transform=str(value("continuous_transform", getattr(default, "continuous_transform", "none")) or "none"),
             continuous_display_scale=str(value("continuous_display_scale", getattr(default, "continuous_display_scale", "analysis")) or "analysis"),
             continuous_plot_scale=str(value("continuous_plot_scale", getattr(default, "continuous_plot_scale", "analysis")) or "analysis"),
-            continuous_dtt=bool(value("continuous_dtt", getattr(default, "continuous_dtt", False))),
-            continuous_dtt_tree_limit=int(value("continuous_dtt_tree_limit", getattr(default, "continuous_dtt_tree_limit", 30)) or 30),
-            continuous_dtt_threads=int(value("continuous_dtt_threads", getattr(default, "continuous_dtt_threads", 1)) or 1),
-            continuous_dtt_random_seed=int(value("continuous_dtt_random_seed", getattr(default, "continuous_dtt_random_seed", 20260608)) or 20260608),
-            continuous_dtt_time_step=float(value("continuous_dtt_time_step", getattr(default, "continuous_dtt_time_step", 5.0)) or 5.0),
-            continuous_dtt_age_offset=float(value("continuous_dtt_age_offset", getattr(default, "continuous_dtt_age_offset", 0.0)) or 0.0),
-            continuous_dtt_bootstrap_count=int(value("continuous_dtt_bootstrap_count", getattr(default, "continuous_dtt_bootstrap_count", 100)) or 100),
-            continuous_dtt_weight_mode=str(value("continuous_dtt_weight_mode", getattr(default, "continuous_dtt_weight_mode", "corrected")) or "corrected"),
             selected_node_ids=selected,
             fossil_states=fossils,
         )
@@ -492,24 +439,6 @@ def normalize_bayestraits_continuous_plot_scale(value: str) -> str:
     if text in aliases:
         return aliases[text]
     raise ValueError("Unsupported continuous trait plot scale: %s" % value)
-
-
-def normalize_bayestraits_continuous_dtt_weight_mode(value: str) -> str:
-    text = str(value or "corrected").strip().lower().replace(" ", "").replace("_", "").replace("-", "")
-    aliases = {
-        "": "corrected",
-        "corrected": "corrected",
-        "normal": "corrected",
-        "gradual": "corrected",
-        "gradualsplit": "corrected",
-        "paper": "paper_original",
-        "paperoriginal": "paper_original",
-        "original": "paper_original",
-        "legacy": "paper_original",
-    }
-    if text in aliases:
-        return aliases[text]
-    raise ValueError("Unsupported continuous DTT weight mode: %s" % value)
 
 
 def normalize_bayestraits_model(value: str) -> str:

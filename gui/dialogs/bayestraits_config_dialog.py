@@ -3,7 +3,6 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -24,7 +23,6 @@ from PyQt5.QtWidgets import (
 from domain.models.bayestraits_config import (
     BAYESTRAITS_ANALYSIS_METHODS,
     BAYESTRAITS_CONTINUOUS_TRANSFORMS,
-    BAYESTRAITS_CONTINUOUS_DTT_WEIGHT_MODES,
     BAYESTRAITS_HYPER_PRIOR_ALL,
     BAYESTRAITS_MODELS,
     BAYESTRAITS_RESTRICT_ALL,
@@ -32,7 +30,6 @@ from domain.models.bayestraits_config import (
     BAYESTRAITS_STONES,
     BayesTraitsConfig,
     normalize_bayestraits_analysis_method,
-    normalize_bayestraits_continuous_dtt_weight_mode,
     normalize_bayestraits_continuous_transform,
     normalize_bayestraits_model,
 )
@@ -248,49 +245,8 @@ class BayesTraitsConfigDialog(QDialog):
     def _build_advanced_group(self):
         group = QGroupBox("Advanced", self)
         layout = QVBoxLayout(group)
-        self.use_tree_collection_check = QCheckBox("Use prepared tree set when available", group)
-        self.use_tree_collection_check.setEnabled(self.tree_set_available)
         self.auto_map_check = QCheckBox("Auto-map categorical values to BayesTraits symbols", group)
-        self.continuous_dtt_check = QCheckBox("Disparity-through-time on dated tree set", group)
-        self.continuous_dtt_check.toggled.connect(self._update_controls)
-        layout.addWidget(self.use_tree_collection_check)
         layout.addWidget(self.auto_map_check)
-        layout.addWidget(self.continuous_dtt_check)
-
-        dtt_form = QFormLayout()
-        self.dtt_tree_limit_spin = QSpinBox(group)
-        self.dtt_tree_limit_spin.setRange(1, 30)
-        self.dtt_tree_limit_spin.setValue(30)
-        self.dtt_threads_spin = QSpinBox(group)
-        self.dtt_threads_spin.setRange(1, 64)
-        self.dtt_threads_spin.setValue(1)
-        self.dtt_seed_spin = QSpinBox(group)
-        self.dtt_seed_spin.setRange(0, 2147483647)
-        self.dtt_seed_spin.setValue(20260608)
-        self.dtt_time_step_spin = QDoubleSpinBox(group)
-        self.dtt_time_step_spin.setRange(0.000001, 1000000.0)
-        self.dtt_time_step_spin.setDecimals(6)
-        self.dtt_time_step_spin.setSingleStep(1.0)
-        self.dtt_time_step_spin.setValue(5.0)
-        self.dtt_age_offset_spin = QDoubleSpinBox(group)
-        self.dtt_age_offset_spin.setRange(-1000000.0, 1000000.0)
-        self.dtt_age_offset_spin.setDecimals(6)
-        self.dtt_age_offset_spin.setSingleStep(1.0)
-        self.dtt_age_offset_spin.setValue(0.0)
-        self.dtt_bootstrap_spin = QSpinBox(group)
-        self.dtt_bootstrap_spin.setRange(1, 100000)
-        self.dtt_bootstrap_spin.setValue(100)
-        self.dtt_weight_combo = QComboBox(group)
-        for key, label in BAYESTRAITS_CONTINUOUS_DTT_WEIGHT_MODES.items():
-            self.dtt_weight_combo.addItem(label, key)
-        dtt_form.addRow("DTT tree limit", self.dtt_tree_limit_spin)
-        dtt_form.addRow("DTT threads", self.dtt_threads_spin)
-        dtt_form.addRow("DTT seed", self.dtt_seed_spin)
-        dtt_form.addRow("DTT time step", self.dtt_time_step_spin)
-        dtt_form.addRow("DTT age offset", self.dtt_age_offset_spin)
-        dtt_form.addRow("DTT bootstrap", self.dtt_bootstrap_spin)
-        dtt_form.addRow("DTT weighting", self.dtt_weight_combo)
-        layout.addLayout(dtt_form)
 
         layout.addWidget(QLabel("Other commands", group))
         self.extra_commands_edit = QTextEdit(group)
@@ -322,19 +278,7 @@ class BayesTraitsConfigDialog(QDialog):
         self.stones_combo.setEditText(str(config.stones or ""))
         self.extra_commands_edit.setPlainText(str(config.extra_commands or ""))
         self.auto_map_check.setChecked(bool(config.auto_map_categorical))
-        self.use_tree_collection_check.setChecked(bool(config.use_tree_collection and self.tree_set_available))
         self.continuous_asr_check.setChecked(bool(getattr(config, "continuous_asr", False)))
-        self.continuous_dtt_check.setChecked(bool(getattr(config, "continuous_dtt", False) and self.tree_set_available))
-        self.dtt_tree_limit_spin.setValue(max(1, min(30, int(getattr(config, "continuous_dtt_tree_limit", 30) or 30))))
-        self.dtt_threads_spin.setValue(max(1, int(getattr(config, "continuous_dtt_threads", 1) or 1)))
-        self.dtt_seed_spin.setValue(max(0, int(getattr(config, "continuous_dtt_random_seed", 20260608) or 20260608)))
-        self.dtt_time_step_spin.setValue(max(0.000001, float(getattr(config, "continuous_dtt_time_step", 5.0) or 5.0)))
-        self.dtt_age_offset_spin.setValue(float(getattr(config, "continuous_dtt_age_offset", 0.0) or 0.0))
-        self.dtt_bootstrap_spin.setValue(max(1, int(getattr(config, "continuous_dtt_bootstrap_count", 100) or 100)))
-        self._set_combo_data(
-            self.dtt_weight_combo,
-            normalize_bayestraits_continuous_dtt_weight_mode(getattr(config, "continuous_dtt_weight_mode", "corrected")),
-        )
         self._set_combo_data(
             self.continuous_transform_combo,
             normalize_bayestraits_continuous_transform(getattr(config, "continuous_transform", "none")),
@@ -360,17 +304,8 @@ class BayesTraitsConfigDialog(QDialog):
             stones=str(self.stones_combo.currentText() or ""),
             extra_commands=self.extra_commands_edit.toPlainText(),
             auto_map_categorical=bool(self.auto_map_check.isChecked()),
-            use_tree_collection=bool(self.use_tree_collection_check.isChecked()),
             continuous_asr=bool(self.continuous_asr_check.isChecked()),
             continuous_transform=str(self.continuous_transform_combo.currentData() or "none"),
-            continuous_dtt=bool(self.continuous_dtt_check.isChecked()),
-            continuous_dtt_tree_limit=int(self.dtt_tree_limit_spin.value()),
-            continuous_dtt_threads=int(self.dtt_threads_spin.value()),
-            continuous_dtt_random_seed=int(self.dtt_seed_spin.value()),
-            continuous_dtt_time_step=float(self.dtt_time_step_spin.value()),
-            continuous_dtt_age_offset=float(self.dtt_age_offset_spin.value()),
-            continuous_dtt_bootstrap_count=int(self.dtt_bootstrap_spin.value()),
-            continuous_dtt_weight_mode=str(self.dtt_weight_combo.currentData() or "corrected"),
             selected_node_ids=self._selected_node_ids(),
             fossil_states=self._fossil_states(),
         )
@@ -409,26 +344,6 @@ class BayesTraitsConfigDialog(QDialog):
         self.continuous_transform_combo.setEnabled(is_continuous)
         if not is_continuous:
             self._set_combo_data(self.continuous_transform_combo, "none")
-        self.use_tree_collection_check.setEnabled(self.tree_set_available and not continuous_asr)
-        if continuous_asr:
-            self.use_tree_collection_check.setChecked(False)
-        dtt_enabled = bool(continuous_asr and self.tree_set_available)
-        self.continuous_dtt_check.setEnabled(dtt_enabled)
-        if not dtt_enabled and self.continuous_dtt_check.isChecked():
-            self.continuous_dtt_check.blockSignals(True)
-            self.continuous_dtt_check.setChecked(False)
-            self.continuous_dtt_check.blockSignals(False)
-        dtt_checked = bool(self.continuous_dtt_check.isChecked() and dtt_enabled)
-        for widget in [
-            self.dtt_tree_limit_spin,
-            self.dtt_threads_spin,
-            self.dtt_seed_spin,
-            self.dtt_time_step_spin,
-            self.dtt_age_offset_spin,
-            self.dtt_bootstrap_spin,
-            self.dtt_weight_combo,
-        ]:
-            widget.setEnabled(dtt_checked)
         self._enforce_trait_selection_for_model()
 
     def _exclusive_rjhp_resall(self):
@@ -627,6 +542,5 @@ class BayesTraitsConfigDialog(QDialog):
                 for record in self.node_records
             ],
         )
-        config.use_tree_collection = self.tree_set_available
         self._config = config
         self._load_config(config)

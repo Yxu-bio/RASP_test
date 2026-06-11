@@ -2,7 +2,6 @@ from datetime import datetime
 from pathlib import Path
 
 from application.services.bayestraits_dataset_builder import BayesTraitsDatasetBuilder
-from application.services.continuous_trait_dtt_service import ContinuousTraitDTTService
 from infrastructure.bayestraits.bayestraits_output_parser import BayesTraitsOutputParser
 from infrastructure.bayestraits.bayestraits_runner import BayesTraitsRunner
 
@@ -12,11 +11,6 @@ class BayesTraitsAnalysisService:
         self.dataset_builder = BayesTraitsDatasetBuilder()
         self.output_parser = BayesTraitsOutputParser()
         self.runner = BayesTraitsRunner(executable_path=executable_path)
-        self.dtt_service = ContinuousTraitDTTService(
-            dataset_builder=self.dataset_builder,
-            runner=self.runner,
-            output_parser=self.output_parser,
-        )
         self.work_root = Path(work_root) if work_root else Path("runs") / "bayestraits"
 
     def set_executable_path(self, executable_path):
@@ -63,13 +57,4 @@ class BayesTraitsAnalysisService:
             run_output=run_output,
         )
         result.config = config
-        if bool(getattr(config, "continuous_dtt", False)):
-            result = self.dtt_service.attach_dtt(
-                result=result,
-                matrix=matrix,
-                config=config,
-                tree_entries=tree_entries,
-                output_dir=run_files.workdir / "continuous_dtt",
-            )
-            result.config = config
         return result

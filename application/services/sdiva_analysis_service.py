@@ -39,6 +39,7 @@ class SDivaAnalysisService:
         reference_tree=None,
         distribution_name: str = "d1",
         config=None,
+        progress_callback=None,
     ) -> SDivaResult:
         if not tree_entries:
             raise ValueError("S-DIVA run failed: no trees are available for analysis")
@@ -93,7 +94,12 @@ class SDivaAnalysisService:
             fossil_count=len(reference_nodes),
             run_final_tree=run_final_tree,
         )
-        console_log = self._run_diva_proc_files(proc_paths, run_dir, len(prepared))
+        console_log = self._run_diva_proc_files(
+            proc_paths,
+            run_dir,
+            len(prepared),
+            progress_callback=progress_callback,
+        )
 
         warnings = []
         missing = []
@@ -289,11 +295,9 @@ class SDivaAnalysisService:
             )
         return log_path
 
-    def _run_diva_proc_files(self, proc_paths: list, run_dir: Path, tree_count: int) -> str:
+    def _run_diva_proc_files(self, proc_paths: list, run_dir: Path, tree_count: int, progress_callback=None) -> str:
         if not proc_paths:
             raise ValueError("S-DIVA run failed: no proc files were written")
-        if len(proc_paths) == 1:
-            return str(self._run_diva_proc(proc_paths[0], run_dir, tree_count))
 
         timeout = max(30, min(self.DIVA_TIMEOUT_SECONDS, 3 * int(tree_count or 1)))
         processes = []
@@ -312,21 +316,40 @@ class SDivaAnalysisService:
                 log_paths.append(log_path)
 
             deadline = time.monotonic() + timeout
-            for process, proc_path, log_file, log_path in processes:
-                remaining = max(0.1, deadline - time.monotonic())
-                try:
-                    return_code = process.wait(timeout=remaining)
-                except subprocess.TimeoutExpired as exc:
+            last_done = -1
+            while True:
+                done = self._count_numeric_diva_outputs(run_dir)
+                if done != last_done:
+                    last_done = done
+                    self._emit_progress(
+                        progress_callback,
+                        min(done, int(tree_count or 0)),
+                        int(tree_count or 0),
+                        "S-DIVA DIVA.exe finished %s/%s tree result file(s)" % (
+                            min(done, int(tree_count or 0)),
+                            int(tree_count or 0),
+                        ),
+                    )
+
+                if all(process.poll() is not None for process, _proc_path, _log_file, _log_path in processes):
+                    break
+
+                if time.monotonic() > deadline:
                     for running, _running_proc, _running_log_file, _running_log_path in processes:
                         if running.poll() is None:
                             running.kill()
+                    first_proc = processes[0][1]
+                    first_log = processes[0][3]
                     raise TimeoutError(
                         "DIVA.exe did not exit in threaded proc mode after %s seconds.\n"
                         "Proc file: %s\nConsole log: %s\nLog tail:\n%s"
-                        % (timeout, proc_path, log_path, self._read_tail(log_path))
-                    ) from exc
-                finally:
-                    log_file.close()
+                        % (timeout, first_proc, first_log, self._read_tail(first_log))
+                    )
+                time.sleep(0.5)
+
+            for process, proc_path, log_file, log_path in processes:
+                return_code = process.poll()
+                log_file.close()
 
                 if return_code != 0:
                     raise RuntimeError(
@@ -343,6 +366,18 @@ class SDivaAnalysisService:
                         log_file.close()
 
         return "; ".join(str(path) for path in log_paths)
+
+    def _count_numeric_diva_outputs(self, run_dir: Path) -> int:
+        count = 0
+        for path in run_dir.glob("*.diva"):
+            if str(path.stem).isdigit():
+                count += 1
+        return count
+
+    def _emit_progress(self, progress_callback, done, total, message):
+        if progress_callback is None:
+            return
+        progress_callback(int(done or 0), int(total or 0), str(message or ""))
 
     def _legacy_do_analysis(
         self,

@@ -16,6 +16,8 @@ from PyQt5.QtWidgets import (
 
 from copy import deepcopy
 from pathlib import Path
+import shutil
+import time
 
 
 from application.services.diva_analysis_service import DivaAnalysisService
@@ -27,6 +29,8 @@ from application.services.sbgb_analysis_service import SBGBAnalysisService
 from application.services.bayarea_analysis_service import BayAreaAnalysisService
 from application.services.bbm_analysis_service import BBMAnalysisService
 from application.services.bayestraits_analysis_service import BayesTraitsAnalysisService
+from application.services.phytools_analysis_service import PhytoolsAnalysisService
+from application.services.sphytools_analysis_service import SPhytoolsAnalysisService
 from application.services.taxon_match_service import TaxonMatchService
 from application.services.tree_collection_prepare_service import TreeCollectionPrepareService
 from application.services.biogeobears_model_test_service import BioGeoBEARSModelTestService
@@ -43,6 +47,8 @@ from gui.workers.sbgb_run_worker import SBGBRunWorker
 from gui.workers.bayarea_run_worker import BayAreaRunWorker
 from gui.workers.bbm_run_worker import BBMRunWorker
 from gui.workers.bayestraits_run_worker import BayesTraitsRunWorker
+from gui.workers.phytools_run_worker import PhytoolsRunWorker
+from gui.workers.sphytools_run_worker import SPhytoolsRunWorker
 from gui.workers.biogeobears_model_test_worker import BioGeoBEARSModelTestWorker
 
 
@@ -51,6 +57,12 @@ from domain.models.sbgb_config import SBGBConfig, SBGB_MODEL_DISPLAY
 from domain.models.bayarea_config import BayAreaConfig
 from domain.models.bbm_config import BBMConfig
 from domain.models.bayestraits_config import BayesTraitsConfig
+from domain.models.phytools_config import PhytoolsConfig
+from domain.models.phytools_config import (
+    PHYTOOLS_CONTINUOUS_METHODS,
+    PHYTOOLS_DISCRETE_METHODS,
+    PHYTOOLS_TREESET_CONTINUOUS_METHODS,
+)
 from gui.dialogs.sdiva_config_dialog import SDivaConfigDialog
 from gui.dialogs.dec_config_dialog import DECConfigDialog
 from gui.dialogs.sdec_config_dialog import SDECConfigDialog
@@ -59,12 +71,14 @@ from gui.dialogs.bayarea_config_dialog import BayAreaConfigDialog
 from gui.dialogs.bayarea_tracer_dialog import BayAreaTracerDialog
 from gui.dialogs.bbm_config_dialog import BBMConfigDialog
 from gui.dialogs.bayestraits_config_dialog import BayesTraitsConfigDialog
+from gui.dialogs.phytools_config_dialog import PhytoolsConfigDialog
 from gui.dialogs.project_import_dialog import ProjectImportDialog
 from gui.dialogs.result_view_window import ResultViewWindow
 from gui.widgets.matrix_preview_table import MatrixPreviewTable
 from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
 from domain.models.tree_collection_options import TreeCollectionOptions
+from domain.models.state_matrix import StateMatrix
 
 from visualization.renderers.diva_result_renderer import DivaResultRenderer
 from visualization.renderers.sdiva_result_renderer import SDivaResultRenderer
@@ -139,11 +153,24 @@ class MainWindow(QMainWindow):
             work_root=default_bayestraits_work_root,
         )
 
+        default_phytools_work_root = project_root / "runs" / "phytools"
+        self.phytools_service = PhytoolsAnalysisService(
+            rscript_path=default_bgb_rscript,
+            site_library_path=default_bgb_site_lib,
+            work_root=default_phytools_work_root,
+        )
+        default_sphytools_work_root = project_root / "runs" / "sphytools"
+        self.sphytools_service = SPhytoolsAnalysisService(
+            self.phytools_service,
+            work_root=default_sphytools_work_root,
+        )
+
 
         # ---------------- 当前单树、矩阵、结果、树集合状态 ----------------
         self.current_tree = None
         self.current_tree_path = ""
         self.current_matrix = None
+        self.current_matrix_profiles = {}
         self.current_method_name = "DIVA"
         self.current_result_window = None
         self.current_tree_collection = None
@@ -164,6 +191,10 @@ class MainWindow(QMainWindow):
         self.bayarea_worker = None
         self.bbm_worker = None
         self.bayestraits_worker = None
+        self.phytools_worker = None
+        self.sphytools_worker = None
+        self.ape_worker = None
+        self.sape_worker = None
 
         self.current_result = None
         self.current_diva_config = None
@@ -181,7 +212,13 @@ class MainWindow(QMainWindow):
         self.current_bayarea_config = None
         self.current_bbm_config = None
         self.current_bayestraits_config = None
+        self.current_phytools_config = None
+        self.current_sphytools_config = None
+        self.current_ape_config = None
+        self.current_sape_config = None
+        self.current_trait_result = None
         self.current_selected_trait_column = ""
+        self._series_progress_log_buckets = {}
 
 
         # ---------------- 主工作台：矩阵 + 日志 + 状态 ----------------
@@ -272,6 +309,7 @@ class MainWindow(QMainWindow):
         self._refresh_consensus_tree_summary()
         self._recompute_tree_collection_state()
         self.append_run_log("RASP-Pro workspace initialized.")
+        QTimer.singleShot(0, lambda: self._cleanup_old_run_artifacts(retention_days=5))
 
     def _wrap_workspace_panel(self, title, widget):
         group = QGroupBox(str(title or ""), self)
@@ -279,6 +317,70 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addWidget(widget)
         return group
+
+    def _cleanup_old_run_artifacts(self, retention_days=5):
+        runs_root = Path(__file__).resolve().parents[1] / "runs"
+        if not runs_root.exists():
+            return
+        try:
+            cutoff = time.time() - max(1, int(retention_days or 5)) * 86400
+        except Exception:
+            cutoff = time.time() - 5 * 86400
+
+        container_dirs = {
+            "bayarea",
+            "bayestraits",
+            "bbm",
+            "benchmarks",
+            "biogeobears",
+            "dec",
+            "diva",
+            "mrbayes",
+            "phytools",
+            "sape",
+            "sbgb",
+            "sdec",
+            "sdiva",
+            "sphytools",
+        }
+        preserve_dirs = {"source_data"}
+
+        removed = 0
+        skipped = 0
+
+        def remove_if_old(run_dir):
+            if not run_dir.is_dir():
+                return
+            if (run_dir / "KEEP").exists() or (run_dir / ".keep").exists():
+                nonlocal_skipped[0] += 1
+                return
+            try:
+                if run_dir.stat().st_mtime >= cutoff:
+                    return
+                shutil.rmtree(str(run_dir))
+                nonlocal_removed[0] += 1
+            except Exception:
+                nonlocal_skipped[0] += 1
+
+        nonlocal_removed = [0]
+        nonlocal_skipped = [0]
+        for top_dir in runs_root.iterdir():
+            if not top_dir.is_dir():
+                continue
+            if top_dir.name in preserve_dirs:
+                continue
+            if top_dir.name in container_dirs:
+                for run_dir in top_dir.iterdir():
+                    remove_if_old(run_dir)
+            else:
+                remove_if_old(top_dir)
+
+        removed = nonlocal_removed[0]
+        skipped = nonlocal_skipped[0]
+        if removed or skipped:
+            self.append_run_log(
+                "Run cache cleanup: removed %s old run folder(s), skipped %s." % (removed, skipped)
+            )
 
     def _preserve_workspace_split(self):
         if not hasattr(self, "workspace_splitter") or self.workspace_splitter is None:
@@ -336,11 +438,13 @@ class MainWindow(QMainWindow):
         """)
 
         file_menu = menubar.addMenu("File")
-        reconstruction_menu = menubar.addMenu("Ancestral Range Reconstruction")
+        reconstruction_menu = menubar.addMenu("Ancestral Distribution Reconstruction")
         consensus_tree_menu = reconstruction_menu.addMenu("On Consensus Tree")
         trees_menu = reconstruction_menu.addMenu("On Trees")
         model_test_menu = reconstruction_menu.addMenu("Model Test")
         trait_menu = menubar.addMenu("Trait Reconstruction")
+        trait_consensus_tree_menu = trait_menu.addMenu("On Consensus Tree")
+        trait_trees_menu = trait_menu.addMenu("On Trees")
         view_menu = menubar.addMenu("View")
 
         self.open_tree_action = QAction("Open Tree File", self)
@@ -393,7 +497,23 @@ class MainWindow(QMainWindow):
 
         self.run_bayestraits_action = QAction("BayesTraits", self)
         self.run_bayestraits_action.triggered.connect(self.run_bayestraits)
-        trait_menu.addAction(self.run_bayestraits_action)
+        trait_consensus_tree_menu.addAction(self.run_bayestraits_action)
+
+        self.run_phytools_action = QAction("phytools", self)
+        self.run_phytools_action.triggered.connect(self.run_phytools)
+        trait_consensus_tree_menu.addAction(self.run_phytools_action)
+
+        self.run_ape_action = QAction("ape", self)
+        self.run_ape_action.triggered.connect(self.run_ape)
+        trait_consensus_tree_menu.addAction(self.run_ape_action)
+
+        self.run_sphytools_action = QAction("S-phytools", self)
+        self.run_sphytools_action.triggered.connect(self.run_sphytools)
+        trait_trees_menu.addAction(self.run_sphytools_action)
+
+        self.run_sape_action = QAction("S-ape", self)
+        self.run_sape_action.triggered.connect(self.run_sape)
+        trait_trees_menu.addAction(self.run_sape_action)
 
         self.run_sbgb_action = QAction("S-BioGeoBEARS", self)
         self.run_sbgb_action.triggered.connect(self.run_sbgb)
@@ -474,6 +594,7 @@ class MainWindow(QMainWindow):
             clear_dec=True,
             clear_sdec=True,
             clear_biogeobears=True,
+            clear_trait=True,
     ):
         if clear_diva:
             self.current_result = None
@@ -489,6 +610,8 @@ class MainWindow(QMainWindow):
 
         if clear_biogeobears:
             self.current_biogeobears_result = None
+        if clear_trait:
+            self.current_trait_result = None
 
         if self.current_method_name == "S-DIVA" and self.current_sdiva_result is None:
             self.current_method_name = "DIVA"
@@ -501,6 +624,8 @@ class MainWindow(QMainWindow):
 
         if self._is_biogeobears_method(self.current_method_name) and self.current_biogeobears_result is None:
             self.current_method_name = "DIVA"
+        if self._is_trait_method(self.current_method_name) and self.current_trait_result is None:
+            self.current_method_name = "DIVA"
 
     def _is_biogeobears_method(self, method_name):
         text = str(method_name or "")
@@ -509,18 +634,34 @@ class MainWindow(QMainWindow):
             or text.startswith("S-BioGeoBEARS")
             or text.startswith("BayArea")
             or text.startswith("BBM")
-            or text.startswith("BayesTraits")
+        )
+
+    def _is_trait_method(self, method_name):
+        text = str(method_name or "")
+        return (
+            text.startswith("BayesTraits")
+            or text.startswith("phytools")
+            or text.startswith("S-phytools")
+            or text.startswith("ape")
+            or text.startswith("S-ape")
         )
 
     def _get_active_result_context(self):
         if (
-            self.current_biogeobears_result is not None
-            and type(self.current_biogeobears_result).__name__ == "ContinuousTraitResult"
+            self.current_trait_result is not None
+            and type(self.current_trait_result).__name__ == "ContinuousTraitResult"
         ):
             return {
-                "method_name": str(getattr(self.current_biogeobears_result, "model_name", "") or "BayesTraits Continuous ASR"),
-                "result": self.current_biogeobears_result,
+                "method_name": str(getattr(self.current_trait_result, "model_name", "") or self.current_method_name or "Trait Reconstruction"),
+                "result": self.current_trait_result,
                 "renderer_cls": ContinuousTraitResultRenderer,
+            }
+
+        if self._is_trait_method(self.current_method_name) and self.current_trait_result is not None:
+            return {
+                "method_name": str(self.current_method_name),
+                "result": self.current_trait_result,
+                "renderer_cls": BioGeoBEARSResultRenderer,
             }
 
         if self._is_biogeobears_method(self.current_method_name) and self.current_biogeobears_result is not None:
@@ -563,6 +704,13 @@ class MainWindow(QMainWindow):
                 "method_name": str(getattr(self.current_biogeobears_result, "model_name", "") or "BioGeoBEARS"),
                 "result": self.current_biogeobears_result,
                 "renderer_cls": BioGeoBEARSResultRenderer,
+            }
+
+        if self.current_trait_result is not None and self.current_result is None and self.current_sdiva_result is None and self.current_dec_result is None and self.current_sdec_result is None:
+            return {
+                "method_name": str(getattr(self.current_trait_result, "model_name", "") or "Trait Reconstruction"),
+                "result": self.current_trait_result,
+                "renderer_cls": ContinuousTraitResultRenderer if type(self.current_trait_result).__name__ == "ContinuousTraitResult" else BioGeoBEARSResultRenderer,
             }
 
         if self.current_sdec_result is not None and self.current_result is None and self.current_sdiva_result is None and self.current_dec_result is None:
@@ -612,39 +760,66 @@ class MainWindow(QMainWindow):
         if self.current_matrix is None:
             return {}, {}
 
-        if self._is_biogeobears_method(self.current_method_name) and str(self.current_method_name).startswith("BayesTraits"):
+        if self._is_trait_method(self.current_method_name) and str(self.current_method_name).startswith("BayesTraits"):
             config = getattr(self, "current_bayestraits_config", None)
             if str(getattr(config, "model", "MULTISTATE") or "MULTISTATE") != "MULTISTATE":
                 return {}, {}
-            trait_column = str(getattr(config, "trait_column", "") or "").strip()
-            if trait_column:
-                leaf_state_map = {}
-                states = []
-                for row in self.current_matrix.rows:
-                    taxon_name = str(row.get("Name", "")).strip()
-                    if not taxon_name:
-                        continue
-                    state = str(row.get(trait_column, "") or "").strip()
-                    if not state:
-                        continue
-                    leaf_state_map[taxon_name] = state
-                    if state not in states:
-                        states.append(state)
-                states.sort(key=lambda x: (len(x), x))
-                preferred_colors = {}
-                if self.current_biogeobears_result is not None and getattr(self.current_biogeobears_result, "state_colors", None):
-                    preferred_colors = dict(self.current_biogeobears_result.state_colors)
-                palette = [
-                    "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
-                    "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5",
-                    "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f",
-                    "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
-                ]
-                state_colors = {
-                    state: preferred_colors.get(state, palette[i % len(palette)])
-                    for i, state in enumerate(states)
-                }
-                return leaf_state_map, state_colors
+            return self._build_trait_leaf_state_payload(str(getattr(config, "trait_column", "") or ""))
+
+        if self._is_trait_method(self.current_method_name) and (
+            str(self.current_method_name).startswith("phytools")
+            or str(self.current_method_name).startswith("S-phytools")
+            or str(self.current_method_name).startswith("ape")
+            or str(self.current_method_name).startswith("S-ape")
+        ):
+            config = getattr(self, "current_phytools_config", None)
+            if str(self.current_method_name).startswith("S-phytools"):
+                config = getattr(self, "current_sphytools_config", None)
+            elif str(self.current_method_name).startswith("ape"):
+                config = getattr(self, "current_ape_config", None)
+            elif str(self.current_method_name).startswith("S-ape"):
+                config = getattr(self, "current_sape_config", None)
+            if str(getattr(config, "method", "") or "") == "FASTANC":
+                return {}, {}
+            return self._build_trait_leaf_state_payload(str(getattr(config, "trait_column", "") or ""))
+
+        return self._build_range_leaf_state_payload_from_matrix()
+
+    def _build_trait_leaf_state_payload(self, trait_column):
+        trait_column = str(trait_column or "").strip()
+        if not trait_column or self.current_matrix is None:
+            return {}, {}
+        leaf_state_map = {}
+        states = []
+        for row in self.current_matrix.rows:
+            taxon_name = str(row.get("Name", "")).strip()
+            if not taxon_name:
+                continue
+            state = str(row.get(trait_column, "") or "").strip()
+            if not state:
+                continue
+            leaf_state_map[taxon_name] = state
+            if state not in states:
+                states.append(state)
+        states.sort(key=lambda x: (len(x), x))
+        preferred_colors = {}
+        if self.current_trait_result is not None and getattr(self.current_trait_result, "state_colors", None):
+            preferred_colors = dict(self.current_trait_result.state_colors)
+        palette = [
+            "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
+            "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5",
+            "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f",
+            "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
+        ]
+        state_colors = {
+            state: preferred_colors.get(state, palette[i % len(palette)])
+            for i, state in enumerate(states)
+        }
+        return leaf_state_map, state_colors
+
+    def _build_range_leaf_state_payload_from_matrix(self):
+        if self.current_matrix is None:
+            return {}, {}
 
         leaf_state_map = {}
         states = []
@@ -658,39 +833,22 @@ class MainWindow(QMainWindow):
             for col in self.current_matrix.state_columns:
                 if col in ("ID", "Name"):
                     continue
-                val = str(row.get(col, "")).strip()
-                if val:
-                    state_parts.append(val)
+                value = str(row.get(col, "")).strip()
+                if value in ("1", "True", "true", "T", "t", "yes", "Y"):
+                    state_parts.append(col)
 
-            state = "".join(state_parts).strip()
-            if state:
-                leaf_state_map[taxon_name] = state
-                if state not in states:
-                    states.append(state)
+            state = "".join(state_parts) if state_parts else "empty"
+            leaf_state_map[taxon_name] = state
+            if state not in states:
+                states.append(state)
 
-        states.sort(key=lambda x: (len(x), x))
         palette = [
-            "#e41a1c",
-            "#377eb8",
-            "#4daf4a",
-            "#984ea3",
-            "#ff7f00",
-            "#ffff33",
-            "#a65628",
-            "#f781bf",
-            "#999999",
-            "#66c2a5",
-            "#fc8d62",
-            "#8da0cb",
-            "#e78ac3",
-            "#a6d854",
-            "#ffd92f",
-            "#1b9e77",
-            "#d95f02",
-            "#7570b3",
-            "#e7298a",
-            "#66a61e",
+            "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
+            "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5",
+            "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f",
+            "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
         ]
+        states.sort(key=lambda x: (len(x), x))
         state_colors = {
             state: palette[i % len(palette)]
             for i, state in enumerate(states)
@@ -1024,6 +1182,10 @@ class MainWindow(QMainWindow):
         self.current_tree_path = file_path
         self.current_dec_config = None
         self.current_bayestraits_config = None
+        self.current_phytools_config = None
+        self.current_sphytools_config = None
+        self.current_ape_config = None
+        self.current_sape_config = None
         self._clear_analysis_results(clear_diva=True, clear_sdiva=True)
 
         leaf_count = len(renderer.get_leaf_names())
@@ -1047,9 +1209,17 @@ class MainWindow(QMainWindow):
             if str(col).strip()
         ]
         self.current_selected_trait_column = state_columns[0] if state_columns else ""
+        self.current_matrix_profiles = self._build_matrix_profiles(
+            matrix,
+            preferred_column=self.current_selected_trait_column,
+        )
         self.current_sdiva_config = None
         self.current_dec_config = None
         self.current_bayestraits_config = None
+        self.current_phytools_config = None
+        self.current_sphytools_config = None
+        self.current_ape_config = None
+        self.current_sape_config = None
         self._clear_analysis_results(clear_diva=True, clear_sdiva=True)
 
         self.matrix_preview.load_matrix(matrix, selected_trait_column=self.current_selected_trait_column)
@@ -1074,7 +1244,243 @@ class MainWindow(QMainWindow):
         self.current_selected_trait_column = column
         if self.current_bayestraits_config is not None and column in list(getattr(self.current_bayestraits_config, "trait_columns", []) or []):
             self.current_bayestraits_config.trait_column = column
+        if self.current_phytools_config is not None and column in list(getattr(self.current_phytools_config, "trait_columns", []) or []):
+            self.current_phytools_config.trait_column = column
+        if self.current_sphytools_config is not None and column in list(getattr(self.current_sphytools_config, "trait_columns", []) or []):
+            self.current_sphytools_config.trait_column = column
+        if self.current_ape_config is not None and column in list(getattr(self.current_ape_config, "trait_columns", []) or []):
+            self.current_ape_config.trait_column = column
+        if self.current_sape_config is not None and column in list(getattr(self.current_sape_config, "trait_columns", []) or []):
+            self.current_sape_config.trait_column = column
+        self.current_matrix_profiles = self._build_matrix_profiles(
+            self.current_matrix,
+            preferred_column=column,
+        )
         self.append_run_log("Selected trait column: %s" % column)
+
+    def _build_matrix_profiles(self, matrix, preferred_column=None):
+        profile = {
+            "trait_columns": [
+                str(col).strip()
+                for col in list(getattr(matrix, "state_columns", []) or [])
+                if str(col).strip()
+            ],
+            "range": None,
+            "range_error": "",
+            "preferred_column": str(preferred_column or "").strip(),
+        }
+        try:
+            range_profile = self._detect_range_profile(
+                matrix,
+                preferred_column=preferred_column,
+            )
+            if range_profile:
+                profile["range"] = range_profile
+        except Exception as exc:
+            profile["range_error"] = str(exc)
+        return profile
+
+    def _detect_range_profile(self, matrix, preferred_column=None):
+        columns = [
+            str(col).strip()
+            for col in list(getattr(matrix, "state_columns", []) or [])
+            if str(col).strip() and str(col).strip() not in ("ID", "Name")
+        ]
+        rows = list(getattr(matrix, "rows", []) or [])
+        if not columns or not rows:
+            raise ValueError("No matrix columns/rows are available.")
+
+        builder = self.dec_service.dataset_builder
+        binary_columns = []
+        for column in columns:
+            values = [str(row.get(column, "") or "").strip() for row in rows]
+            if values and all(builder._is_binary_like(value) for value in values):
+                binary_columns.append(column)
+
+        preferred = str(preferred_column or "").strip()
+        if preferred and preferred in columns:
+            if preferred in binary_columns and len(binary_columns) > 1:
+                return self._binary_range_profile(rows, binary_columns)
+            if self._column_looks_numeric(rows, preferred):
+                raise ValueError(
+                    "Selected column '%s' appears to be numeric/continuous. "
+                    "Biogeographic reconstruction methods require an encoded range column "
+                    "such as A/B/AB/BCD, or binary area columns." % preferred
+                )
+            try:
+                return self._encoded_range_profile(matrix, [preferred])
+            except Exception as exc:
+                raise ValueError(
+                    "Selected column '%s' cannot be used as a range column. "
+                    "Use values like A, B, AB, A+B, or A|B. Details: %s"
+                    % (preferred, exc)
+                )
+
+        if binary_columns:
+            return self._binary_range_profile(rows, binary_columns)
+
+        encoded_columns = [column for column in columns if column not in binary_columns]
+        encoded_header_names = {
+            "range", "ranges", "distribution", "distributions", "area", "areas",
+            "state", "states", "range_state", "geography", "geographic_range",
+        }
+        encoded_priority = [
+            "range",
+            "ranges",
+            "distribution",
+            "distributions",
+            "area",
+            "areas",
+            "state",
+            "states",
+            "range_state",
+            "geography",
+            "geographic_range",
+        ]
+        encoded_matches = [
+            column
+            for column in encoded_columns
+            if column.strip().lower() in encoded_header_names
+        ]
+        if encoded_matches:
+            encoded_matches.sort(
+                key=lambda col: encoded_priority.index(col.strip().lower())
+                if col.strip().lower() in encoded_priority
+                else len(encoded_priority)
+            )
+            return self._encoded_range_profile(matrix, [encoded_matches[0]])
+
+        raise ValueError(
+            "No range profile was detected. Use binary area columns such as A/B/C/D, "
+            "or select an encoded range column with values such as A/B/AB/BCD."
+        )
+
+    def _column_looks_numeric(self, rows, column):
+        values = [
+            str(row.get(column, "") or "").strip()
+            for row in list(rows or [])
+            if str(row.get(column, "") or "").strip()
+        ]
+        if not values:
+            return False
+        numeric_count = 0
+        for value in values:
+            try:
+                float(value)
+                numeric_count += 1
+            except Exception:
+                pass
+        return numeric_count == len(values)
+
+    def _binary_range_profile(self, rows, binary_columns):
+        builder = self.dec_service.dataset_builder
+        bit_rows = []
+        taxon_ranges = []
+        for row in rows:
+            taxon = str(row.get("Name", "") or "").strip()
+            if not taxon:
+                continue
+            bits = "".join(builder._normalize_presence_value(row.get(col, "")) for col in binary_columns)
+            if "1" not in bits:
+                raise ValueError("Taxon '%s' has an empty range in binary area columns." % taxon)
+            bit_rows.append((taxon, bits))
+            taxon_ranges.append("".join(area for area, bit in zip(binary_columns, bits) if bit == "1"))
+        if not bit_rows:
+            raise ValueError("No valid taxa were found in the binary area columns.")
+        return {
+            "mode": "binary",
+            "area_names": list(binary_columns),
+            "rows": bit_rows,
+            "taxon_ranges": taxon_ranges,
+            "source_columns": list(binary_columns),
+        }
+
+    def _encoded_range_profile(self, matrix, encoded_columns):
+        builder = self.dec_service.dataset_builder
+        rows = []
+        for row in list(getattr(matrix, "rows", []) or []):
+            taxon = str(row.get("Name", "") or "").strip()
+            if not taxon:
+                continue
+            clean_row = {
+                "ID": str(row.get("ID", "") or ""),
+                "Name": taxon,
+            }
+            for column in encoded_columns:
+                clean_row[column] = str(row.get(column, "") or "").strip()
+            rows.append(clean_row)
+        temp = StateMatrix(
+            ids=[str(row.get("ID", "") or "") for row in rows],
+            taxa_names=[str(row.get("Name", "") or "") for row in rows],
+            state_columns=list(encoded_columns),
+            rows=rows,
+            source_path=str(getattr(matrix, "source_path", "") or ""),
+        )
+        area_names, bit_rows = builder._collect_area_names_and_rows(temp)
+        taxon_ranges = [
+            "".join(area for area, bit in zip(area_names, bits) if bit == "1")
+            for _taxon, bits in bit_rows
+        ]
+        return {
+            "mode": "encoded",
+            "area_names": list(area_names),
+            "rows": list(bit_rows),
+            "taxon_ranges": taxon_ranges,
+            "source_columns": list(encoded_columns),
+        }
+
+    def _range_matrix_profile(self):
+        return dict((self.current_matrix_profiles or {}).get("range") or {})
+
+    def _current_range_matrix_view(self, title="Cannot configure"):
+        if self.current_matrix is None:
+            QMessageBox.warning(self, title, "Please import a matrix first.")
+            return None
+        self.current_matrix_profiles = self._build_matrix_profiles(
+            self.current_matrix,
+            preferred_column=getattr(self, "current_selected_trait_column", ""),
+        )
+        profile = self._range_matrix_profile()
+        area_names = list(profile.get("area_names") or [])
+        bit_rows = list(profile.get("rows") or [])
+        if not area_names or not bit_rows:
+            detail = str((self.current_matrix_profiles or {}).get("range_error", "") or "")
+            QMessageBox.warning(
+                self,
+                title,
+                "The current matrix has no usable range profile.\n\n"
+                "Biogeographic reconstruction methods use the currently selected matrix column. "
+                "Select an encoded range column with values like A, B, AB, or BCD; "
+                "or use binary area columns such as A/B/C/D with 0/1 values.\n\n"
+                "Continuous trait columns may stay in the same file, but they cannot be used by these methods."
+                + (("\n\nDetails: %s" % detail) if detail else ""),
+            )
+            return None
+
+        row_by_name = {
+            str(row.get("Name", "") or "").strip(): row
+            for row in list(getattr(self.current_matrix, "rows", []) or [])
+        }
+        rows = []
+        ids = []
+        taxa_names = []
+        for taxon, bits in bit_rows:
+            source_row = row_by_name.get(str(taxon), {})
+            row_id = str(source_row.get("ID", "") or len(rows) + 1)
+            row = {"ID": row_id, "Name": str(taxon)}
+            for area, bit in zip(area_names, bits):
+                row[area] = str(bit)
+            rows.append(row)
+            ids.append(row_id)
+            taxa_names.append(str(taxon))
+
+        return StateMatrix(
+            ids=ids,
+            taxa_names=taxa_names,
+            state_columns=list(area_names),
+            rows=rows,
+            source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
+        )
 
     def _load_tree_collection_from_path(self, file_path):
         self.append_run_log("Loading Trees Dataset ...")
@@ -1355,6 +1761,7 @@ class MainWindow(QMainWindow):
     ):
         action.setEnabled(False)
         self.progress_panel.set_busy_indeterminate(busy_text)
+        self._series_progress_log_buckets = {}
         method_label = ""
         try:
             method_label = str(action.text() or "").strip()
@@ -1488,15 +1895,19 @@ class MainWindow(QMainWindow):
         self._append_analysis_result_to_run_log(self.current_method_name, result)
         self.open_result_window()
 
-    def _open_diva_config_dialog(self):
-        if self.current_matrix is None:
-            QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
-            return None
+    def _apply_trait_result(self, result):
+        self.current_trait_result = result
+        self.current_method_name = str(getattr(result, "model_name", "") or "Trait Reconstruction")
+        self.progress_panel.set_done("%s run finished" % self.current_method_name)
+        self._update_analysis_feedback(self.current_method_name, result)
+        self._append_analysis_result_to_run_log(self.current_method_name, result)
+        self.open_result_window()
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
-        if not area_names:
-            QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
+    def _open_diva_config_dialog(self):
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
             return None
+        area_names, _taxon_ranges = range_context
 
         fossil_nodes = self._sdiva_fossil_nodes_for_config(self.current_tree, self.current_matrix)
         current_config = self._prepare_sdiva_config_for_fossil_nodes(
@@ -1532,11 +1943,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_diva_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = DivaRunWorker(
             service=self.diva_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             tree_name="t1",
             distribution_name="d1",
             config=config,
@@ -1570,7 +1984,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "无法配置", "请先导入状态矩阵。")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "无法配置", "未能从状态矩阵中识别区域。")
             return None
@@ -1599,7 +2016,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1625,7 +2045,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1651,7 +2074,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1678,7 +2104,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a consensus tree first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1720,10 +2149,13 @@ class MainWindow(QMainWindow):
 
     def _bbm_node_records_for_config(self):
         builder = self.bbm_service.dataset_builder
-        area_names, rows = builder._dec_builder._collect_area_names_and_rows(self.current_matrix)
+        range_matrix = self._current_range_matrix_view("Cannot configure BBM")
+        if range_matrix is None:
+            raise ValueError("No range profile is available for BBM.")
+        area_names, rows = builder._dec_builder._collect_area_names_and_rows(range_matrix)
         builder._dec_builder._validate_tree_and_matrix(self.current_tree, rows)
         taxon_names = [taxon for taxon, _bits in rows]
-        taxon_id_map = builder._collect_taxon_ids(self.current_matrix, taxon_names)
+        taxon_id_map = builder._collect_taxon_ids(range_matrix, taxon_names)
         return builder.build_node_records(self.current_tree, taxon_id_map)
 
     def _open_bayestraits_config_dialog(self):
@@ -1773,15 +2205,11 @@ class MainWindow(QMainWindow):
             ]
             dialog_config.selected_node_ids = selected_ids or list(node_ids)
 
-        tree_set_available = bool(list(getattr(self, "current_prepared_tree_entries", []) or []))
-        if not tree_set_available:
-            dialog_config.use_tree_collection = False
-
         dialog = BayesTraitsConfigDialog(
             trait_columns=trait_columns,
             node_records=node_records,
             config=dialog_config,
-            tree_set_available=tree_set_available,
+            tree_set_available=False,
             parent=self,
         )
         if dialog.exec_() != QDialog.Accepted:
@@ -1794,12 +2222,60 @@ class MainWindow(QMainWindow):
         taxon_id_map = builder._collect_taxon_ids(self.current_matrix, taxon_names)
         return builder.build_node_records(self.current_tree, taxon_id_map)
 
+    def _open_phytools_config_dialog(
+        self,
+        *,
+        tree_set=False,
+        current_config=None,
+        method_keys=None,
+        title="phytools",
+    ):
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot configure", "Please import a trait matrix first.")
+            return None
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot configure", "Please import a reference/consensus tree first.")
+            return None
+        trait_columns = [
+            str(x).strip()
+            for x in list(getattr(self.current_matrix, "state_columns", []) or [])
+            if str(x).strip()
+        ]
+        if not trait_columns:
+            QMessageBox.warning(self, "Cannot configure", "No trait columns were detected from the matrix.")
+            return None
+
+        if current_config is not None and list(getattr(current_config, "trait_columns", []) or []) != trait_columns:
+            current_config = None
+        dialog_config = deepcopy(current_config) if current_config is not None else PhytoolsConfig.default_for_columns(trait_columns)
+        allowed_methods = [str(x) for x in list(method_keys or []) if str(x)]
+        if allowed_methods and str(getattr(dialog_config, "method", "") or "") not in allowed_methods:
+            dialog_config.method = allowed_methods[0]
+        selected_trait_column = str(getattr(self, "current_selected_trait_column", "") or "").strip()
+        if selected_trait_column in trait_columns:
+            dialog_config.trait_column = selected_trait_column
+
+        dialog = PhytoolsConfigDialog(
+            trait_columns=trait_columns,
+            config=dialog_config,
+            parent=self,
+            show_threads=tree_set,
+            title=title,
+            method_keys=allowed_methods,
+        )
+        if dialog.exec_() != QDialog.Accepted:
+            return None
+        return dialog.config()
+
     def _open_sbgb_config_dialog(self):
         if self.current_matrix is None:
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1826,7 +2302,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1862,7 +2341,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot configure", "Please import a range matrix first.")
             return None
 
-        area_names = infer_sdiva_area_names(self.current_matrix)
+        range_context = self._current_range_matrix_context("Cannot configure")
+        if range_context is None:
+            return None
+        area_names, _taxon_ranges = range_context
         if not area_names:
             QMessageBox.warning(self, "Cannot configure", "No areas were detected from the matrix.")
             return None
@@ -1894,33 +2376,25 @@ class MainWindow(QMainWindow):
             return None
         return dialog.config()
 
-    def _infer_taxon_ranges_for_config(self, area_names):
-        try:
-            builder = self.dec_service.dataset_builder
-            detected_areas, rows = builder._collect_area_names_and_rows(self.current_matrix)
-            if list(detected_areas) == list(area_names):
-                ranges = []
-                for _taxon, bits in rows:
-                    ranges.append("".join(area for area, bit in zip(detected_areas, bits) if str(bit) == "1"))
-                return [value for value in ranges if value]
-        except Exception:
-            pass
+    def _current_range_matrix_context(self, title):
+        range_matrix = self._current_range_matrix_view(title)
+        if range_matrix is None:
+            return None
 
-        rows = list(getattr(self.current_matrix, "rows", []) or [])
-        state_columns = [
-            str(col).strip()
-            for col in list(getattr(self.current_matrix, "state_columns", []) or [])
-            if str(col).strip() and str(col).strip() not in ("ID", "Name")
-        ]
-        values = []
-        for row in rows:
-            parts = []
-            for area in area_names:
-                if area in state_columns and str(row.get(area, "")).strip().lower() not in ("", "0", "false", "no", "n", "absent"):
-                    parts.append(area)
-            if parts:
-                values.append("".join(parts))
-        return values
+        profile = self._range_matrix_profile()
+        area_names = list(profile.get("area_names") or [])
+        taxon_ranges = list(profile.get("taxon_ranges") or [])
+        if not area_names:
+            QMessageBox.warning(self, title, "No areas were detected from the matrix.")
+            return None
+
+        return list(area_names), [value for value in taxon_ranges if value]
+
+    def _infer_taxon_ranges_for_config(self, area_names):
+        profile = self._range_matrix_profile()
+        if list(profile.get("area_names") or []) == list(area_names or []):
+            return [value for value in list(profile.get("taxon_ranges") or []) if value]
+        return []
 
     def _estimate_root_age_for_config(self):
         tree = self.current_tree
@@ -2040,11 +2514,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_sdiva_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = SDivaRunWorker(
             service=self.sdiva_service,
             tree_entries=self.current_prepared_tree_entries,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             reference_tree=self.current_tree,
             distribution_name="d1",
             config=config,
@@ -2058,6 +2535,7 @@ class MainWindow(QMainWindow):
             on_success=self._on_sdiva_finished,
             on_failed=self._on_sdiva_failed,
             on_finished=self._on_sdiva_worker_finished,
+            on_progress=self._on_sdiva_progress,
         )
 
     def _on_sdiva_finished(self, result):
@@ -2072,6 +2550,9 @@ class MainWindow(QMainWindow):
             worker_attr_name="sdiva_worker",
             action=self.run_sdiva_action,
         )
+
+    def _on_sdiva_progress(self, done, total, message):
+        self._on_series_progress("S-DIVA", done, total, message)
 
     def run_dec(self):
         if self.current_tree is None:
@@ -2091,11 +2572,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_dec_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = DECRunWorker(
             service=self.dec_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             run_name="dec_debug",
             config=config,
             scale_tree_to_root_age=True,
@@ -2148,11 +2632,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_sdec_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = SDECRunWorker(
             service=self.sdec_service,
             reference_tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             tree_entries=tree_entries,
             run_name_prefix="sdec_debug",
             config=config,
@@ -2166,6 +2653,7 @@ class MainWindow(QMainWindow):
             on_success=self._on_sdec_finished,
             on_failed=self._on_sdec_failed,
             on_finished=self._on_sdec_worker_finished,
+            on_progress=self._on_sdec_progress,
         )
 
     def _on_sdec_finished(self, result):
@@ -2180,6 +2668,9 @@ class MainWindow(QMainWindow):
             worker_attr_name="sdec_worker",
             action=self.run_sdec_action,
         )
+
+    def _on_sdec_progress(self, done, total, message):
+        self._on_series_progress("S-DEC", done, total, message)
 
 
     def run_bayarea(self):
@@ -2201,11 +2692,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_bayarea_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = BayAreaRunWorker(
             service=self.bayarea_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             run_name="bayarea_debug",
             config=config,
         )
@@ -2288,11 +2782,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_bbm_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = BBMRunWorker(
             service=self.bbm_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             run_name="bbm_debug",
             config=config,
         )
@@ -2344,18 +2841,14 @@ class MainWindow(QMainWindow):
             self.current_selected_trait_column = trait_column
             self.matrix_preview.set_selected_trait_column(trait_column)
 
-        tree_entries = []
-        if bool(getattr(config, "use_tree_collection", False)) or bool(getattr(config, "continuous_dtt", False)):
-            tree_entries = list(getattr(self, "current_prepared_tree_entries", []) or [])
-
-        if not self._confirm_bayestraits_runtime(config, tree_entries):
+        if not self._confirm_bayestraits_runtime(config):
             return
 
         worker = BayesTraitsRunWorker(
             service=self.bayestraits_service,
             reference_tree=self.current_tree,
             matrix=self.current_matrix,
-            tree_entries=tree_entries,
+            tree_entries=[],
             run_name="bayestraits_debug",
             config=config,
         )
@@ -2371,7 +2864,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_bayestraits_finished(self, result):
-        self._apply_biogeobears_result(result)
+        self._apply_trait_result(result)
 
     def _on_bayestraits_failed(self, message):
         self.progress_panel.set_error("BayesTraits 运行失败")
@@ -2383,54 +2876,32 @@ class MainWindow(QMainWindow):
             action=self.run_bayestraits_action,
         )
 
-    def _confirm_bayestraits_runtime(self, config, tree_entries):
+    def _confirm_bayestraits_runtime(self, config):
         if not bool(getattr(config, "continuous_asr", False)):
             return True
 
         tip_count, internal_count = self._bayestraits_tree_size(self.current_tree)
-        selected_tree_count = 1
-        if bool(getattr(config, "continuous_dtt", False)):
-            available = len([
-                entry for entry in list(tree_entries or [])
-                if getattr(entry, "parsed_tree", None) is not None
-            ])
-            selected_tree_count = min(
-                max(1, int(getattr(config, "continuous_dtt_tree_limit", 30) or 30)),
-                max(1, available),
-            )
-
         iterations = max(0, int(getattr(config, "iterations", 0) or 0))
         sample_frequency = max(1, int(getattr(config, "sample_frequency", 1) or 1))
         burnin = max(0, int(getattr(config, "burnin", 0) or 0))
         retained_samples = max(0, int((max(0, iterations - burnin) // sample_frequency) + 1))
-        total_bt_runs = 1 + selected_tree_count if bool(getattr(config, "continuous_dtt", False)) else 1
-        total_node_tags = internal_count * total_bt_runs
+        total_node_tags = internal_count
 
         warnings = []
         if retained_samples < 100:
             warnings.append(
                 "Retained posterior samples are fewer than 100; this is suitable for a smoke test, "
-                "not for interpreting node values or DTT curves."
+                "not for interpreting continuous node values."
             )
         if internal_count >= 200:
             warnings.append(
                 "The reference tree has %s internal nodes. BayesTraits Continuous ASR estimates "
                 "one unknown value per internal node, so this is a large Bayesian job." % internal_count
             )
-        if bool(getattr(config, "continuous_dtt", False)) and internal_count >= 200 and selected_tree_count >= 10:
+        if internal_count >= 300 and iterations >= 5000000:
             warnings.append(
-                "Continuous DTT will run BayesTraits on %s dated trees plus the reference tree "
-                "(%s total BayesTraits runs)." % (selected_tree_count, total_bt_runs)
-            )
-        if (
-            bool(getattr(config, "continuous_dtt", False))
-            and internal_count >= 300
-            and selected_tree_count >= 20
-            and iterations >= 5000000
-        ):
-            warnings.append(
-                "This setting is in the multi-hour/day range on large trees. For the tetrapod-sized "
-                "dataset we tested, 25 trees with 5.05M iterations is roughly a 25-hour class run."
+                "This is a large single-tree BayesTraits job. It can still take a long time on "
+                "tetrapod-sized trees."
             )
 
         if not warnings:
@@ -2440,20 +2911,16 @@ class MainWindow(QMainWindow):
             "BayesTraits Continuous ASR runtime check\n\n"
             "Tips: %s\n"
             "Internal nodes / estimated node tags per run: %s\n"
-            "Selected dated trees for DTT: %s\n"
-            "Total BayesTraits runs: %s\n"
             "Iterations: %s\n"
             "Sample period: %s\n"
             "BurnIn: %s\n"
             "Retained samples per run: about %s\n"
-            "Total node tags across runs: %s\n\n"
+            "Total node tags in this run: %s\n\n"
             "%s\n\n"
             "Continue?"
             % (
                 tip_count,
                 internal_count,
-                selected_tree_count if bool(getattr(config, "continuous_dtt", False)) else 0,
-                total_bt_runs,
                 iterations,
                 sample_frequency,
                 burnin,
@@ -2483,6 +2950,250 @@ class MainWindow(QMainWindow):
                 internals += 1
         return tips, internals
 
+    def run_phytools(self):
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a reference/consensus tree first.")
+            return
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a trait matrix first.")
+            return
+        try:
+            self.phytools_service.runner.resolve_rscript_path()
+        except Exception as exc:
+            QMessageBox.warning(self, "Cannot run", str(exc))
+            return
+
+        config = self._open_phytools_config_dialog(
+            current_config=self.current_phytools_config,
+            method_keys=list(PHYTOOLS_CONTINUOUS_METHODS.keys()),
+            title="phytools",
+        )
+        if config is None:
+            return
+        self.current_phytools_config = config
+        trait_column = str(getattr(config, "trait_column", "") or "").strip()
+        if trait_column:
+            self.current_selected_trait_column = trait_column
+            self.matrix_preview.set_selected_trait_column(trait_column)
+
+        worker = PhytoolsRunWorker(
+            service=self.phytools_service,
+            tree=self.current_tree,
+            matrix=self.current_matrix,
+            config=config,
+            run_name="phytools_debug",
+        )
+        self._start_analysis_worker(
+            worker_attr_name="phytools_worker",
+            worker=worker,
+            action=self.run_phytools_action,
+            busy_text="Running phytools",
+            on_success=self._on_phytools_finished,
+            on_failed=self._on_phytools_failed,
+            on_finished=self._on_phytools_worker_finished,
+        )
+
+    def _on_phytools_finished(self, result):
+        self._apply_trait_result(result)
+
+    def _on_phytools_failed(self, message):
+        self.progress_panel.set_error("phytools run failed")
+        QMessageBox.critical(self, "phytools run failed", message)
+
+    def _on_phytools_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="phytools_worker",
+            action=self.run_phytools_action,
+        )
+
+    def run_ape(self):
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a reference/consensus tree first.")
+            return
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a trait matrix first.")
+            return
+        try:
+            self.phytools_service.runner.resolve_rscript_path()
+        except Exception as exc:
+            QMessageBox.warning(self, "Cannot run", str(exc))
+            return
+
+        config = self._open_phytools_config_dialog(
+            current_config=self.current_ape_config,
+            method_keys=list(PHYTOOLS_DISCRETE_METHODS.keys()),
+            title="ape",
+        )
+        if config is None:
+            return
+        self.current_ape_config = config
+        trait_column = str(getattr(config, "trait_column", "") or "").strip()
+        if trait_column:
+            self.current_selected_trait_column = trait_column
+            self.matrix_preview.set_selected_trait_column(trait_column)
+
+        worker = PhytoolsRunWorker(
+            service=self.phytools_service,
+            tree=self.current_tree,
+            matrix=self.current_matrix,
+            config=config,
+            run_name="ape_debug",
+        )
+        self._start_analysis_worker(
+            worker_attr_name="ape_worker",
+            worker=worker,
+            action=self.run_ape_action,
+            busy_text="Running ape",
+            on_success=self._on_ape_finished,
+            on_failed=self._on_ape_failed,
+            on_finished=self._on_ape_worker_finished,
+        )
+
+    def _on_ape_finished(self, result):
+        self._apply_trait_result(result)
+
+    def _on_ape_failed(self, message):
+        self.progress_panel.set_error("ape run failed")
+        QMessageBox.critical(self, "ape run failed", message)
+
+    def _on_ape_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="ape_worker",
+            action=self.run_ape_action,
+        )
+
+    def run_sphytools(self):
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a reference/consensus tree first.")
+            return
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a trait matrix first.")
+            return
+        tree_entries = list(getattr(self, "current_prepared_tree_entries", []) or [])
+        if not tree_entries:
+            QMessageBox.warning(self, "Cannot run", "Please import a tree set and prepare analyzable trees first.")
+            return
+        try:
+            self.phytools_service.runner.resolve_rscript_path()
+        except Exception as exc:
+            QMessageBox.warning(self, "Cannot run", str(exc))
+            return
+
+        config = self._open_phytools_config_dialog(
+            tree_set=True,
+            current_config=self.current_sphytools_config,
+            method_keys=list(PHYTOOLS_TREESET_CONTINUOUS_METHODS.keys()),
+            title="S-phytools",
+        )
+        if config is None:
+            return
+        self.current_sphytools_config = config
+        trait_column = str(getattr(config, "trait_column", "") or "").strip()
+        if trait_column:
+            self.current_selected_trait_column = trait_column
+            self.matrix_preview.set_selected_trait_column(trait_column)
+
+        worker = SPhytoolsRunWorker(
+            service=self.sphytools_service,
+            reference_tree=self.current_tree,
+            matrix=self.current_matrix,
+            tree_entries=tree_entries,
+            config=config,
+            run_name_prefix="sphytools_debug",
+        )
+        self._start_analysis_worker(
+            worker_attr_name="sphytools_worker",
+            worker=worker,
+            action=self.run_sphytools_action,
+            busy_text="Running S-phytools",
+            on_success=self._on_sphytools_finished,
+            on_failed=self._on_sphytools_failed,
+            on_finished=self._on_sphytools_worker_finished,
+            on_progress=self._on_sphytools_progress,
+        )
+
+    def _on_sphytools_finished(self, result):
+        self._apply_trait_result(result)
+
+    def _on_sphytools_failed(self, message):
+        self.progress_panel.set_error("S-phytools run failed")
+        QMessageBox.critical(self, "S-phytools run failed", message)
+
+    def _on_sphytools_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="sphytools_worker",
+            action=self.run_sphytools_action,
+        )
+
+    def _on_sphytools_progress(self, done, total, message):
+        self._on_series_progress("S-phytools", done, total, message)
+
+    def run_sape(self):
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a reference/consensus tree first.")
+            return
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a trait matrix first.")
+            return
+        tree_entries = list(getattr(self, "current_prepared_tree_entries", []) or [])
+        if not tree_entries:
+            QMessageBox.warning(self, "Cannot run", "Please import a tree set and prepare analyzable trees first.")
+            return
+        try:
+            self.phytools_service.runner.resolve_rscript_path()
+        except Exception as exc:
+            QMessageBox.warning(self, "Cannot run", str(exc))
+            return
+
+        config = self._open_phytools_config_dialog(
+            tree_set=True,
+            current_config=self.current_sape_config,
+            method_keys=list(PHYTOOLS_DISCRETE_METHODS.keys()),
+            title="S-ape",
+        )
+        if config is None:
+            return
+        self.current_sape_config = config
+        trait_column = str(getattr(config, "trait_column", "") or "").strip()
+        if trait_column:
+            self.current_selected_trait_column = trait_column
+            self.matrix_preview.set_selected_trait_column(trait_column)
+
+        worker = SPhytoolsRunWorker(
+            service=self.sphytools_service,
+            reference_tree=self.current_tree,
+            matrix=self.current_matrix,
+            tree_entries=tree_entries,
+            config=config,
+            run_name_prefix="sape_debug",
+        )
+        self._start_analysis_worker(
+            worker_attr_name="sape_worker",
+            worker=worker,
+            action=self.run_sape_action,
+            busy_text="Running S-ape",
+            on_success=self._on_sape_finished,
+            on_failed=self._on_sape_failed,
+            on_finished=self._on_sape_worker_finished,
+            on_progress=self._on_sape_progress,
+        )
+
+    def _on_sape_finished(self, result):
+        self._apply_trait_result(result)
+
+    def _on_sape_failed(self, message):
+        self.progress_panel.set_error("S-ape run failed")
+        QMessageBox.critical(self, "S-ape run failed", message)
+
+    def _on_sape_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="sape_worker",
+            action=self.run_sape_action,
+        )
+
+    def _on_sape_progress(self, done, total, message):
+        self._on_series_progress("S-ape", done, total, message)
+
 
     def run_sbgb(self):
         if self.current_tree is None:
@@ -2510,6 +3221,9 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_sbgb_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         model_name = str(config.model_name)
         display_model = SBGB_MODEL_DISPLAY.get(model_name, model_name)
@@ -2519,7 +3233,7 @@ class MainWindow(QMainWindow):
         worker = SBGBRunWorker(
             service=self.sbgb_service,
             reference_tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             tree_entries=tree_entries,
             run_name_prefix=f"sbgb_{model_name.lower()}",
             config=config,
@@ -2544,12 +3258,38 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "S-BGB 运行失败", message)
 
     def _on_sbgb_progress(self, completed, total, _message):
+        self._on_series_progress(
+            "S-BGB",
+            completed,
+            total,
+            _message or "S-BGB tree %s/%s finished" % (completed, total),
+        )
+        return
         total = max(1, int(total or 1))
         completed = max(0, int(completed or 0))
         percent = int(100.0 * completed / total)
         text = "S-BGB 运行中：已完成 %s/%s 棵树" % (completed, total)
         self.progress_panel.set_progress(percent, text)
         self._set_status_message(text)
+
+    def _on_series_progress(self, key, done, total, message):
+        total = max(1, int(total or 1))
+        done = max(0, min(int(done or 0), total))
+        percent = int(100.0 * done / total)
+        label = str(key or "S-series")
+        text = str(message or "%s %s/%s finished" % (label, done, total))
+        self.progress_panel.set_progress(percent, text)
+        self._set_status_message(text)
+
+        bucket = int(percent / 5) * 5
+        if done >= total:
+            bucket = 100
+        if bucket <= 0:
+            return
+        last_bucket = int(self._series_progress_log_buckets.get(label, 0) or 0)
+        if bucket > last_bucket:
+            self._series_progress_log_buckets[label] = bucket
+            self.append_run_log("%s progress: %s%% (%s/%s)" % (label, bucket, done, total))
 
     def _on_sbgb_worker_finished(self):
         self._finish_analysis_worker(
@@ -2580,6 +3320,9 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_biogeobears_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         effective_model_name = str(config.model_name)
         display_model = SBGB_MODEL_DISPLAY.get(effective_model_name, effective_model_name)
@@ -2589,7 +3332,7 @@ class MainWindow(QMainWindow):
         worker = BioGeoBEARSRunWorker(
             service=self.biogeobears_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             run_name=f"bgb_{effective_model_name.lower()}_debug",
             config=config,
         )
@@ -2641,11 +3384,14 @@ class MainWindow(QMainWindow):
         if config is None:
             return
         self.current_biogeobears_model_test_config = config
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
 
         worker = BioGeoBEARSModelTestWorker(
             service=self.biogeobears_model_test_service,
             tree=self.current_tree,
-            matrix=self.current_matrix,
+            matrix=range_matrix,
             run_name_prefix="bgb_model_test_debug",
             config=config,
         )

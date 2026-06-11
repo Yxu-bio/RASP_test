@@ -202,7 +202,7 @@ class BayesTraitsDatasetBuilder:
         return records
 
     def _select_tree_entries(self, reference_tree, tree_entries, config):
-        if bool(config.use_tree_collection):
+        if bool(getattr(config, "use_tree_collection", False)):
             entries = [
                 getattr(entry, "parsed_tree", None)
                 for entry in list(tree_entries or [])

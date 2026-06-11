@@ -4,6 +4,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 class SDECRunWorker(QThread):
     succeeded = pyqtSignal(object)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(int, int, str)
 
     def __init__(
         self,
@@ -31,6 +32,7 @@ class SDECRunWorker(QThread):
                 tree_entries=self.tree_entries,
                 run_name_prefix=self.run_name_prefix,
                 config=self.config,
+                progress_callback=self.progress.emit,
             )
         except Exception as exc:
             self.failed.emit(str(exc))

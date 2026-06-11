@@ -57,6 +57,7 @@ class SDECAnalysisService:
         tree_entries,
         run_name_prefix="sdec",
         config=None,
+        progress_callback=None,
     ):
         tree_entries = list(tree_entries or [])
         if not tree_entries:
@@ -117,6 +118,7 @@ class SDECAnalysisService:
             run_name_prefix=run_name_prefix,
             config=config,
             outer_workers=outer_workers,
+            progress_callback=progress_callback,
         )
 
         for run in per_tree_runs:
@@ -177,11 +179,13 @@ class SDECAnalysisService:
         run_name_prefix,
         config,
         outer_workers,
+        progress_callback=None,
     ) -> List[dict]:
         jobs = list(enumerate(tree_entries, start=1))
         if max(1, int(outer_workers or 1)) <= 1:
-            return [
-                self._run_one_tree_dec(
+            results = []
+            for done, (idx, entry) in enumerate(jobs, start=1):
+                item = self._run_one_tree_dec(
                     idx=idx,
                     entry=entry,
                     matrix=matrix,
@@ -189,8 +193,9 @@ class SDECAnalysisService:
                     run_name_prefix=run_name_prefix,
                     config=config,
                 )
-                for idx, entry in jobs
-            ]
+                results.append(item)
+                self._emit_progress(progress_callback, done, len(jobs), item)
+            return results
 
         results = []
         with ThreadPoolExecutor(max_workers=max(1, int(outer_workers or 1))) as executor:
@@ -207,8 +212,20 @@ class SDECAnalysisService:
                 for idx, entry in jobs
             ]
             for future in as_completed(futures):
-                results.append(future.result())
+                item = future.result()
+                results.append(item)
+                self._emit_progress(progress_callback, len(results), len(jobs), item)
         return sorted(results, key=lambda item: item["tree_index"])
+
+    def _emit_progress(self, progress_callback, done, total, item):
+        if progress_callback is None:
+            return
+        idx = int(item.get("tree_index", done) or done)
+        if item.get("error"):
+            text = "S-DEC tree %s/%s failed" % (idx, total)
+        else:
+            text = "S-DEC tree %s/%s finished" % (idx, total)
+        progress_callback(int(done), int(total), text)
 
     def _run_one_tree_dec(
         self,
