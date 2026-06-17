@@ -40,6 +40,8 @@ class BioGeoBEARSResult:
 
     model_statistics: Dict = field(default_factory=dict)
 
+    information_text: str = ""
+    time_summary_text: str = ""
 
 
     def get_node_result(self, node_key: str) -> Optional[BioGeoBEARSNodeResult]:

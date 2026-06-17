@@ -8,6 +8,8 @@ class DivaNodeResult:
     diva_node_id: int
     terminal_spec: str
     states: List[str] = field(default_factory=list)
+    state_supports: Dict[str, float] = field(default_factory=dict)
+    state_counts: Dict[str, float] = field(default_factory=dict)
     raw_line: str = ""
 
     # 饼图显示使用：每个状态一个独立扇区，等权

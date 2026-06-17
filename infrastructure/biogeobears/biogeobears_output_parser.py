@@ -1,6 +1,10 @@
 import json
+from pathlib import Path
 
-from domain.models.biogeobears_result import BioGeoBEARSResult, BioGeoBEARSNodeResult
+from domain.models.biogeobears_result import (
+    BioGeoBEARSResult,
+    BioGeoBEARSNodeResult,
+)
 
 
 class BioGeoBEARSOutputParser:
@@ -28,27 +32,14 @@ class BioGeoBEARSOutputParser:
     ]
 
     def parse(self, *, reference_tree, output_json_path):
-        payload = json.loads(open(output_json_path, "r", encoding="utf-8").read())
+        output_json_path = Path(output_json_path)
+        payload = json.loads(output_json_path.read_text(encoding="utf-8"))
 
         result = BioGeoBEARSResult(reference_tree=reference_tree)
         attrs = payload.get("attributes", {}) or {}
-
         model_name = str(attrs.get("model_name", "BioGeoBEARS") or "BioGeoBEARS")
 
-        pretty_name_map = {
-            "DEC": "DEC",
-            "DECJ": "DEC+J",
-            "DIVALIKE": "DIVALIKE",
-            "DIVALIKEJ": "DIVALIKE+J",
-            "BAYAREALIKE": "BAYAREALIKE",
-            "BAYAREALIKEJ": "BAYAREALIKE+J",
-        }
-
-        pretty_model_name = pretty_name_map.get(model_name, model_name)
-        include_null_range = self._safe_bool(attrs.get("include_null_range", True))
-        if not include_null_range:
-            pretty_model_name = "%s (no null range)" % pretty_model_name
-        result.model_name = "BioGeoBEARS-" + pretty_model_name
+        result.model_name = "BioGeoBEARS-" + self._pretty_model_name(model_name, attrs)
         result.result_note = "Parsed from BioGeoBEARS wrapper JSON."
         result.input_tree_count = 1
         result.effective_tree_count = 1
@@ -64,7 +55,6 @@ class BioGeoBEARSOutputParser:
                 continue
 
             unified_display_node_id = reference_node_id_map.get(clade_key, raw_bgb_node_id)
-
             states = []
             supports = {}
             pie_labels = []
@@ -75,18 +65,15 @@ class BioGeoBEARSOutputParser:
                 if not label:
                     continue
                 prob_percent = float(state_item.get("prob_percent", 0.0) or 0.0)
-
                 states.append(label)
                 supports[label] = prob_percent
                 pie_labels.append(label)
                 pie_percents.append(prob_percent)
-
                 if label not in all_states:
                     all_states.append(label)
 
             raw_payload = dict(entry)
             raw_payload["bgb_node_id"] = raw_bgb_node_id
-
             node_result = BioGeoBEARSNodeResult(
                 node_key=clade_key,
                 display_node_id=unified_display_node_id,
@@ -97,7 +84,7 @@ class BioGeoBEARSOutputParser:
                 pie_colors=[],
                 supporting_tree_count=1,
                 total_tree_count=1,
-                event_summary="BioGeoBEARS 单树结果",
+                event_summary="BioGeoBEARS single-tree result",
                 raw_method_payload=raw_payload,
             )
             result.node_results[clade_key] = node_result
@@ -121,11 +108,23 @@ class BioGeoBEARSOutputParser:
                 for label in node_result.pie_labels
             ]
 
-        optim_summary = payload.get("optim_summary", None)
-        if optim_summary:
+        if payload.get("optim_summary", None):
             result.result_note += " optim_summary_present=True"
-
+        self._attach_information_text(result)
         return result
+
+    def _pretty_model_name(self, model_name, attrs):
+        pretty = {
+            "DEC": "DEC",
+            "DECJ": "DEC+J",
+            "DIVALIKE": "DIVALIKE",
+            "DIVALIKEJ": "DIVALIKE+J",
+            "BAYAREALIKE": "BAYAREALIKE",
+            "BAYAREALIKEJ": "BAYAREALIKE+J",
+        }.get(model_name, model_name)
+        if not self._safe_bool(attrs.get("include_null_range", True)):
+            pretty = "%s (no null range)" % pretty
+        return pretty
 
     def _build_reference_node_id_map(self, reference_tree):
         mapping = {}
@@ -138,15 +137,12 @@ class BioGeoBEARSOutputParser:
             taxon_count = 0
 
         counter = 0
-
         for node in reference_tree.traverse("postorder"):
             if node.is_leaf():
                 continue
-
             counter += 1
             clade_key = "|".join(sorted(node.get_leaf_names()))
             mapping[clade_key] = str(taxon_count + counter)
-
         return mapping
 
     def _safe_float(self, value):
@@ -173,7 +169,6 @@ class BioGeoBEARSOutputParser:
 
         optim_result = optim_summary.get("optim_result", None)
         optim_item = None
-
         if isinstance(optim_result, list) and optim_result:
             optim_item = optim_result[0]
         elif isinstance(optim_result, dict):
@@ -186,7 +181,6 @@ class BioGeoBEARSOutputParser:
                     log_likelihood = self._safe_float(optim_item.get(key))
                     if log_likelihood is not None:
                         break
-
         if log_likelihood is None:
             for key in ("total_loglik", "LnL", "lnL", "log_likelihood"):
                 if key in optim_summary:
@@ -194,10 +188,7 @@ class BioGeoBEARSOutputParser:
                     if log_likelihood is not None:
                         break
 
-        # 第一版按 BioGeoBEARS 经典 6 模型固定：
-        # 无 +J: d/e 两个自由参数；+J: d/e/j 三个自由参数。
         num_params = 3 if str(model_name).upper().endswith("J") else 2
-
         sample_size = self._safe_float(attrs.get("tip_count", None))
         if sample_size is not None:
             sample_size = int(sample_size)
@@ -225,3 +216,42 @@ class BioGeoBEARSOutputParser:
             "threads": attrs.get("cores", ""),
             "cores_fallback_to_one": self._safe_bool(attrs.get("cores_fallback_to_one", False)),
         }
+
+    def _attach_information_text(self, result):
+        lines = []
+        method_name = str(getattr(result, "model_name", "") or "BioGeoBEARS")
+        lines.append("%s result summary" % method_name)
+        lines.append("")
+        lines.append("Internal nodes: %d" % len(getattr(result, "node_results", {}) or {}))
+
+        stats = dict(getattr(result, "model_statistics", {}) or {})
+        if stats:
+            for key in ["log_likelihood", "num_params", "sample_size", "include_null_range", "null_range_mode", "cores"]:
+                if key in stats and stats.get(key) not in (None, ""):
+                    lines.append("%s: %s" % (key, stats.get(key)))
+
+        node_results = list((getattr(result, "node_results", {}) or {}).values())
+        if node_results:
+            lines.append("")
+            lines.append("Top ancestral range per node")
+            for node in sorted(node_results, key=lambda n: self._node_id_sort_key(getattr(n, "display_node_id", ""))):
+                states = list(getattr(node, "states", []) or [])
+                if not states:
+                    continue
+                supports = dict(getattr(node, "state_supports", {}) or {})
+                best = states[0]
+                best_support = supports.get(best, "")
+                if best_support != "":
+                    lines.append("node %s: %s %.2f" % (getattr(node, "display_node_id", ""), best, float(best_support)))
+                else:
+                    lines.append("node %s: %s" % (getattr(node, "display_node_id", ""), best))
+
+        result.information_text = "\n".join(lines)
+        result.time_summary_text = "No structured event/time data is attached to this result."
+
+    def _node_id_sort_key(self, value):
+        text = str(value or "").strip()
+        try:
+            return (0, int(text))
+        except Exception:
+            return (1, text)

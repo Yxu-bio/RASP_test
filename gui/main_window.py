@@ -36,6 +36,8 @@ from application.services.tree_collection_prepare_service import TreeCollectionP
 from application.services.biogeobears_model_test_service import BioGeoBEARSModelTestService
 from application.services.project_import_service import ProjectImportService
 from application.services.result_schema_adapter import ResultSchemaAdapterFactory
+from application.services.heuristic_event_summary_service import HeuristicEventSummaryService
+from application.services.preflight_validation_service import PreflightValidationService
 
 
 from gui.workers.diva_run_worker import DivaRunWorker
@@ -43,6 +45,7 @@ from gui.workers.sdiva_run_worker import SDivaRunWorker
 from gui.workers.dec_run_worker import DECRunWorker
 from gui.workers.sdec_run_worker import SDECRunWorker
 from gui.workers.biogeobears_run_worker import BioGeoBEARSRunWorker
+from gui.workers.biogeobears_bsm_event_worker import BioGeoBEARSBSMEventWorker
 from gui.workers.sbgb_run_worker import SBGBRunWorker
 from gui.workers.bayarea_run_worker import BayAreaRunWorker
 from gui.workers.bbm_run_worker import BBMRunWorker
@@ -74,6 +77,8 @@ from gui.dialogs.bayestraits_config_dialog import BayesTraitsConfigDialog
 from gui.dialogs.phytools_config_dialog import PhytoolsConfigDialog
 from gui.dialogs.project_import_dialog import ProjectImportDialog
 from gui.dialogs.result_view_window import ResultViewWindow
+from gui.dialogs.bsm_event_table_dialog import BSMEventTableDialog
+from gui.dialogs.bsm_run_config_dialog import BSMRunConfigDialog
 from gui.widgets.matrix_preview_table import MatrixPreviewTable
 from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
@@ -104,6 +109,8 @@ class MainWindow(QMainWindow):
         self.taxon_match_service = TaxonMatchService()
         self.tree_collection_prepare_service = TreeCollectionPrepareService()
         self.project_import_service = ProjectImportService()
+        self.heuristic_event_summary_service = HeuristicEventSummaryService()
+        self.preflight_validation_service = PreflightValidationService()
 
         self.diva_service = DivaAnalysisService()
         self.sdiva_service = SDivaAnalysisService()
@@ -182,6 +189,7 @@ class MainWindow(QMainWindow):
         self.current_loaded_parse_error_count = 0
 
         self.biogeobears_worker = None
+        self.biogeobears_bsm_worker = None
         self.diva_worker = None
         self.sdiva_worker = None
         self.dec_worker = None
@@ -207,6 +215,7 @@ class MainWindow(QMainWindow):
         self.current_sbgb_config = None
         self.current_biogeobears_config = None
         self.current_biogeobears_result = None
+        self.current_bgb_bsm_event_result = None
         self.current_biogeobears_model_test_config = None
         self.current_biogeobears_model_test_result = None
         self.current_bayarea_config = None
@@ -442,6 +451,7 @@ class MainWindow(QMainWindow):
         consensus_tree_menu = reconstruction_menu.addMenu("On Consensus Tree")
         trees_menu = reconstruction_menu.addMenu("On Trees")
         model_test_menu = reconstruction_menu.addMenu("Model Test")
+        event_menu = menubar.addMenu("Biogeographic Event Analysis")
         trait_menu = menubar.addMenu("Trait Reconstruction")
         trait_consensus_tree_menu = trait_menu.addMenu("On Consensus Tree")
         trait_trees_menu = trait_menu.addMenu("On Trees")
@@ -527,6 +537,15 @@ class MainWindow(QMainWindow):
         self.run_bgb_model_test_action.triggered.connect(self.run_biogeobears_model_test)
         model_test_menu.addAction(self.run_bgb_model_test_action)
 
+        self.generate_bgb_bsm_action = QAction("Generate BioGeoBEARS BSM Events", self)
+        self.generate_bgb_bsm_action.triggered.connect(self.generate_biogeobears_bsm_events)
+        event_menu.addAction(self.generate_bgb_bsm_action)
+        event_menu.addSeparator()
+
+        self.open_bsm_event_table_action = QAction("BSM Event Table Viewer", self)
+        self.open_bsm_event_table_action.triggered.connect(self.open_bsm_event_table_viewer)
+        event_menu.addAction(self.open_bsm_event_table_action)
+
         self.open_result_action = QAction("Open Result Window", self)
         self.open_result_action.triggered.connect(self.open_result_window)
         view_menu.addAction(self.open_result_action)
@@ -610,6 +629,7 @@ class MainWindow(QMainWindow):
 
         if clear_biogeobears:
             self.current_biogeobears_result = None
+            self.current_bgb_bsm_event_result = None
         if clear_trait:
             self.current_trait_result = None
 
@@ -645,6 +665,22 @@ class MainWindow(QMainWindow):
             or text.startswith("ape")
             or text.startswith("S-ape")
         )
+
+    def _current_bsm_result(self):
+        return self.current_bgb_bsm_event_result
+
+    def _copy_tree_for_worker(self, tree):
+        if tree is None:
+            return None
+        if hasattr(tree, "copy"):
+            try:
+                return tree.copy(method="deepcopy")
+            except TypeError:
+                try:
+                    return tree.copy()
+                except Exception:
+                    pass
+        return deepcopy(tree)
 
     def _get_active_result_context(self):
         if (
@@ -821,16 +857,21 @@ class MainWindow(QMainWindow):
         if self.current_matrix is None:
             return {}, {}
 
+        matrix = self._current_range_matrix_view_silent()
+        if matrix is None:
+            matrix = self._current_range_matrix_view_silent(preferred_column="")
+        if matrix is None:
+            return {}, {}
         leaf_state_map = {}
         states = []
 
-        for row in self.current_matrix.rows:
+        for row in matrix.rows:
             taxon_name = str(row.get("Name", "")).strip()
             if not taxon_name:
                 continue
 
             state_parts = []
-            for col in self.current_matrix.state_columns:
+            for col in matrix.state_columns:
                 if col in ("ID", "Name"):
                     continue
                 value = str(row.get(col, "")).strip()
@@ -894,6 +935,18 @@ class MainWindow(QMainWindow):
         self.current_result_window.show()
         self.current_result_window.raise_()
         self.current_result_window.activateWindow()
+
+    def open_bsm_event_table_viewer(self):
+        result = self._current_bsm_result()
+        if result is None:
+            QMessageBox.information(
+                self,
+                "BSM Event Table",
+                "No BioGeoBEARS BSM event table is available. Run a BioGeoBEARS result first, then use Biogeographic Event Analysis -> Generate BioGeoBEARS BSM Events.",
+            )
+            return
+        dialog = BSMEventTableDialog(result, self)
+        dialog.exec_()
 
     def _build_tree_loaded_summary_text(self, file_path, leaf_count):
         return (
@@ -1482,6 +1535,74 @@ class MainWindow(QMainWindow):
             source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
         )
 
+    def _current_range_matrix_view_silent(self, preferred_column=None):
+        if self.current_matrix is None:
+            return None
+        try:
+            self.current_matrix_profiles = self._build_matrix_profiles(
+                self.current_matrix,
+                preferred_column=(
+                    getattr(self, "current_selected_trait_column", "")
+                    if preferred_column is None
+                    else preferred_column
+                ),
+            )
+            profile = self._range_matrix_profile()
+            area_names = list(profile.get("area_names") or [])
+            bit_rows = list(profile.get("rows") or [])
+            if not area_names or not bit_rows:
+                return None
+
+            row_by_name = {
+                str(row.get("Name", "") or "").strip(): row
+                for row in list(getattr(self.current_matrix, "rows", []) or [])
+            }
+            rows = []
+            ids = []
+            taxa_names = []
+            for taxon, bits in bit_rows:
+                source_row = row_by_name.get(str(taxon), {})
+                row_id = str(source_row.get("ID", "") or len(rows) + 1)
+                row = {"ID": row_id, "Name": str(taxon)}
+                for area, bit in zip(area_names, bits):
+                    row[area] = str(bit)
+                rows.append(row)
+                ids.append(row_id)
+                taxa_names.append(str(taxon))
+
+            return StateMatrix(
+                ids=ids,
+                taxa_names=taxa_names,
+                state_columns=list(area_names),
+                rows=rows,
+                source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
+            )
+        except Exception:
+            return None
+
+    def _run_range_preflight(self, method_name, range_matrix, config=None, tree_entries=None):
+        report = self.preflight_validation_service.validate_range_analysis(
+            method_name=method_name,
+            tree=self.current_tree,
+            matrix=range_matrix,
+            config=config,
+            tree_entries=tree_entries,
+        )
+        if report.blockers:
+            lines = ["%s preflight failed:" % method_name, ""]
+            for issue in report.blockers[:12]:
+                lines.append("[%s] %s" % (issue.code, issue.message))
+            if len(report.blockers) > 12:
+                lines.append("... %d more blocker(s)" % (len(report.blockers) - 12))
+            QMessageBox.warning(self, "%s preflight failed" % method_name, "\n\n".join(lines))
+            return False
+
+        if report.warnings:
+            self.append_run_log("%s preflight warnings:" % method_name)
+            for issue in report.warnings:
+                self.append_run_log("  [%s] %s" % (issue.code, issue.message))
+        return True
+
     def _load_tree_collection_from_path(self, file_path):
         self.append_run_log("Loading Trees Dataset ...")
         collection = self.tree_reader.read_tree_collection(file_path)
@@ -1855,7 +1976,50 @@ class MainWindow(QMainWindow):
 
         return prefix + (" " + detail if detail else "")
 
+    def _attach_heuristic_event_summary(self, result, method_name):
+        if result is None:
+            return result
+        actual_name = str(getattr(result, "model_name", "") or method_name or "")
+        if (
+            actual_name.startswith("BayesTraits")
+            or actual_name.startswith("phytools")
+            or actual_name.startswith("S-phytools")
+            or actual_name.startswith("ape")
+            or actual_name.startswith("S-ape")
+            or type(result).__name__ == "ContinuousTraitResult"
+        ):
+            return result
+
+        range_matrix = self._current_range_matrix_view_silent()
+        if range_matrix is None:
+            range_matrix = self._current_range_matrix_view_silent(preferred_column="")
+        if range_matrix is None:
+            try:
+                warnings = list(getattr(result, "parse_warnings", []) or [])
+                warnings.append("Heuristic event summary skipped: no usable range matrix is currently selected.")
+                result.parse_warnings = warnings
+            except Exception:
+                pass
+            return result
+
+        try:
+            return self.heuristic_event_summary_service.attach(
+                result=result,
+                tree=self.current_tree,
+                range_matrix=range_matrix,
+                method_name=actual_name or method_name,
+            )
+        except Exception as exc:
+            try:
+                warnings = list(getattr(result, "parse_warnings", []) or [])
+                warnings.append("Heuristic event summary failed: %s" % exc)
+                result.parse_warnings = warnings
+            except Exception:
+                pass
+            return result
+
     def _apply_diva_result(self, result):
+        result = self._attach_heuristic_event_summary(result, "DIVA")
         self.current_result = result
         self.current_method_name = "DIVA"
         self.progress_panel.set_done("DIVA 运行完成")
@@ -1864,6 +2028,7 @@ class MainWindow(QMainWindow):
         self.open_result_window()
 
     def _apply_sdiva_result(self, result):
+        result = self._attach_heuristic_event_summary(result, "S-DIVA")
         self.current_sdiva_result = result
         self.current_method_name = "S-DIVA"
         self.progress_panel.set_done("S-DIVA 运行完成")
@@ -1872,6 +2037,7 @@ class MainWindow(QMainWindow):
         self.open_result_window()
 
     def _apply_dec_result(self, result):
+        result = self._attach_heuristic_event_summary(result, "DEC")
         self.current_dec_result = result
         self.current_method_name = "DEC"
         self.progress_panel.set_done("DEC 运行完成")
@@ -1880,6 +2046,7 @@ class MainWindow(QMainWindow):
         self.open_result_window()
 
     def _apply_sdec_result(self, result):
+        result = self._attach_heuristic_event_summary(result, "S-DEC")
         self.current_sdec_result = result
         self.current_method_name = "S-DEC"
         self.progress_panel.set_done("S-DEC 运行完成")
@@ -1888,7 +2055,9 @@ class MainWindow(QMainWindow):
         self.open_result_window()
 
     def _apply_biogeobears_result(self, result):
+        result = self._attach_heuristic_event_summary(result, str(getattr(result, "model_name", "") or "BioGeoBEARS"))
         self.current_biogeobears_result = result
+        self.current_bgb_bsm_event_result = None
         self.current_method_name = str(getattr(result, "model_name", "") or "BioGeoBEARS")
         self.progress_panel.set_done(f"{self.current_method_name} 运行完成")
         self._update_analysis_feedback(self.current_method_name, result)
@@ -1945,6 +2114,8 @@ class MainWindow(QMainWindow):
         self.current_diva_config = config
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
+            return
+        if not self._run_range_preflight("DIVA", range_matrix, config=config):
             return
 
         worker = DivaRunWorker(
@@ -2517,6 +2688,13 @@ class MainWindow(QMainWindow):
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
             return
+        if not self._run_range_preflight(
+            "S-DIVA",
+            range_matrix,
+            config=config,
+            tree_entries=self.current_prepared_tree_entries,
+        ):
+            return
 
         worker = SDivaRunWorker(
             service=self.sdiva_service,
@@ -2574,6 +2752,8 @@ class MainWindow(QMainWindow):
         self.current_dec_config = config
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
+            return
+        if not self._run_range_preflight("DEC", range_matrix, config=config):
             return
 
         worker = DECRunWorker(
@@ -2635,6 +2815,13 @@ class MainWindow(QMainWindow):
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
             return
+        if not self._run_range_preflight(
+            "S-DEC",
+            range_matrix,
+            config=config,
+            tree_entries=tree_entries,
+        ):
+            return
 
         worker = SDECRunWorker(
             service=self.sdec_service,
@@ -2694,6 +2881,9 @@ class MainWindow(QMainWindow):
         self.current_bayarea_config = config
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
+            return
+
+        if not self._run_range_preflight("BayArea", range_matrix, config=config):
             return
 
         worker = BayAreaRunWorker(
@@ -2784,6 +2974,9 @@ class MainWindow(QMainWindow):
         self.current_bbm_config = config
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
+            return
+
+        if not self._run_range_preflight("BBM", range_matrix, config=config):
             return
 
         worker = BBMRunWorker(
@@ -3230,6 +3423,14 @@ class MainWindow(QMainWindow):
         if not bool(config.include_null_range):
             display_model = "%s (no null range)" % display_model
 
+        if not self._run_range_preflight(
+            "S-BioGeoBEARS",
+            range_matrix,
+            config=config,
+            tree_entries=tree_entries,
+        ):
+            return
+
         worker = SBGBRunWorker(
             service=self.sbgb_service,
             reference_tree=self.current_tree,
@@ -3329,9 +3530,12 @@ class MainWindow(QMainWindow):
         if not bool(config.include_null_range):
             display_model = "%s (no null range)" % display_model
 
+        if not self._run_range_preflight("BioGeoBEARS", range_matrix, config=config):
+            return
+
         worker = BioGeoBEARSRunWorker(
             service=self.biogeobears_service,
-            tree=self.current_tree,
+            tree=self._copy_tree_for_worker(self.current_tree),
             matrix=range_matrix,
             run_name=f"bgb_{effective_model_name.lower()}_debug",
             config=config,
@@ -3371,6 +3575,97 @@ class MainWindow(QMainWindow):
             action=self.run_bgb_action,
         )
 
+    def generate_biogeobears_bsm_events(self):
+        if self.current_tree is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a consensus tree first.")
+            return
+
+        if self.current_matrix is None:
+            QMessageBox.warning(self, "Cannot run", "Please import a range matrix first.")
+            return
+
+        if self.current_biogeobears_config is None:
+            QMessageBox.information(
+                self,
+                "BioGeoBEARS BSM Events",
+                "Please run BioGeoBEARS once first. BSM events are generated from the current BioGeoBEARS model configuration.",
+            )
+            return
+
+        try:
+            self.biogeobears_service.runner.resolve_wrapper_script_path()
+        except Exception as exc:
+            QMessageBox.warning(self, "Cannot run", str(exc))
+            return
+
+        dialog = BSMRunConfigDialog(self.current_biogeobears_config, self)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+
+        range_matrix = self._current_range_matrix_view("Cannot run")
+        if range_matrix is None:
+            return
+
+        bsm_config = deepcopy(self.current_biogeobears_config)
+        values = dialog.values()
+        bsm_nummaps = int(values["bsm_nummaps"])
+        bsm_seed = int(values["bsm_seed"])
+        bsm_maxtries = int(values["bsm_maxtries_per_branch"])
+
+        effective_model_name = str(bsm_config.model_name)
+        display_model = SBGB_MODEL_DISPLAY.get(effective_model_name, effective_model_name)
+        if effective_model_name not in {
+            "DEC",
+            "DECJ",
+            "DIVALIKE",
+            "DIVALIKEJ",
+            "BAYAREALIKE",
+            "BAYAREALIKEJ",
+        }:
+            QMessageBox.warning(self, "Cannot run", "Unknown BioGeoBEARS model: %s" % effective_model_name)
+            return
+
+        if not self._run_range_preflight("BioGeoBEARS BSM Events", range_matrix, config=bsm_config):
+            return
+
+        worker = BioGeoBEARSBSMEventWorker(
+            service=self.biogeobears_service,
+            tree=self._copy_tree_for_worker(self.current_tree),
+            matrix=range_matrix,
+            run_name="bgb_%s_bsm_events" % effective_model_name.lower(),
+            config=bsm_config,
+            nummaps=bsm_nummaps,
+            seed=bsm_seed,
+            maxtries_per_branch=bsm_maxtries,
+        )
+
+        self._start_analysis_worker(
+            worker_attr_name="biogeobears_bsm_worker",
+            worker=worker,
+            action=self.generate_bgb_bsm_action,
+            busy_text="Generating BioGeoBEARS-%s BSM events" % display_model,
+            on_success=self._on_biogeobears_bsm_finished,
+            on_failed=self._on_biogeobears_bsm_failed,
+            on_finished=self._on_biogeobears_bsm_worker_finished,
+        )
+
+    def _on_biogeobears_bsm_finished(self, result):
+        self.current_bgb_bsm_event_result = result
+        event_count = len(getattr(result, "events", []) or [])
+        self.progress_panel.set_done("BioGeoBEARS BSM events generated")
+        self.append_run_log("BioGeoBEARS BSM events generated: %d" % event_count)
+        self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] to inspect events.")
+
+    def _on_biogeobears_bsm_failed(self, message):
+        self.progress_panel.set_error("BioGeoBEARS BSM failed")
+        QMessageBox.critical(self, "BioGeoBEARS BSM failed", message)
+
+    def _on_biogeobears_bsm_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="biogeobears_bsm_worker",
+            action=self.generate_bgb_bsm_action,
+        )
+
     def run_biogeobears_model_test(self):
         if self.current_tree is None:
             QMessageBox.warning(self, "无法运行", "请先导入共识树。")
@@ -3386,6 +3681,8 @@ class MainWindow(QMainWindow):
         self.current_biogeobears_model_test_config = config
         range_matrix = self._current_range_matrix_view("Cannot run")
         if range_matrix is None:
+            return
+        if not self._run_range_preflight("BioGeoBEARS Model Test", range_matrix, config=config):
             return
 
         worker = BioGeoBEARSModelTestWorker(

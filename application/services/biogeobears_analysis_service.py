@@ -1,7 +1,9 @@
 from datetime import datetime
 from pathlib import Path
+import shutil
 
 from application.services.biogeobears_dataset_builder import BioGeoBEARSDatasetBuilder
+from infrastructure.biogeobears.biogeobears_bsm_event_parser import BioGeoBEARSBSMEventParser
 from infrastructure.biogeobears.biogeobears_output_parser import BioGeoBEARSOutputParser
 from infrastructure.biogeobears.biogeobears_runner import BioGeoBEARSRunner
 
@@ -16,6 +18,7 @@ class BioGeoBEARSAnalysisService:
             site_library_path=site_library_path,
         )
         self.work_root = Path(work_root) if work_root else Path("runs") / "biogeobears"
+        self.bsm_event_parser = BioGeoBEARSBSMEventParser()
 
     def set_rscript_path(self, rscript_path):
         self.runner.set_rscript_path(rscript_path)
@@ -50,7 +53,6 @@ class BioGeoBEARSAnalysisService:
         time_matrix_kind = config_kwargs["time_matrix_kind"]
         period_matrices = config_kwargs["period_matrices"]
         root_age = config_kwargs["root_age"]
-
         if run_name is None:
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             run_name = "bgb_%s_%s" % (str(model_name).lower(), stamp)
@@ -72,6 +74,10 @@ class BioGeoBEARSAnalysisService:
             root_age=root_age,
             scale_tree_to_root_age=scale_tree_to_root_age,
         )
+
+        bsm_dir = run_files.workdir / "bsm"
+        if bsm_dir.exists():
+            shutil.rmtree(str(bsm_dir))
 
         try:
             run_output = self.runner.run(run_files)
@@ -96,6 +102,91 @@ class BioGeoBEARSAnalysisService:
         result = self.parse_run_files(tree=tree, run_files=run_files)
         result.config = config
         return result
+
+    def generate_bsm_events(
+        self,
+        *,
+        tree,
+        matrix,
+        config,
+        run_name=None,
+        nummaps=100,
+        seed=12345,
+        maxtries_per_branch=40000,
+        scale_tree_to_root_age=False,
+    ):
+        if config is None:
+            raise ValueError("BioGeoBEARS config is required.")
+
+        config_kwargs = config.engine_kwargs()
+        model_name = config_kwargs["model_name"]
+        max_range_size = config_kwargs["max_range_size"]
+        include_null_range = config_kwargs["include_null_range"]
+        null_range_mode = config_kwargs["null_range_mode"]
+        cores = config_kwargs["cores"]
+        include_ranges = config_kwargs["include_ranges"]
+        exclude_ranges = config_kwargs["exclude_ranges"]
+        period_times = config_kwargs["period_times"]
+        time_matrix_kind = config_kwargs["time_matrix_kind"]
+        period_matrices = config_kwargs["period_matrices"]
+        root_age = config_kwargs["root_age"]
+
+        if run_name is None:
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_name = "bgb_%s_bsm_%s" % (str(model_name).lower(), stamp)
+
+        run_files = self.build_run_files(
+            tree=tree,
+            matrix=matrix,
+            run_name=run_name,
+            model_name=model_name,
+            max_range_size=max_range_size,
+            include_null_range=include_null_range,
+            null_range_mode=null_range_mode,
+            cores=cores,
+            include_ranges=include_ranges,
+            exclude_ranges=exclude_ranges,
+            period_times=period_times,
+            time_matrix_kind=time_matrix_kind,
+            period_matrices=period_matrices,
+            root_age=root_age,
+            scale_tree_to_root_age=scale_tree_to_root_age,
+        )
+
+        bsm_dir = run_files.workdir / "bsm"
+        if bsm_dir.exists():
+            shutil.rmtree(str(bsm_dir))
+
+        try:
+            self.runner.run(
+                run_files,
+                bsm_outdir=bsm_dir,
+                bsm_nummaps=int(nummaps),
+                bsm_seed=int(seed),
+                bsm_maxtries_per_branch=int(maxtries_per_branch),
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "BioGeoBEARS BSM 运行失败。\n"
+                "workdir: {workdir}\n"
+                "treefile: {treefile}\n"
+                "geogfile: {geogfile}\n"
+                "areas_json: {areas_json}\n"
+                "model: {model}\n"
+                "{msg}".format(
+                    workdir=run_files.workdir,
+                    treefile=run_files.tree_path,
+                    geogfile=run_files.geog_path,
+                    areas_json=run_files.areas_json_path,
+                    model=run_files.model_name,
+                    msg=str(exc),
+                )
+            )
+
+        return self.bsm_event_parser.parse(
+            output_json_path=run_files.output_json_path,
+            bsm_dir=bsm_dir,
+        )
 
     def build_run_files(
         self,

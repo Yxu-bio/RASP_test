@@ -132,6 +132,7 @@ class ResultViewWindow(QMainWindow):
         self.figure_group_box.setVisible(False)
 
         self.right_panel = QWidget()
+        self.right_panel.setMinimumWidth(260)
         self.right_layout = QVBoxLayout(self.right_panel)
         self.right_layout.setContentsMargins(0, 0, 0, 0)
         self.right_layout.setSpacing(4)
@@ -141,9 +142,9 @@ class ResultViewWindow(QMainWindow):
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.addWidget(self.tree_panel)
         self.splitter.addWidget(self.right_panel)
-        self.splitter.setStretchFactor(0, 4)
+        self.splitter.setStretchFactor(0, 5)
         self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([960, 240])
+        self.splitter.setSizes([1000, 260])
         self.setCentralWidget(self.splitter)
 
         self._build_toolbar()
@@ -233,6 +234,10 @@ class ResultViewWindow(QMainWindow):
         export_csv_action = QAction("导出CSV", self)
         export_csv_action.triggered.connect(self._export_csv)
         toolbar.addAction(export_csv_action)
+
+        export_node_summary_action = QAction("Export Node Summary CSV", self)
+        export_node_summary_action.triggered.connect(self._export_node_summary_csv)
+        toolbar.addAction(export_node_summary_action)
 
         export_pdf_action = QAction("导出PDF", self)
         export_pdf_action.triggered.connect(self._export_pdf)
@@ -1015,6 +1020,32 @@ class ResultViewWindow(QMainWindow):
             self.statusBar().showMessage(f"已导出CSV: {file_path}")
         except Exception as exc:
             QMessageBox.critical(self, "导出失败", str(exc))
+
+    def _export_node_summary_csv(self) -> None:
+        if self.current_result is None:
+            QMessageBox.warning(self, "Export unavailable", "No result is available for export.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Node Summary CSV",
+            "",
+            "CSV Files (*.csv)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".csv"):
+            file_path += ".csv"
+
+        try:
+            self.export_service.export_node_summary_csv(
+                self.current_result,
+                file_path,
+                method_name=self.current_method_name,
+            )
+            self.statusBar().showMessage("Exported node summary CSV: %s" % file_path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
 
     def _export_pdf(self) -> None:
         if self.renderer is None:

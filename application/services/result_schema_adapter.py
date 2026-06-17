@@ -126,6 +126,13 @@ class BaseResultSchemaAdapter:
         text = str(value or "").strip()
         return text if text else ""
 
+    @staticmethod
+    def _format_state_supports(state_supports):
+        if not state_supports:
+            return ""
+        items = sorted(state_supports.items(), key=lambda x: (-float(x[1]), str(x[0])))
+        return " ".join("%s %.2f%%" % (state, float(percent)) for state, percent in items)
+
 class ResultSchemaAdapterFactory:
     @staticmethod
     def create(result):
@@ -165,8 +172,8 @@ class DivaResultSchemaAdapter(BaseResultSchemaAdapter):
             input_tree_count=1,
             effective_tree_count=1,
             is_tree_set=False,
-            has_event_model=False,
-            has_time_model=False,
+            has_event_model=True,
+            has_time_model=True,
             display_id_source="diva_native_node_id",
             result_semantics_note=(
                 "DIVA 的内部节点结果表示最优状态集合。若一个节点存在多个状态，"
@@ -187,6 +194,15 @@ class DivaResultSchemaAdapter(BaseResultSchemaAdapter):
         ]
         state_text = self._stringify_states(state_labels)
         ambiguity_count = len(state_labels)
+        state_supports = {
+            str(k): float(v)
+            for k, v in dict(getattr(node_result, "state_supports", {}) or {}).items()
+        }
+        state_counts = {
+            str(k): float(v)
+            for k, v in dict(getattr(node_result, "state_counts", {}) or {}).items()
+        }
+        support_summary = self._format_state_supports(state_supports)
 
         return NodePayloadSchema(
             method_name=self.method_name,
@@ -198,14 +214,14 @@ class DivaResultSchemaAdapter(BaseResultSchemaAdapter):
             state_labels=state_labels,
             state_text=state_text,
             state_summary=state_text,
-            support_summary="等优状态数: %s" % ambiguity_count,
+            support_summary=support_summary or "等优状态数: %s" % ambiguity_count,
             ambiguity_count=ambiguity_count,
             supporting_tree_count=1,
             total_tree_count=1,
-            state_counts={},
-            state_supports={},
-            event_summary="DIVA 当前结果不包含事件模型。",
-            time_summary="Time 页暂不实现。",
+            state_counts=state_counts,
+            state_supports=state_supports,
+            event_summary=str(getattr(node_result, "event_summary", "") or "DIVA heuristic event summary is not available."),
+            time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note="多个状态表示等优重建，不表示概率。",
             raw_method_payload=self._to_raw_payload(node_result),
         )
@@ -223,8 +239,8 @@ class SDivaResultSchemaAdapter(BaseResultSchemaAdapter):
             input_tree_count=total,
             effective_tree_count=total,
             is_tree_set=True,
-            has_event_model=False,
-            has_time_model=False,
+            has_event_model=True,
+            has_time_model=True,
             display_id_source="reference_tree_diva_node_id",
             result_semantics_note=(
                 "S-DIVA 在树集合上聚合 clade 状态支持；同一棵树在同一 clade 上"
@@ -280,8 +296,8 @@ class SDivaResultSchemaAdapter(BaseResultSchemaAdapter):
             total_tree_count=total_tree_count,
             state_counts=state_counts,
             state_supports=state_supports,
-            event_summary="S-DIVA 当前结果不包含事件模型。",
-            time_summary="Time 页暂不实现。",
+            event_summary=str(getattr(node_result, "event_summary", "") or "S-DIVA heuristic event summary is not available."),
+            time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note="比例表示聚合支持，不是单树概率。",
             raw_method_payload=self._to_raw_payload(node_result),
         )
@@ -310,7 +326,7 @@ class DECResultSchemaAdapter(BaseResultSchemaAdapter):
             effective_tree_count=1,
             is_tree_set=False,
             has_event_model=True,
-            has_time_model=False,
+            has_time_model=True,
             display_id_source="reference_node_id",
             result_semantics_note=semantics_note,
             warnings=warnings,
@@ -366,7 +382,7 @@ class DECResultSchemaAdapter(BaseResultSchemaAdapter):
             state_counts={},
             state_supports={},
             event_summary=event_summary or "当前节点无事件摘要。",
-            time_summary="Time 页暂不实现。",
+            time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note="DEC 窄版结果：统一展示分布状态与事件摘要。",
             raw_method_payload=self._to_raw_payload(node_result),
         )
@@ -393,8 +409,8 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
             input_tree_count=int(getattr(self.result, "input_tree_count", 0) or 0),
             effective_tree_count=int(getattr(self.result, "effective_tree_count", 0) or 0),
             is_tree_set=True,
-            has_event_model=False,
-            has_time_model=False,
+            has_event_model=True,
+            has_time_model=True,
             display_id_source="reference_node_id",
             result_semantics_note=semantics_note,
             warnings=warnings,
@@ -428,7 +444,7 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
             state_counts={},
             state_supports=state_supports,
             event_summary=str(getattr(node_result, "event_summary", "") or ""),
-            time_summary="Time 页暂不实现。",
+            time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note="S-DEC probabilities are aggregated from per-tree DEC results.",
             raw_method_payload=self._to_raw_payload(node_result),
         )
@@ -654,8 +670,8 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
             input_tree_count=int(getattr(self.result, "input_tree_count", 1) or 1),
             effective_tree_count=int(getattr(self.result, "effective_tree_count", 1) or 1),
             is_tree_set=False,
-            has_event_model=False,
-            has_time_model=False,
+            has_event_model=not actual_name.startswith("BayesTraits"),
+            has_time_model=not actual_name.startswith("BayesTraits"),
             display_id_source="reference_node_id",
             result_semantics_note=semantics_note,
             warnings=warnings,
@@ -689,7 +705,7 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
             state_counts={},
             state_supports=state_supports,
             event_summary=str(getattr(node_result, "event_summary", "") or ""),
-            time_summary="Time 页暂不实现。",
+            time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note=(
                 "当前节点显示的是 BayesTraits 的性状祖先状态概率。"
                 if str(getattr(self.result, "model_name", "") or "").startswith("BayesTraits")

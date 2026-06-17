@@ -7,8 +7,11 @@ runs/
 RASP_continuous_models.bin
 
 # Bundled engines and external runtime dependencies.
-# Keep these outside normal source commits; package them separately or use Releases/LFS.
-engines/
+# Keep binaries/runtime libraries outside normal source commits; package them separately or use Releases/LFS.
+engines/*
+!engines/biogeobears/
+engines/biogeobears/*
+!engines/biogeobears/bgb_runner.R
 
 # Legacy/reference source kept for comparison, not part of this codebase backup.
 _reference_RASP/
@@ -34,4 +37,3 @@ Desktop.ini
 
 # Ad-hoc exported figures in the project root
 /1.png
-

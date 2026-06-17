@@ -77,7 +77,15 @@ class BioGeoBEARSRunner:
             return self.site_library_path.resolve()
         raise FileNotFoundError("未找到 BioGeoBEARS 私有 R 库目录。")
 
-    def run(self, run_files: BioGeoBEARSRunFiles) -> BioGeoBEARSRunOutput:
+    def run(
+        self,
+        run_files: BioGeoBEARSRunFiles,
+        *,
+        bsm_outdir=None,
+        bsm_nummaps=None,
+        bsm_seed=None,
+        bsm_maxtries_per_branch=None,
+    ) -> BioGeoBEARSRunOutput:
         rscript = self.resolve_rscript_path()
         wrapper = self.resolve_wrapper_script_path()
         site_lib = self.resolve_site_library_path()
@@ -95,6 +103,14 @@ class BioGeoBEARSRunner:
             "--lib", str(site_lib),
             "--out", str(run_files.output_json_path),
         ]
+        if bsm_outdir is not None:
+            cmd.extend(["--bsm_outdir", str(bsm_outdir)])
+            if bsm_nummaps is not None:
+                cmd.extend(["--bsm_nummaps", str(int(bsm_nummaps))])
+            if bsm_seed is not None:
+                cmd.extend(["--bsm_seed", str(int(bsm_seed))])
+            if bsm_maxtries_per_branch is not None:
+                cmd.extend(["--bsm_maxtries_per_branch", str(int(bsm_maxtries_per_branch))])
 
         env = os.environ.copy()
         site_lib = str(self.resolve_site_library_path())

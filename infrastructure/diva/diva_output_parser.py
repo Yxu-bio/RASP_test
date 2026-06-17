@@ -62,13 +62,14 @@ class DivaOutputParser:
                 continue
 
             clade_key = self._terminals_to_clade_key(terminal_indices, dataset)
-            states = self._parse_states(states_raw)
+            states, state_supports = self._parse_states_with_supports(states_raw)
 
             result.node_results[clade_key] = DivaNodeResult(
                 node_key=clade_key,
                 diva_node_id=diva_node_id,
                 terminal_spec=terminal_spec,
                 states=states,
+                state_supports=state_supports,
                 raw_line=line,
             )
 
@@ -134,3 +135,34 @@ class DivaOutputParser:
             if token not in tokens:
                 tokens.append(token)
         return tokens
+
+    def _parse_states_with_supports(self, text: str):
+        tokens = [part.strip() for part in re.split(r"\s+", text.strip()) if part.strip()]
+        if not tokens:
+            return [], {}
+
+        states = []
+        supports = {}
+        if len(tokens) % 2 == 0:
+            parsed_pairs = []
+            ok = True
+            for idx in range(0, len(tokens), 2):
+                state = tokens[idx]
+                try:
+                    percent = float(tokens[idx + 1])
+                except Exception:
+                    ok = False
+                    break
+                parsed_pairs.append((state, percent))
+            if ok:
+                for state, percent in parsed_pairs:
+                    if state not in states:
+                        states.append(state)
+                    supports[state] = float(percent)
+                return states, supports
+
+        states = self._parse_states(text)
+        if states:
+            equal = 100.0 / float(len(states))
+            supports = {state: equal for state in states}
+        return states, supports

@@ -111,6 +111,12 @@ class DivaDatasetBuilder:
         dist_list = []
         for col in area_columns:
             val = str(row[col]).strip()
+            upper = val.upper()
+            if upper in {"1", "TRUE", "T", "YES", "Y", "PRESENT", "+"}:
+                dist_list.append(str(col).strip())
+                continue
+            if upper in {"", "0", "FALSE", "F", "NO", "N", "ABSENT", "-"}:
+                continue
             if val:  # 非空直接加入
                 dist_list.append(val)
         return "".join(dist_list)

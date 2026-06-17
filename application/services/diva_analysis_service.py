@@ -115,8 +115,17 @@ class DivaAnalysisService:
             if not states:
                 continue
 
+            supports = dict(getattr(node_result, "state_supports", {}) or {})
+            if not supports:
+                equal_values = self._equal_percents(len(states))
+                supports = {state: equal_values[index] for index, state in enumerate(states)}
+            node_result.state_supports = supports
+            node_result.state_counts = {
+                state: float(supports.get(state, 0.0)) / 100.0
+                for state in states
+            }
             node_result.pie_labels = states
-            node_result.pie_percents = self._equal_percents(len(states))
+            node_result.pie_percents = [float(supports.get(state, 0.0)) for state in states]
             node_result.pie_colors = [state_colors[s] for s in states]
 
     def _infer_state_order(self, result) -> list:
