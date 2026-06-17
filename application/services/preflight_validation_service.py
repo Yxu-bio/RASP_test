@@ -97,6 +97,9 @@ class PreflightValidationService:
             self._error(report, "range.no_rows", "The active range matrix has no rows.")
             return area_names, 0
 
+        if not self._looks_like_binary_area_matrix(rows, area_names):
+            return self._validate_single_encoded_range_rows(report, rows, area_names)
+
         max_observed = 0
         for row in rows:
             taxon = str(row.get("Name", "") or "").strip()
@@ -119,6 +122,85 @@ class PreflightValidationService:
             if observed <= 0:
                 self._error(report, "range.empty_range", "Taxon '%s' has an empty range." % taxon)
         return area_names, max_observed
+
+    def _looks_like_binary_area_matrix(self, rows, area_names):
+        for row in rows:
+            for area in area_names:
+                value = str(row.get(area, "") or "").strip()
+                if value not in ("0", "1"):
+                    return False
+        return True
+
+    def _validate_single_encoded_range_rows(self, report, rows, columns):
+        if len(columns) != 1:
+            self._error(
+                report,
+                "range.no_binary_profile",
+                "The active matrix is not a binary area matrix. Select one encoded range column or binary 0/1 area columns.",
+            )
+            return [], 0
+
+        column = str(columns[0]).strip()
+        if column.lower() not in {"state", "range", "ranges", "distribution", "distributions", "area", "areas"}:
+            self._error(
+                report,
+                "range.unknown_encoded_column",
+                "Column '%s' is not a recognized encoded range column name. Use State/Range/Distribution/Area or binary area columns."
+                % column,
+            )
+            return [], 0
+
+        observed_values = [
+            str(row.get(column, "") or "").strip()
+            for row in rows
+            if str(row.get(column, "") or "").strip()
+        ]
+        split_single_letters = self._should_split_single_letter_ranges(observed_values)
+        area_names = []
+        max_observed = 0
+
+        for row in rows:
+            taxon = str(row.get("Name", "") or "").strip()
+            if not taxon:
+                self._error(report, "range.empty_taxon", "A range matrix row has an empty taxon name.")
+                continue
+            raw_value = str(row.get(column, "") or "").strip()
+            states = self._parse_encoded_range_value(raw_value, split_single_letters=split_single_letters)
+            if not states:
+                self._error(report, "range.empty_range", "Taxon '%s' has an empty range." % taxon)
+                continue
+            for state in states:
+                if state not in area_names:
+                    area_names.append(state)
+            max_observed = max(max_observed, len(states))
+
+        return area_names, max_observed
+
+    def _should_split_single_letter_ranges(self, values):
+        clean_values = [str(value).strip() for value in values if str(value).strip()]
+        if not clean_values:
+            return False
+        for value in clean_values:
+            normalized = value.replace("+", "").replace(",", "").replace(";", "").replace("|", "").replace(" ", "")
+            if not normalized or not normalized.isalnum():
+                return False
+            if normalized.upper() != normalized:
+                return False
+        return any(len(value.strip()) > 1 and not any(sep in value for sep in ("+", ",", ";", "|", " ")) for value in clean_values)
+
+    def _parse_encoded_range_value(self, value, split_single_letters=False):
+        text = str(value or "").strip()
+        if not text or text in {"0", "-", "?", "NA", "N/A", "none", "None", "NULL", "/"}:
+            return []
+        for sep in (",", ";", "|", "+"):
+            text = text.replace(sep, " ")
+        parts = [part.strip() for part in text.split() if part.strip()]
+        if not parts:
+            return []
+        if split_single_letters and len(parts) == 1:
+            token = parts[0]
+            return [char for char in token if char.strip()]
+        return parts
 
     def _validate_config(self, report, config, area_names, max_observed_range, tree):
         if config is None:

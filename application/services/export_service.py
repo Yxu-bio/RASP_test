@@ -29,18 +29,24 @@ class ExportService:
     ]
 
     NODE_SUMMARY_CSV_FIELDNAMES = [
+        "method",
         "method_name",
+        "node_id",
         "display_node_id",
         "display_id_source",
         "clade_key",
         "node_kind",
         "node_name",
+        "node_age",
+        "rank",
         "state_rank",
         "state",
+        "probability",
         "probability_percent",
         "count",
         "support_basis",
         "top_state",
+        "top_prob",
         "top_probability_percent",
         "state_summary",
         "supporting_tree_count",
@@ -49,6 +55,7 @@ class ExportService:
         "event_summary",
         "time_summary",
         "interpretation_note",
+        "source_result_path",
     ]
 
     def export_tree_png(self, renderer, file_path: str) -> None:
@@ -121,20 +128,28 @@ class ExportService:
                 if not state_rows:
                     state_rows = [("", "", "", "none")]
                 top_state, top_probability = self._top_state_from_rows(state_rows)
+                node_age = self._node_age_from_payload(payload)
+                source_result_path = str(getattr(result, "source_run_directory", "") or getattr(result, "run_directory", "") or "")
                 for rank, (state, probability, count, basis) in enumerate(state_rows, start=1):
                     writer.writerow({
+                        "method": payload.method_name,
                         "method_name": payload.method_name,
+                        "node_id": payload.display_node_id,
                         "display_node_id": payload.display_node_id,
                         "display_id_source": payload.display_id_source,
                         "clade_key": payload.clade_key,
                         "node_kind": payload.node_kind,
                         "node_name": payload.node_name,
+                        "node_age": node_age,
+                        "rank": rank,
                         "state_rank": rank,
                         "state": state,
+                        "probability": probability,
                         "probability_percent": probability,
                         "count": count,
                         "support_basis": basis,
                         "top_state": top_state,
+                        "top_prob": top_probability,
                         "top_probability_percent": top_probability,
                         "state_summary": payload.state_summary,
                         "supporting_tree_count": payload.supporting_tree_count,
@@ -143,6 +158,7 @@ class ExportService:
                         "event_summary": payload.event_summary,
                         "time_summary": payload.time_summary,
                         "interpretation_note": payload.interpretation_note,
+                        "source_result_path": source_result_path,
                     })
 
     def export_result_summary_json(self, result, file_path: str, method_name: str = "") -> None:
@@ -239,6 +255,13 @@ class ExportService:
             if str(state).strip()
         ]
         return (labels[0], "") if labels else ("", "")
+
+    def _node_age_from_payload(self, payload) -> str:
+        raw = dict(getattr(payload, "raw_method_payload", {}) or {})
+        for key in ("node_age", "age", "height", "time"):
+            if key in raw and str(raw.get(key, "")).strip():
+                return self._format_float(raw.get(key))
+        return ""
 
     @staticmethod
     def _safe_int(value):

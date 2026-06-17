@@ -1,4 +1,5 @@
 import csv
+import math
 from collections import Counter, defaultdict
 from dataclasses import asdict, is_dataclass
 
@@ -67,6 +68,8 @@ class BSMEventTableDialog(QDialog):
         self.event_type_combo = self._build_filter_combo(self._unique_event_values("event_type"), page)
         self.source_combo = self._build_filter_combo(self._unique_event_values("source_range"), page)
         self.target_combo = self._build_filter_combo(self._unique_event_values("target_range"), page)
+        self.node_combo = self._build_filter_combo(self._unique_event_values("node"), page)
+        self.branch_combo = self._build_filter_combo(self._unique_event_values("branch"), page)
         self.time_min_edit = QLineEdit(page)
         self.time_min_edit.setPlaceholderText("min")
         self.time_max_edit = QLineEdit(page)
@@ -87,12 +90,23 @@ class BSMEventTableDialog(QDialog):
         filters.addWidget(QLabel("Time", page), 1, 0)
         filters.addWidget(self.time_min_edit, 1, 1)
         filters.addWidget(self.time_max_edit, 1, 2)
-        filters.addWidget(QLabel("Search", page), 1, 3)
-        filters.addWidget(self.search_edit, 1, 4, 1, 3)
+        filters.addWidget(QLabel("Node", page), 1, 3)
+        filters.addWidget(self.node_combo, 1, 4)
+        filters.addWidget(QLabel("Branch", page), 1, 5)
+        filters.addWidget(self.branch_combo, 1, 6)
         filters.addWidget(self.reset_filters_button, 1, 7)
+        filters.addWidget(QLabel("Search", page), 2, 0)
+        filters.addWidget(self.search_edit, 2, 1, 1, 7)
         layout.addLayout(filters)
 
-        for combo in [self.scope_combo, self.event_type_combo, self.source_combo, self.target_combo]:
+        for combo in [
+            self.scope_combo,
+            self.event_type_combo,
+            self.source_combo,
+            self.target_combo,
+            self.node_combo,
+            self.branch_combo,
+        ]:
             combo.currentIndexChanged.connect(self._apply_filters)
         self.time_min_edit.textChanged.connect(self._apply_filters)
         self.time_max_edit.textChanged.connect(self._apply_filters)
@@ -115,6 +129,24 @@ class BSMEventTableDialog(QDialog):
     def _build_time_tab(self):
         page = QWidget(self)
         layout = QVBoxLayout(page)
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("Bin size (Ma; 0 = exact):", page))
+        self.time_bin_edit = QLineEdit(page)
+        self.time_bin_edit.setPlaceholderText("0")
+        self.time_bin_edit.setText("0")
+        self.time_bin_edit.textChanged.connect(self._apply_filters)
+        controls.addWidget(self.time_bin_edit)
+        controls.addWidget(QLabel("Direction:", page))
+        self.time_direction_combo = QComboBox(page)
+        self.time_direction_combo.addItem("Young to old (ascending Ma)", "ascending")
+        self.time_direction_combo.addItem("Old to young (descending Ma)", "descending")
+        self.time_direction_combo.currentIndexChanged.connect(self._apply_filters)
+        controls.addWidget(self.time_direction_combo)
+        controls.addStretch(1)
+        self.export_time_button = QPushButton("Export time CSV", page)
+        self.export_time_button.clicked.connect(self._export_time_csv)
+        controls.addWidget(self.export_time_button)
+        layout.addLayout(controls)
         self.time_table = QTableWidget(page)
         self.time_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.time_table.setAlternatingRowColors(True)
@@ -194,6 +226,9 @@ class BSMEventTableDialog(QDialog):
                     keys.append(key)
         if "time" in keys:
             keys = ["time"] + [key for key in keys if key != "time"]
+        elif "time_bin_start" in keys or "time_bin_end" in keys or "time_bin_label" in keys:
+            preferred = ["time_bin_start", "time_bin_end", "time_bin_label"]
+            keys = [key for key in preferred if key in keys] + [key for key in keys if key not in preferred]
         table_rows = [[row.get(key, "") for key in keys] for row in rows]
         self._fill_table(self.time_table, keys, table_rows)
 
@@ -286,7 +321,14 @@ class BSMEventTableDialog(QDialog):
             self._populate_raw_table()
 
     def _reset_filters(self):
-        for combo in [self.scope_combo, self.event_type_combo, self.source_combo, self.target_combo]:
+        for combo in [
+            self.scope_combo,
+            self.event_type_combo,
+            self.source_combo,
+            self.target_combo,
+            self.node_combo,
+            self.branch_combo,
+        ]:
             combo.blockSignals(True)
             combo.setCurrentIndex(0)
             combo.blockSignals(False)
@@ -294,6 +336,14 @@ class BSMEventTableDialog(QDialog):
             edit.blockSignals(True)
             edit.clear()
             edit.blockSignals(False)
+        if hasattr(self, "time_bin_edit"):
+            self.time_bin_edit.blockSignals(True)
+            self.time_bin_edit.setText("0")
+            self.time_bin_edit.blockSignals(False)
+        if hasattr(self, "time_direction_combo"):
+            self.time_direction_combo.blockSignals(True)
+            self.time_direction_combo.setCurrentIndex(0)
+            self.time_direction_combo.blockSignals(False)
         self._apply_filters()
 
     def _event_matches_filters(self, event):
@@ -302,6 +352,8 @@ class BSMEventTableDialog(QDialog):
         event_type = str(getattr(event, "event_type", "") or "").strip()
         source = str(getattr(event, "source_range", "") or "").strip()
         target = str(getattr(event, "target_range", "") or "").strip()
+        node = str(getattr(event, "node", "") or "").strip()
+        branch = str(getattr(event, "branch", "") or "").strip()
         if metadata["scope"] and scope != metadata["scope"]:
             return False
         if metadata["event_type"] and event_type != metadata["event_type"]:
@@ -309,6 +361,10 @@ class BSMEventTableDialog(QDialog):
         if metadata["source_range"] and source != metadata["source_range"]:
             return False
         if metadata["target_range"] and target != metadata["target_range"]:
+            return False
+        if metadata["node"] and node != metadata["node"]:
+            return False
+        if metadata["branch"] and branch != metadata["branch"]:
             return False
         time_value = getattr(event, "time", None)
         if metadata["time_min"]:
@@ -354,27 +410,48 @@ class BSMEventTableDialog(QDialog):
             "event_type": combo_value("event_type_combo"),
             "source_range": combo_value("source_combo"),
             "target_range": combo_value("target_combo"),
+            "node": combo_value("node_combo"),
+            "branch": combo_value("branch_combo"),
             "time_min": edit_value("time_min_edit"),
             "time_max": edit_value("time_max_edit"),
             "search": edit_value("search_edit"),
+            "time_bin_size": edit_value("time_bin_edit"),
+            "time_direction": combo_value("time_direction_combo") or "ascending",
         }
 
     def _build_time_series(self, events):
         buckets = defaultdict(lambda: Counter())
+        bin_size = self._safe_float_or_none(self._filter_metadata().get("time_bin_size", ""))
+        if bin_size is None or bin_size <= 0.0:
+            bin_size = 0.0
         for event in list(events or []):
             if getattr(event, "time", None) is None:
                 continue
             try:
-                time_key = round(float(event.time), 6)
+                time_value = float(event.time)
             except Exception:
                 continue
+            if bin_size > 0.0:
+                bin_start = math.floor(time_value / bin_size) * bin_size
+                bin_end = bin_start + bin_size
+                time_key = (round(bin_start, 6), round(bin_end, 6))
+            else:
+                time_key = round(time_value, 6)
             buckets[time_key][self._event_count_key(event)] += 1
             buckets[time_key]["total"] += 1
 
         rows = []
-        for time_key in sorted(buckets.keys()):
+        reverse = self._filter_metadata().get("time_direction", "ascending") == "descending"
+        for time_key in sorted(buckets.keys(), reverse=reverse):
             counter = buckets[time_key]
-            row = {"time": time_key}
+            if isinstance(time_key, tuple):
+                row = {
+                    "time_bin_start": time_key[0],
+                    "time_bin_end": time_key[1],
+                    "time_bin_label": "%s-%s" % (self._format_number(time_key[0]), self._format_number(time_key[1])),
+                }
+            else:
+                row = {"time": time_key}
             for key, value in sorted(counter.items()):
                 row[key] = int(value)
             rows.append(row)
@@ -403,6 +480,15 @@ class BSMEventTableDialog(QDialog):
         except Exception:
             return None
 
+    def _format_number(self, value):
+        try:
+            number = float(value)
+        except Exception:
+            return str(value)
+        if abs(number - round(number)) < 1e-9:
+            return str(int(round(number)))
+        return ("%.6f" % number).rstrip("0").rstrip(".")
+
     def _export_events_csv(self):
         path, _selected = QFileDialog.getSaveFileName(
             self,
@@ -422,9 +508,13 @@ class BSMEventTableDialog(QDialog):
             "filter_event_type",
             "filter_source_range",
             "filter_target_range",
+            "filter_node",
+            "filter_branch",
             "filter_time_min",
             "filter_time_max",
             "filter_search",
+            "filter_time_bin_size",
+            "filter_time_direction",
             "source_model_name",
             "source_run_directory",
             "event_scope",
@@ -453,13 +543,74 @@ class BSMEventTableDialog(QDialog):
                         "filter_event_type": metadata.get("event_type", ""),
                         "filter_source_range": metadata.get("source_range", ""),
                         "filter_target_range": metadata.get("target_range", ""),
+                        "filter_node": metadata.get("node", ""),
+                        "filter_branch": metadata.get("branch", ""),
                         "filter_time_min": metadata.get("time_min", ""),
                         "filter_time_max": metadata.get("time_max", ""),
                         "filter_search": metadata.get("search", ""),
+                        "filter_time_bin_size": metadata.get("time_bin_size", ""),
+                        "filter_time_direction": metadata.get("time_direction", ""),
                         "source_model_name": str(getattr(self.result, "source_model_name", "") or ""),
                         "source_run_directory": str(getattr(self.result, "source_run_directory", "") or ""),
                     })
                     writer.writerow({key: row.get(key, "") for key in headers})
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+
+    def _export_time_csv(self):
+        rows = self._build_time_series(self.filtered_events)
+        if not rows:
+            QMessageBox.information(self, "Export time CSV", "The filtered time table is empty.")
+            return
+        path, _selected = QFileDialog.getSaveFileName(
+            self,
+            "Export BSM Time Summary",
+            "",
+            "CSV files (*.csv);;All files (*)",
+        )
+        if not path:
+            return
+        if "." not in path.replace("\\", "/").split("/")[-1]:
+            path += ".csv"
+
+        metadata = self._filter_metadata()
+        headers = [
+            "filter_scope",
+            "filter_event_type",
+            "filter_source_range",
+            "filter_target_range",
+            "filter_node",
+            "filter_branch",
+            "filter_time_min",
+            "filter_time_max",
+            "filter_search",
+            "filter_time_bin_size",
+            "filter_time_direction",
+        ]
+        for row in rows:
+            for key in row.keys():
+                if key not in headers:
+                    headers.append(key)
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=headers)
+                writer.writeheader()
+                for row in rows:
+                    out = {
+                        "filter_scope": metadata.get("scope", ""),
+                        "filter_event_type": metadata.get("event_type", ""),
+                        "filter_source_range": metadata.get("source_range", ""),
+                        "filter_target_range": metadata.get("target_range", ""),
+                        "filter_node": metadata.get("node", ""),
+                        "filter_branch": metadata.get("branch", ""),
+                        "filter_time_min": metadata.get("time_min", ""),
+                        "filter_time_max": metadata.get("time_max", ""),
+                        "filter_search": metadata.get("search", ""),
+                        "filter_time_bin_size": metadata.get("time_bin_size", ""),
+                        "filter_time_direction": metadata.get("time_direction", ""),
+                    }
+                    out.update(dict(row))
+                    writer.writerow({key: out.get(key, "") for key in headers})
         except Exception as exc:
             QMessageBox.critical(self, "Export failed", str(exc))
 
