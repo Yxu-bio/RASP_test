@@ -38,6 +38,7 @@ from application.services.project_import_service import ProjectImportService
 from application.services.result_schema_adapter import ResultSchemaAdapterFactory
 from application.services.heuristic_event_summary_service import HeuristicEventSummaryService
 from application.services.preflight_validation_service import PreflightValidationService
+from application.services.spatial_data_service import SpatialDataService
 
 
 from gui.workers.diva_run_worker import DivaRunWorker
@@ -79,6 +80,7 @@ from gui.dialogs.project_import_dialog import ProjectImportDialog
 from gui.dialogs.result_view_window import ResultViewWindow
 from gui.dialogs.bsm_event_table_dialog import BSMEventTableDialog
 from gui.dialogs.bsm_run_config_dialog import BSMRunConfigDialog
+from gui.dialogs.spatial_data_manager_dialog import SpatialDataManagerDialog
 from gui.widgets.matrix_preview_table import MatrixPreviewTable
 from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
@@ -111,6 +113,7 @@ class MainWindow(QMainWindow):
         self.project_import_service = ProjectImportService()
         self.heuristic_event_summary_service = HeuristicEventSummaryService()
         self.preflight_validation_service = PreflightValidationService()
+        self.spatial_data_service = SpatialDataService()
 
         self.diva_service = DivaAnalysisService()
         self.sdiva_service = SDivaAnalysisService()
@@ -182,6 +185,7 @@ class MainWindow(QMainWindow):
         self.current_result_window = None
         self.current_tree_collection = None
         self.current_tree_collection_path = ""
+        self.current_spatial_project = None
         self.tree_collection_options = TreeCollectionOptions()
         self.current_prepared_tree_entries = []
         self.current_loaded_entries = []
@@ -247,7 +251,7 @@ class MainWindow(QMainWindow):
 
         self.match_info_box = QTextEdit()
         self.match_info_box.setReadOnly(True)
-        self.match_info_box.setPlaceholderText("Taxon matching results will appear after importing a tree and a matrix.")
+        self.match_info_box.setPlaceholderText("Analysis taxon matching appears after importing a tree and a matrix.")
 
         # ---------------- 树集合信息面板 ----------------
         self.tree_collection_panel = TreeCollectionInfoPanel()
@@ -276,7 +280,7 @@ class MainWindow(QMainWindow):
         self.left_workspace_splitter.setStretchFactor(1, 2)
 
         self.right_workspace_splitter.addWidget(self._wrap_workspace_panel("Tree / Tree Set", self.tree_collection_panel))
-        self.right_workspace_splitter.addWidget(self._wrap_workspace_panel("Taxon Matching", self.match_info_box))
+        self.right_workspace_splitter.addWidget(self._wrap_workspace_panel("Analysis Taxon Matching", self.match_info_box))
         self.right_workspace_splitter.addWidget(self._wrap_workspace_panel("Current Summary", self.center_info))
         self.right_workspace_splitter.setStretchFactor(0, 3)
         self.right_workspace_splitter.setStretchFactor(1, 2)
@@ -447,6 +451,7 @@ class MainWindow(QMainWindow):
         """)
 
         file_menu = menubar.addMenu("File")
+        spatial_menu = menubar.addMenu("Spatial Data")
         reconstruction_menu = menubar.addMenu("Ancestral Distribution Reconstruction")
         consensus_tree_menu = reconstruction_menu.addMenu("On Consensus Tree")
         trees_menu = reconstruction_menu.addMenu("On Trees")
@@ -480,6 +485,10 @@ class MainWindow(QMainWindow):
         self.open_project_action = QAction("Quick Import Project...", self)
         self.open_project_action.triggered.connect(self.open_project_folder)
         file_menu.addAction(self.open_project_action)
+
+        self.open_spatial_data_manager_action = QAction("Spatial Data Manager...", self)
+        self.open_spatial_data_manager_action.triggered.connect(self.open_spatial_data_manager)
+        spatial_menu.addAction(self.open_spatial_data_manager_action)
 
         self.run_diva_action = QAction("DIVA", self)
         self.run_diva_action.triggered.connect(self.run_diva)
@@ -1206,23 +1215,44 @@ class MainWindow(QMainWindow):
 
     def _update_taxon_match(self):
         if not self.current_tree or not self.current_matrix:
-            self.match_info_box.setPlainText("请先同时导入树和矩阵。")
+            self.match_info_box.setPlainText("Import both a tree and a matrix to inspect taxon matching.")
             return
 
         tree_taxa = self.current_tree.get_leaf_names()
         matrix_taxa = self.current_matrix.taxa_names if self.current_matrix else []
         result = self.taxon_match_service.match(tree_taxa, matrix_taxa)
 
-        text = (
-            f"匹配成功: {result['matched_count']}\n"
-            f"仅树中存在: {result['only_in_tree_count']}\n"
-            f"仅矩阵中存在: {result['only_in_matrix_count']}\n\n"
-            f"仅树中存在:\n"
-            + ("\n".join(result["only_in_tree"]) if result["only_in_tree"] else "无")
-            + "\n\n仅矩阵中存在:\n"
-            + ("\n".join(result["only_in_matrix"]) if result["only_in_matrix"] else "无")
-        )
-        self.match_info_box.setPlainText(text)
+        ambiguous = result.get("ambiguous") or []
+        unmatched = result.get("unmatched") or []
+        only_in_matrix = result.get("only_in_matrix") or []
+        lines = [
+            "Analysis taxon matching",
+            "Mode: normalized + unique prefix",
+            "Matched tree taxa: %d" % result["matched_count"],
+            "  exact: %d" % result.get("exact_count", 0),
+            "  normalized: %d" % result.get("normalized_count", 0),
+            "  prefix: %d" % result.get("prefix_count", 0),
+            "Taxon-name ambiguous tree taxa: %d" % result.get("ambiguous_count", 0),
+            "Taxon-name unmatched tree taxa: %d" % result.get("unmatched_count", 0),
+            "Matrix taxa not matched by tree: %d" % result["only_in_matrix_count"],
+        ]
+        if ambiguous:
+            lines.extend(["", "Taxon-name ambiguous tree taxa:"])
+            for row in ambiguous[:50]:
+                lines.append("  %s -> %s" % (row.get("source_taxon", ""), row.get("candidates", "")))
+            if len(ambiguous) > 50:
+                lines.append("  ... %d more" % (len(ambiguous) - 50))
+        if unmatched:
+            lines.extend(["", "Taxon-name unmatched tree taxa:"])
+            lines.extend("  %s" % name for name in [row.get("source_taxon", "") for row in unmatched[:50]])
+            if len(unmatched) > 50:
+                lines.append("  ... %d more" % (len(unmatched) - 50))
+        if only_in_matrix:
+            lines.extend(["", "Matrix taxa not matched by tree:"])
+            lines.extend("  %s" % name for name in only_in_matrix[:50])
+            if len(only_in_matrix) > 50:
+                lines.append("  ... %d more" % (len(only_in_matrix) - 50))
+        self.match_info_box.setPlainText("\n".join(lines))
 
     def _load_tree_from_path(self, file_path):
         newick_text = self.tree_reader.read_tree(file_path)
@@ -1277,6 +1307,63 @@ class MainWindow(QMainWindow):
 
         self.matrix_preview.load_matrix(matrix, selected_trait_column=self.current_selected_trait_column)
         self.append_run_log("Load States Successfully: %s" % file_path)
+        self._update_taxon_match()
+        self._refresh_result_window_if_open()
+        QTimer.singleShot(0, self._preserve_workspace_split)
+
+    def open_spatial_data_manager(self):
+        tree_taxa = []
+        if self.current_tree is not None:
+            try:
+                tree_taxa = list(self.current_tree.get_leaf_names())
+            except Exception:
+                tree_taxa = []
+        matrix_taxa = list(getattr(self.current_matrix, "taxa_names", []) or []) if self.current_matrix is not None else []
+        dialog = SpatialDataManagerDialog(
+            service=self.spatial_data_service,
+            project=self.current_spatial_project,
+            tree_taxa=tree_taxa,
+            matrix_taxa=matrix_taxa,
+            apply_matrix_callback=self._apply_spatial_encoded_matrix,
+            parent=self,
+        )
+        dialog.exec_()
+        self.current_spatial_project = dialog.project()
+
+    def _apply_spatial_encoded_matrix(self, matrix):
+        self.current_matrix = matrix
+        state_columns = [
+            str(col).strip()
+            for col in list(getattr(matrix, "state_columns", []) or [])
+            if str(col).strip()
+        ]
+        self.current_selected_trait_column = state_columns[0] if state_columns else ""
+        self.current_matrix_profiles = self._build_matrix_profiles(
+            matrix,
+            preferred_column=self.current_selected_trait_column,
+        )
+        self.current_sdiva_config = None
+        self.current_dec_config = None
+        self.current_bayestraits_config = None
+        self.current_phytools_config = None
+        self.current_sphytools_config = None
+        self.current_ape_config = None
+        self.current_sape_config = None
+        self._clear_analysis_results(clear_diva=True, clear_sdiva=True)
+
+        self.matrix_preview.load_matrix(matrix, selected_trait_column=self.current_selected_trait_column)
+        self.append_run_log("Apply spatial encoded matrix: %s" % str(getattr(matrix, "source_path", "") or "spatial://encoded_occurrences"))
+        self._set_center_info(
+            "Spatial encoded matrix applied.\n"
+            "Taxa: %d\n"
+            "Areas: %d\n"
+            "Columns: %s"
+            % (
+                len(getattr(matrix, "taxa_names", []) or []),
+                len(getattr(matrix, "state_columns", []) or []),
+                ", ".join(getattr(matrix, "state_columns", []) or []),
+            )
+        )
         self._update_taxon_match()
         self._refresh_result_window_if_open()
         QTimer.singleShot(0, self._preserve_workspace_split)
@@ -1485,6 +1572,51 @@ class MainWindow(QMainWindow):
     def _range_matrix_profile(self):
         return dict((self.current_matrix_profiles or {}).get("range") or {})
 
+    def _aligned_bit_rows_for_current_tree(self, bit_rows):
+        rows = list(bit_rows or [])
+        if self.current_tree is None or not rows:
+            return rows
+        try:
+            tree_taxa = [
+                str(name).strip()
+                for name in list(self.current_tree.get_leaf_names() or [])
+                if str(name).strip()
+            ]
+        except Exception:
+            tree_taxa = []
+        if not tree_taxa:
+            return rows
+
+        matrix_taxa = [str(taxon).strip() for taxon, _bits in rows if str(taxon).strip()]
+        bits_by_taxon = dict((str(taxon).strip(), bits) for taxon, bits in rows if str(taxon).strip())
+        aligned = []
+        unmatched = []
+        ambiguous = []
+        for tree_taxon in tree_taxa:
+            match = self.taxon_match_service.match_name_to_candidates(tree_taxon, matrix_taxa)
+            if match["status"] in self.taxon_match_service.MATCHED_STATUSES:
+                aligned.append((tree_taxon, bits_by_taxon[match["matched_name"]]))
+            elif match["status"] == "ambiguous":
+                ambiguous.append("%s -> %s" % (tree_taxon, ", ".join(match["candidates"])))
+            else:
+                unmatched.append(tree_taxon)
+
+        if len(aligned) == len(tree_taxa):
+            return aligned
+        if aligned:
+            message = [
+                "Tree and matrix taxa could not be fully aligned.",
+                "RASP tried exact, normalized, and unique-prefix taxon matching.",
+            ]
+            if unmatched:
+                message.append("Unmatched tree taxa: %s" % ", ".join(unmatched[:20]))
+            if ambiguous:
+                message.append("Ambiguous tree taxa: %s" % "; ".join(ambiguous[:20]))
+            if len(unmatched) > 20 or len(ambiguous) > 20:
+                message.append("Only the first 20 names are shown.")
+            raise ValueError("\n".join(message))
+        return rows
+
     def _current_range_matrix_view(self, title="Cannot configure"):
         if self.current_matrix is None:
             QMessageBox.warning(self, title, "Please import a matrix first.")
@@ -1508,6 +1640,11 @@ class MainWindow(QMainWindow):
                 "Continuous trait columns may stay in the same file, but they cannot be used by these methods."
                 + (("\n\nDetails: %s" % detail) if detail else ""),
             )
+            return None
+        try:
+            bit_rows = self._aligned_bit_rows_for_current_tree(bit_rows)
+        except Exception as exc:
+            QMessageBox.warning(self, title, str(exc))
             return None
 
         row_by_name = {
@@ -1552,6 +1689,7 @@ class MainWindow(QMainWindow):
             bit_rows = list(profile.get("rows") or [])
             if not area_names or not bit_rows:
                 return None
+            bit_rows = self._aligned_bit_rows_for_current_tree(bit_rows)
 
             row_by_name = {
                 str(row.get("Name", "") or "").strip(): row

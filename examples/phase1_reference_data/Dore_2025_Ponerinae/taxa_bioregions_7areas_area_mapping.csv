@@ -1,0 +1,8 @@
+﻿area_code,geometry_id,display_name,color,centroid_lon,centroid_lat,source,crs
+Afrotropics,Afrotropics,Afrotropics,#8dd3c7,,,Dore_2025_Ponerinae,EPSG:4326
+Australasia,Australasia,Australasia,#ffffb3,,,Dore_2025_Ponerinae,EPSG:4326
+Indomalaya,Indomalaya,Indomalaya,#bebada,,,Dore_2025_Ponerinae,EPSG:4326
+Nearctic,Nearctic,Nearctic,#fb8072,,,Dore_2025_Ponerinae,EPSG:4326
+Neotropics,Neotropics,Neotropics,#80b1d3,,,Dore_2025_Ponerinae,EPSG:4326
+Eastern Palearctic,Eastern_Palearctic,Eastern Palearctic,#fdb462,,,Dore_2025_Ponerinae,EPSG:4326
+Western Palearctic,Western_Palearctic,Western Palearctic,#b3de69,,,Dore_2025_Ponerinae,EPSG:4326
