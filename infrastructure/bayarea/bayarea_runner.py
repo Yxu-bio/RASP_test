@@ -69,24 +69,44 @@ class BayAreaRunner:
             "-modelType=%s" % int(kwargs["model_type_code"]),
             "-guessInitialRates=%s" % self._bool_arg(kwargs["guess_initial_rates"]),
             "-useAuxiliarySampling=%s" % self._bool_arg(kwargs["use_auxiliary_sampling"]),
+            "-gainPrior=%s" % self._float_arg(kwargs["gain_prior"]),
+            "-lossPrior=%s" % self._float_arg(kwargs["loss_prior"]),
+            "-areaProposalTuner=%s" % self._float_arg(kwargs["area_proposal_tuner"]),
+            "-rateProposalTuner=%s" % self._float_arg(kwargs["rate_proposal_tuner"]),
         ]
         if int(kwargs["model_type_code"]) == 3:
             cmd.extend([
                 "-geoDistancePowerPositive=%s" % self._bool_arg(kwargs["geo_distance_power_positive"]),
                 "-geoDistanceTruncate=%s" % self._bool_arg(kwargs["geo_distance_truncate"]),
+                "-distancePowerPrior=%s" % self._float_arg(kwargs["distance_power_prior"]),
+                "-distanceProposalTuner=%s" % self._float_arg(kwargs["distance_proposal_tuner"]),
             ])
         seed = kwargs.get("seed")
         if seed is not None:
             cmd.append("-seed=%s" % int(seed))
         cmd.extend(self._parse_other_options(kwargs.get("other_options", "")))
 
-        proc = subprocess.run(
-            cmd,
-            cwd=str(run_files.workdir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-        )
+        timeout_seconds = self._timeout_seconds(kwargs)
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(run_files.workdir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout_text = self._timeout_text(exc.stdout)
+            stderr_text = self._timeout_text(exc.stderr)
+            run_files.stdout_log_path.write_text(stdout_text, encoding="utf-8", errors="replace")
+            run_files.stderr_log_path.write_text(stderr_text, encoding="utf-8", errors="replace")
+            raise TimeoutError(
+                "BayArea did not exit within %s seconds.\n"
+                "workdir: %s\n"
+                "This usually indicates a degenerate model/data combination or an unusually long MCMC run."
+                % (timeout_seconds, run_files.workdir)
+            )
         stdout_text = proc.stdout if proc.stdout is not None else ""
         stderr_text = proc.stderr if proc.stderr is not None else ""
         run_files.stdout_log_path.write_text(stdout_text, encoding="utf-8", errors="replace")
@@ -125,6 +145,9 @@ class BayAreaRunner:
     def _bool_arg(self, value) -> str:
         return "T" if bool(value) else "F"
 
+    def _float_arg(self, value) -> str:
+        return "%.12g" % float(value)
+
     def _parse_other_options(self, text) -> list:
         options = []
         for line in str(text or "").splitlines():
@@ -133,6 +156,22 @@ class BayAreaRunner:
                 continue
             options.append(clean)
         return options
+
+    def _timeout_seconds(self, kwargs) -> int:
+        try:
+            chain_length = int(kwargs.get("chain_length", 0) or 0)
+        except Exception:
+            chain_length = 0
+        if chain_length <= 0:
+            return 900
+        return max(900, min(21600, int(chain_length / 5000)))
+
+    def _timeout_text(self, value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return str(value)
 
     def _locate_output_files(self, workdir: Path) -> dict:
         patterns = {

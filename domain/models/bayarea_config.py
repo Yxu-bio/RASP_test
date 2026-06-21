@@ -14,6 +14,31 @@ BAYAREA_MODEL_CODE = {
 }
 
 
+def bayarea_recommended_parameters(model_type: str) -> Dict[str, object]:
+    model = normalize_bayarea_model_type(model_type)
+    if model == "INDEPENDENCE":
+        return {
+            "gain_prior": 1.0,
+            "loss_prior": 1.0,
+            "distance_power_prior": 0.1,
+            "area_proposal_tuner": 0.2,
+            "rate_proposal_tuner": 0.005,
+            "distance_proposal_tuner": 0.5,
+            "geo_distance_power_positive": False,
+            "geo_distance_truncate": False,
+        }
+    return {
+        "gain_prior": 0.1,
+        "loss_prior": 0.1,
+        "distance_power_prior": 0.1,
+        "area_proposal_tuner": 0.1,
+        "rate_proposal_tuner": 0.5,
+        "distance_proposal_tuner": 0.5,
+        "geo_distance_power_positive": True,
+        "geo_distance_truncate": False,
+    }
+
+
 @dataclass
 class BayAreaConfig:
     area_names: List[str]
@@ -25,24 +50,34 @@ class BayAreaConfig:
     model_type: str = "DISTANCE_NORM"
     guess_initial_rates: bool = True
     use_auxiliary_sampling: bool = False
-    geo_distance_power_positive: bool = False
+    geo_distance_power_positive: bool = True
     geo_distance_truncate: bool = False
     seed: Optional[int] = None
-    other_options: str = (
-        "-gainPrior=1.0\n"
-        "-lossPrior=1.0\n"
-        "-distancePowerPrior=1.0\n"
-        "-areaProposalTuner=0.2"
-    )
+    gain_prior: float = 0.1
+    loss_prior: float = 0.1
+    distance_power_prior: float = 0.1
+    area_proposal_tuner: float = 0.1
+    rate_proposal_tuner: float = 0.5
+    distance_proposal_tuner: float = 0.5
+    other_options: str = ""
     save_original_results: bool = False
     save_original_results_path: str = ""
 
     @classmethod
     def default_for_areas(cls, area_names):
         names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
+        defaults = bayarea_recommended_parameters("DISTANCE_NORM")
         return cls(
             area_names=names,
             coordinates={name: (0.0, 0.0) for name in names},
+            geo_distance_power_positive=bool(defaults["geo_distance_power_positive"]),
+            geo_distance_truncate=bool(defaults["geo_distance_truncate"]),
+            gain_prior=float(defaults["gain_prior"]),
+            loss_prior=float(defaults["loss_prior"]),
+            distance_power_prior=float(defaults["distance_power_prior"]),
+            area_proposal_tuner=float(defaults["area_proposal_tuner"]),
+            rate_proposal_tuner=float(defaults["rate_proposal_tuner"]),
+            distance_proposal_tuner=float(defaults["distance_proposal_tuner"]),
         )
 
     def validate(self) -> None:
@@ -74,12 +109,31 @@ class BayAreaConfig:
             self.seed = int(self.seed)
             if self.seed <= 0:
                 self.seed = None
+        self.gain_prior = _positive_float(self.gain_prior, "Gain prior")
+        self.loss_prior = _positive_float(self.loss_prior, "Loss prior")
+        self.distance_power_prior = _positive_float(self.distance_power_prior, "Distance power prior")
+        self.area_proposal_tuner = float(self.area_proposal_tuner)
+        if self.area_proposal_tuner < 0.0 or self.area_proposal_tuner > 1.0:
+            raise ValueError("Area proposal tuner must be between 0 and 1.")
+        self.rate_proposal_tuner = _positive_float(self.rate_proposal_tuner, "Rate proposal tuner")
+        self.distance_proposal_tuner = _positive_float(self.distance_proposal_tuner, "Distance proposal tuner")
 
         normalized_coords = {}
         for area in names:
             lat, lon = self.coordinates.get(area, (0.0, 0.0))
             normalized_coords[area] = (float(lat), float(lon))
         self.coordinates = normalized_coords
+
+        distinct_coords = {
+            (round(float(lat), 12), round(float(lon), 12))
+            for lat, lon in self.coordinates.values()
+        }
+        if self.model_type == "DISTANCE_NORM" and len(names) > 1 and len(distinct_coords) <= 1:
+            raise ValueError(
+                "BayArea DISTANCE NORM requires geographic coordinates with at least two distinct points. "
+                "Load a coordinate file before running this model. All-zero/identical coordinates make "
+                "the distance model degenerate and can make the current BayArea executable appear to hang."
+            )
 
     def engine_kwargs(self) -> Dict[str, object]:
         self.validate()
@@ -94,6 +148,12 @@ class BayAreaConfig:
             "geo_distance_power_positive": bool(self.geo_distance_power_positive),
             "geo_distance_truncate": bool(self.geo_distance_truncate),
             "seed": self.seed,
+            "gain_prior": float(self.gain_prior),
+            "loss_prior": float(self.loss_prior),
+            "distance_power_prior": float(self.distance_power_prior),
+            "area_proposal_tuner": float(self.area_proposal_tuner),
+            "rate_proposal_tuner": float(self.rate_proposal_tuner),
+            "distance_proposal_tuner": float(self.distance_proposal_tuner),
             "other_options": str(self.other_options or ""),
             "save_original_results": bool(self.save_original_results),
             "save_original_results_path": str(self.save_original_results_path or ""),
@@ -115,6 +175,12 @@ class BayAreaConfig:
             "geo_distance_power_positive": bool(self.geo_distance_power_positive),
             "geo_distance_truncate": bool(self.geo_distance_truncate),
             "seed": self.seed,
+            "gain_prior": float(self.gain_prior),
+            "loss_prior": float(self.loss_prior),
+            "distance_power_prior": float(self.distance_power_prior),
+            "area_proposal_tuner": float(self.area_proposal_tuner),
+            "rate_proposal_tuner": float(self.rate_proposal_tuner),
+            "distance_proposal_tuner": float(self.distance_proposal_tuner),
             "other_options": str(self.other_options or ""),
             "save_original_results": bool(self.save_original_results),
             "save_original_results_path": str(self.save_original_results_path or ""),
@@ -169,19 +235,39 @@ class BayAreaConfig:
         except Exception:
             seed_value = None
 
+        model_type = str(value("model_type", getattr(base, "model_type", "DISTANCE_NORM")) or "DISTANCE_NORM")
+        model_defaults = bayarea_recommended_parameters(model_type)
+        raw_other_options = str(value("other_options", getattr(base, "other_options", "")) or "")
+        parsed_options, remaining_other_options = _extract_structured_other_options(raw_other_options)
+
+        def numeric_option(name, default):
+            if name in data:
+                return float(data.get(name))
+            if name in parsed_options:
+                return float(parsed_options[name])
+            if name in model_defaults:
+                return float(model_defaults[name])
+            return float(getattr(base, name, default))
+
         config = cls(
             area_names=names,
             coordinates=coords,
             chain_length=int(value("chain_length", getattr(base, "chain_length", 5000000)) or 5000000),
             sample_frequency=int(value("sample_frequency", getattr(base, "sample_frequency", 1000)) or 1000),
             burnin=int(value("burnin", getattr(base, "burnin", 0)) or 0),
-            model_type=str(value("model_type", getattr(base, "model_type", "DISTANCE_NORM")) or "DISTANCE_NORM"),
+            model_type=model_type,
             guess_initial_rates=bool(value("guess_initial_rates", getattr(base, "guess_initial_rates", True))),
             use_auxiliary_sampling=bool(value("use_auxiliary_sampling", getattr(base, "use_auxiliary_sampling", False))),
             geo_distance_power_positive=bool(value("geo_distance_power_positive", getattr(base, "geo_distance_power_positive", False))),
             geo_distance_truncate=bool(value("geo_distance_truncate", getattr(base, "geo_distance_truncate", False))),
             seed=seed_value,
-            other_options=str(value("other_options", getattr(base, "other_options", "")) or ""),
+            gain_prior=numeric_option("gain_prior", 0.1),
+            loss_prior=numeric_option("loss_prior", 0.1),
+            distance_power_prior=numeric_option("distance_power_prior", 0.1),
+            area_proposal_tuner=numeric_option("area_proposal_tuner", 0.1),
+            rate_proposal_tuner=numeric_option("rate_proposal_tuner", 0.5),
+            distance_proposal_tuner=numeric_option("distance_proposal_tuner", 0.5),
+            other_options=remaining_other_options,
             save_original_results=bool(value("save_original_results", getattr(base, "save_original_results", False))),
             save_original_results_path=str(value("save_original_results_path", getattr(base, "save_original_results_path", "")) or ""),
         )
@@ -202,3 +288,44 @@ def normalize_bayarea_model_type(value: str) -> str:
     if text in aliases:
         return aliases[text]
     raise ValueError("Unsupported BayArea model type: %s" % value)
+
+
+def _positive_float(value, label: str) -> float:
+    try:
+        number = float(value)
+    except Exception as exc:
+        raise ValueError("%s must be numeric." % label) from exc
+    if number <= 0:
+        raise ValueError("%s must be greater than 0." % label)
+    return number
+
+
+def _extract_structured_other_options(text: str):
+    option_to_field = {
+        "gainprior": "gain_prior",
+        "lossprior": "loss_prior",
+        "distancepowerprior": "distance_power_prior",
+        "areaproposaltuner": "area_proposal_tuner",
+        "rateproposaltuner": "rate_proposal_tuner",
+        "distanceproposaltuner": "distance_proposal_tuner",
+    }
+    parsed = {}
+    remaining = []
+    for line in str(text or "").splitlines():
+        clean = line.strip()
+        if not clean or clean.startswith("#"):
+            remaining.append(line)
+            continue
+        if not clean.startswith("-") or "=" not in clean:
+            remaining.append(line)
+            continue
+        name, raw_value = clean[1:].split("=", 1)
+        field_name = option_to_field.get(name.strip().lower())
+        if not field_name:
+            remaining.append(line)
+            continue
+        try:
+            parsed[field_name] = float(raw_value.strip())
+        except Exception:
+            remaining.append(line)
+    return parsed, "\n".join(remaining).strip()

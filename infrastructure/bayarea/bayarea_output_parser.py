@@ -121,6 +121,10 @@ class BayAreaOutputParser:
             for key in sorted(ln_likelihood_by_cycle.keys())
         ]
         result.model_statistics = self._build_model_statistics(run_files, run_output, ln_likelihoods)
+        diagnostics = self._parameter_diagnostics(run_files)
+        result.model_statistics.update(diagnostics.get("statistics", {}))
+        for warning in diagnostics.get("warnings", []):
+            result.parse_warnings.append(warning)
         try:
             analysis_log_path = self._write_legacy_analysis_log(
                 reference_tree=reference_tree,
@@ -193,6 +197,51 @@ class BayAreaOutputParser:
             "nhx_path": str(run_files.nhx_path or ""),
             "analysis_log_path": str(getattr(run_files, "analysis_log_path", "") or ""),
         }
+
+    def _parameter_diagnostics(self, run_files):
+        path = Path(str(getattr(run_files, "parameters_path", "") or ""))
+        if not path.exists():
+            return {"statistics": {}, "warnings": []}
+        try:
+            lines = [line for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+        except Exception:
+            return {"statistics": {}, "warnings": []}
+        if len(lines) < 2:
+            return {"statistics": {}, "warnings": []}
+        header = lines[0].split("\t")
+        last = lines[-1].split("\t")
+        if len(last) < len(header):
+            return {"statistics": {}, "warnings": []}
+        row = dict(zip(header, last))
+
+        def number(name):
+            try:
+                return float(row.get(name, ""))
+            except Exception:
+                return None
+
+        num_gain = number("numGain")
+        num_loss = number("numLoss")
+        gain = number("gain")
+        loss = number("loss")
+        statistics = {
+            "bayarea_last_gain": gain,
+            "bayarea_last_loss": loss,
+            "bayarea_last_num_gain": num_gain,
+            "bayarea_last_num_loss": num_loss,
+        }
+        warnings = []
+        if num_gain is not None and num_loss is not None:
+            event_count = max(float(num_gain), float(num_loss))
+            threshold = max(500.0, float(getattr(run_files, "taxon_count", 0) or 0) * 20.0)
+            if event_count > threshold:
+                warnings.append(
+                    "BayArea sampled very large histories at the last MCMC sample "
+                    "(numGain=%.0f, numLoss=%.0f). If this run is slow or unstable, "
+                    "try a smaller rateProposalTuner such as 0.1, especially for INDEPENDENCE."
+                    % (num_gain, num_loss)
+                )
+        return {"statistics": statistics, "warnings": warnings}
 
     def _write_legacy_analysis_log(
         self,
