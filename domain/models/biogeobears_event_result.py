@@ -23,6 +23,7 @@ class BioGeoBEARSEventResult:
     source_model_name: str = "BioGeoBEARS"
     source_run_directory: str = ""
     source_output_json_path: str = ""
+    source_clade_keys: List[str] = field(default_factory=list)
 
     events: List[BioGeoBEARSEventRecord] = field(default_factory=list)
     raw_tables: Dict[str, List[Dict]] = field(default_factory=dict)

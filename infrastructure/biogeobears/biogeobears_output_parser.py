@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 from domain.models.biogeobears_result import (
@@ -47,6 +48,7 @@ class BioGeoBEARSOutputParser:
 
         reference_node_id_map = self._build_reference_node_id_map(reference_tree)
         all_states = []
+        full_state_order = []
 
         for entry in list(payload.get("node_results", []) or []):
             clade_key = str(entry.get("clade_key", "")).strip()
@@ -57,6 +59,11 @@ class BioGeoBEARSOutputParser:
             unified_display_node_id = reference_node_id_map.get(clade_key, raw_bgb_node_id)
             states = []
             supports = {}
+            top_supports = self._probability_map_percent(entry.get("top_probabilities", {}))
+            bottom_supports = self._probability_map_percent(entry.get("bottom_probabilities", {}))
+            for label in list(top_supports.keys()) + list(bottom_supports.keys()):
+                if label not in full_state_order:
+                    full_state_order.append(label)
             pie_labels = []
             pie_percents = []
 
@@ -67,6 +74,12 @@ class BioGeoBEARSOutputParser:
                 prob_percent = float(state_item.get("prob_percent", 0.0) or 0.0)
                 states.append(label)
                 supports[label] = prob_percent
+                if label not in top_supports:
+                    top_supports[label] = prob_percent
+                if label not in bottom_supports and state_item.get("bottom_prob", None) is not None:
+                    bottom_value = self._finite_float(state_item.get("bottom_prob", None))
+                    if bottom_value is not None:
+                        bottom_supports[label] = 100.0 * bottom_value
                 pie_labels.append(label)
                 pie_percents.append(prob_percent)
                 if label not in all_states:
@@ -79,6 +92,8 @@ class BioGeoBEARSOutputParser:
                 display_node_id=unified_display_node_id,
                 states=states,
                 state_supports=supports,
+                branch_top_supports=top_supports,
+                branch_bottom_supports=bottom_supports,
                 pie_labels=pie_labels,
                 pie_percents=pie_percents,
                 pie_colors=[],
@@ -91,6 +106,8 @@ class BioGeoBEARSOutputParser:
             result.reference_node_ids[clade_key] = unified_display_node_id
 
         result.state_order = list(all_states)
+        if full_state_order:
+            result.model_statistics["full_state_order"] = list(full_state_order)
         result.state_colors = {}
         palette_index = 0
         for state in result.state_order:
@@ -112,6 +129,30 @@ class BioGeoBEARSOutputParser:
             result.result_note += " optim_summary_present=True"
         self._attach_information_text(result)
         return result
+
+    def _probability_map_percent(self, value):
+        if not isinstance(value, dict):
+            return {}
+        parsed = {}
+        for label, probability in value.items():
+            text = str(label or "").strip()
+            if not text:
+                continue
+            try:
+                number = float(probability or 0.0)
+            except Exception:
+                continue
+            if not math.isfinite(number):
+                continue
+            parsed[text] = 100.0 * number if abs(number) <= 1.0000001 else number
+        return parsed
+
+    def _finite_float(self, value):
+        try:
+            number = float(value)
+        except Exception:
+            return None
+        return number if math.isfinite(number) else None
 
     def _pretty_model_name(self, model_name, attrs):
         pretty = {

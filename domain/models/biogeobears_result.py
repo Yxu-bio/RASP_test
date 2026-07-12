@@ -9,6 +9,11 @@ class BioGeoBEARSNodeResult:
 
     states: List[str] = field(default_factory=list)
     state_supports: Dict[str, float] = field(default_factory=dict)
+    # Optional BioGeoBEARS branch-end probabilities. Values are percentages.
+    # ``branch_top_supports`` is the probability at the descendant node; the
+    # bottom values are immediately below that node on its incoming branch.
+    branch_top_supports: Dict[str, float] = field(default_factory=dict)
+    branch_bottom_supports: Dict[str, float] = field(default_factory=dict)
 
     pie_labels: List[str] = field(default_factory=list)
     pie_percents: List[float] = field(default_factory=list)

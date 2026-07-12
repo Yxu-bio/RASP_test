@@ -19,11 +19,23 @@ class BioGeoBEARSBSMEventParser:
             source_run_directory=str(output_json_path.parent),
         )
 
+        source_metadata = {}
+
         if output_json_path.exists():
             try:
                 payload = json.loads(output_json_path.read_text(encoding="utf-8"))
                 attrs = dict(payload.get("attributes", {}) or {})
                 result.source_model_name = self._format_model_name(attrs)
+                source_metadata = {
+                    "source_treefile": str(attrs.get("treefile", "") or ""),
+                    "source_tip_count": attrs.get("tip_count", ""),
+                    "source_internal_node_count": attrs.get("internal_node_count", ""),
+                }
+                result.source_clade_keys = [
+                    str(row.get("clade_key", "") or "")
+                    for row in list(payload.get("node_results", []) or [])
+                    if str(row.get("clade_key", "") or "")
+                ]
             except Exception as exc:
                 result.parse_warnings.append("Could not read BioGeoBEARS output JSON: %s" % exc)
 
@@ -32,6 +44,7 @@ class BioGeoBEARSBSMEventParser:
         clado_path = bsm_path / "bsm_clado_events.csv"
 
         result.summary = {"enabled": True, "directory": str(bsm_path)}
+        result.summary.update(source_metadata)
         if summary_path.exists():
             try:
                 result.summary.update(json.loads(summary_path.read_text(encoding="utf-8")))

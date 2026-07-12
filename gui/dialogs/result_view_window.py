@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
 
 from application.services.export_service import ExportService
 from application.services.result_schema_adapter import ResultSchemaAdapterFactory
+from gui.dialogs.temporal_range_playback_dialog import TemporalRangePlaybackDialog
 from gui.widgets.node_info_panel import NodeInfoPanel
 from gui.widgets.tree_graph_panel import TreeGraphPanel
 
@@ -126,6 +127,11 @@ class ResultViewWindow(QMainWindow):
         self.export_service = ExportService()
         self.leaf_state_map = {}
         self.analysis_context_text = ""
+        self.temporal_area_records = []
+        self.temporal_range_matrix = None
+        self.temporal_bsm_result = None
+        self.temporal_reference_tree = None
+        self._temporal_playback_dialog = None
 
         self.tree_panel = TreeGraphPanel()
         self.node_info_panel = NodeInfoPanel()
@@ -249,6 +255,15 @@ class ResultViewWindow(QMainWindow):
         toolbar.addAction(self.export_continuous_figure_action)
         self.export_continuous_figure_action.setVisible(False)
 
+        toolbar.addSeparator()
+        self.temporal_playback_action = QAction("Spatiotemporal Playback", self)
+        self.temporal_playback_action.setToolTip(
+            "Animate discrete ancestral range probabilities through tree time and linked spatial areas."
+        )
+        self.temporal_playback_action.triggered.connect(self._open_temporal_playback)
+        self.temporal_playback_action.setEnabled(False)
+        toolbar.addAction(self.temporal_playback_action)
+
     def _build_figure_group_panel(self):
         box = QGroupBox("Figure Groups", self)
         layout = QVBoxLayout(box)
@@ -287,6 +302,9 @@ class ResultViewWindow(QMainWindow):
         self.tree_panel.set_renderer(renderer)
 
     def set_result(self, result) -> None:
+        if self._temporal_playback_dialog is not None:
+            self._temporal_playback_dialog.close()
+            self._temporal_playback_dialog = None
         self.current_result = result
         self._ensure_continuous_plot_values()
         if self._is_continuous_result():
@@ -295,6 +313,7 @@ class ResultViewWindow(QMainWindow):
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
         self._refresh_figure_group_panel()
+        self._configure_temporal_playback_action()
         self._update_context_status()
 
     def set_window_title_by_method(self, method_name: str) -> None:
@@ -303,6 +322,7 @@ class ResultViewWindow(QMainWindow):
         self._rebuild_standard_context()
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
+        self._configure_temporal_playback_action()
         self._refresh_figure_group_panel()
         self._update_context_status()
 
@@ -312,6 +332,72 @@ class ResultViewWindow(QMainWindow):
     def set_analysis_context(self, text: str) -> None:
         self.analysis_context_text = str(text or "")
         self._update_context_status()
+
+    def set_temporal_playback_context(
+        self,
+        area_records=None,
+        range_matrix=None,
+        bsm_result=None,
+        reference_tree=None,
+    ) -> None:
+        self.temporal_area_records = list(area_records or [])
+        self.temporal_range_matrix = range_matrix
+        self.temporal_bsm_result = bsm_result
+        self.temporal_reference_tree = reference_tree
+        self._configure_temporal_playback_action()
+
+    def _configure_temporal_playback_action(self) -> None:
+        if not hasattr(self, "temporal_playback_action"):
+            return
+        result = self.current_result
+        method_name = str(self.current_method_name or getattr(result, "model_name", "") or "")
+        supported_method = any(
+            method_name.startswith(prefix)
+            for prefix in [
+                "DIVA",
+                "S-DIVA",
+                "DEC",
+                "S-DEC",
+                "BioGeoBEARS",
+                "S-BioGeoBEARS",
+                "BayArea",
+                "BBM",
+            ]
+        )
+        usable = bool(
+            result is not None
+            and supported_method
+            and type(result).__name__ != "ContinuousTraitResult"
+            and (getattr(result, "reference_tree", None) is not None or self.temporal_reference_tree is not None)
+            and dict(getattr(result, "node_results", {}) or {})
+        )
+        self.temporal_playback_action.setEnabled(usable)
+        if usable and not self.temporal_area_records:
+            self.temporal_playback_action.setToolTip(
+                "Open tree-time playback. Load area polygons in Spatial Data Manager to enable the linked map."
+            )
+
+    def _open_temporal_playback(self) -> None:
+        if not self.temporal_playback_action.isEnabled():
+            return
+        try:
+            dialog = TemporalRangePlaybackDialog(
+                result=self.current_result,
+                method_name=self.current_method_name,
+                leaf_state_map=self.leaf_state_map,
+                area_records=self.temporal_area_records,
+                range_matrix=self.temporal_range_matrix,
+                bsm_result=self.temporal_bsm_result,
+                reference_tree=self.temporal_reference_tree,
+                parent=self,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Spatiotemporal Playback", str(exc))
+            return
+        self._temporal_playback_dialog = dialog
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def _update_context_status(self) -> None:
         method_text = self.current_method_name or "no method"

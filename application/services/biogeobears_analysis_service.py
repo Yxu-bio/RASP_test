@@ -383,6 +383,23 @@ class BioGeoBEARSAnalysisService:
             source_run_directory=str(Path(source_path)),
         )
         result.summary = {"enabled": True, "directory": str(bsm_dir), "source": "loaded_existing_bsm_result"}
+        if Path(output_json_path).exists():
+            try:
+                output_payload = json.loads(Path(output_json_path).read_text(encoding="utf-8"))
+                output_attrs = dict(output_payload.get("attributes", {}) or {})
+                result.source_model_name = self.bsm_event_parser._format_model_name(output_attrs)
+                result.summary.update({
+                    "source_treefile": str(output_attrs.get("treefile", "") or ""),
+                    "source_tip_count": output_attrs.get("tip_count", ""),
+                    "source_internal_node_count": output_attrs.get("internal_node_count", ""),
+                })
+                result.source_clade_keys = [
+                    str(row.get("clade_key", "") or "")
+                    for row in list(output_payload.get("node_results", []) or [])
+                    if str(row.get("clade_key", "") or "")
+                ]
+            except Exception as exc:
+                result.parse_warnings.append("Could not read source BioGeoBEARS output metadata: %s" % exc)
         summary_path = bsm_dir / "bsm_summary.json"
         if summary_path.exists():
             try:
@@ -580,16 +597,19 @@ class BioGeoBEARSAnalysisService:
         source = Path(source)
         bsm_dir = Path(bsm_dir)
         candidates = []
-        if source.is_file() and source.suffix.lower() == ".json":
-            candidates.append(source)
+        source_json = source if source.is_file() and source.suffix.lower() == ".json" else None
         for root in [source if source.is_dir() else source.parent, bsm_dir.parent, bsm_dir]:
             candidates.extend([
+                root / "bgb_result.json",
                 root / "output.json",
                 root / "bgb_output.json",
                 root / "result.json",
                 root / "biogeobears_output.json",
             ])
             candidates.extend(sorted(root.glob("*output*.json")))
+            candidates.extend(sorted(root.glob("*result*.json")))
+        if source_json is not None:
+            candidates.append(source_json)
         for path in candidates:
             if path.exists():
                 return path

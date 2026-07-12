@@ -89,6 +89,7 @@ from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
 from domain.models.tree_collection_options import TreeCollectionOptions
 from domain.models.state_matrix import StateMatrix
+from domain.models.spatial_data import AreaSpatialRecord
 
 from visualization.renderers.diva_result_renderer import DivaResultRenderer
 from visualization.renderers.sdiva_result_renderer import SDivaResultRenderer
@@ -955,6 +956,36 @@ class MainWindow(QMainWindow):
         self.current_result_window.set_renderer(renderer)
         self.current_result_window.set_leaf_state_context(leaf_state_map)
         self.current_result_window.set_analysis_context(self._build_project_context_text())
+        spatial_areas = []
+        if self.current_spatial_project is not None:
+            spatial_areas = list(getattr(self.current_spatial_project, "areas", []) or [])
+        if not spatial_areas and str(ctx["method_name"] or "").startswith("BayArea"):
+            config = self.current_bayarea_config
+            if config is not None:
+                for area_code in list(getattr(config, "area_names", []) or []):
+                    latitude, longitude = dict(getattr(config, "coordinates", {}) or {}).get(
+                        area_code,
+                        (None, None),
+                    )
+                    if latitude is None or longitude is None:
+                        continue
+                    spatial_areas.append(AreaSpatialRecord(
+                        area_code=str(area_code),
+                        geometry_id="bayarea-coordinate-%s" % area_code,
+                        display_name=str(area_code),
+                        centroid_lon=float(longitude),
+                        centroid_lat=float(latitude),
+                        source="BayArea coordinates",
+                    ))
+        range_matrix = self._current_range_matrix_view_silent()
+        if range_matrix is None:
+            range_matrix = self.current_matrix
+        self.current_result_window.set_temporal_playback_context(
+            area_records=spatial_areas,
+            range_matrix=range_matrix,
+            bsm_result=self.current_bgb_bsm_event_result,
+            reference_tree=self.current_tree,
+        )
         self.current_result_window.set_window_title_by_method(ctx["method_name"])
         self.current_result_window.set_result(ctx["result"])
         self.current_result_window.refresh_view()
@@ -4219,6 +4250,7 @@ class MainWindow(QMainWindow):
         self.progress_panel.set_done("BioGeoBEARS BSM events generated")
         self.append_run_log("BioGeoBEARS BSM events generated: %d" % event_count)
         self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] to inspect events.")
+        self._refresh_result_window_if_open()
 
     def _on_biogeobears_bsm_failed(self, message):
         self.progress_panel.set_error("BioGeoBEARS BSM failed")
@@ -4295,6 +4327,7 @@ class MainWindow(QMainWindow):
             % (preview_count, total_rows, maps or "unknown")
         )
         self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] or [BSM Network Map Editor].")
+        self._refresh_result_window_if_open()
         QMessageBox.information(
             self,
             "BioGeoBEARS BSM loaded",

@@ -738,6 +738,11 @@ make_node_results <- function(tr, child_map, internal_nodes, top_mat, bottom_mat
     names(probs_top) <- state_labels
     names(probs_bottom) <- state_labels
 
+    top_probabilities <- as.list(as.numeric(probs_top))
+    names(top_probabilities) <- state_labels
+    bottom_probabilities <- as.list(as.numeric(probs_bottom))
+    names(bottom_probabilities) <- state_labels
+
     ord <- order(probs_top, decreasing = TRUE)
     probs_top <- probs_top[ord]
     probs_bottom <- probs_bottom[ord]
@@ -762,6 +767,8 @@ make_node_results <- function(tr, child_map, internal_nodes, top_mat, bottom_mat
       display_node_id = node_chr,
       supporting_tree_count = 1,
       total_tree_count = 1,
+      top_probabilities = top_probabilities,
+      bottom_probabilities = bottom_probabilities,
       states = states
     )
   }
@@ -814,7 +821,33 @@ rbind_bsm_tables <- function(tables) {
   do.call(rbind, pieces)
 }
 
-write_bsm_event_tables <- function(bsm_output, outdir) {
+add_bsm_state_labels <- function(df, state_labels) {
+  if (is.null(df) || !is.data.frame(df) || length(state_labels) == 0) {
+    return(df)
+  }
+  state_text <- function(values) {
+    indices <- suppressWarnings(as.integer(values))
+    out <- rep(NA_character_, length(indices))
+    valid <- !is.na(indices) & indices >= 1 & indices <= length(state_labels)
+    out[valid] <- state_labels[indices[valid]]
+    out
+  }
+  if ("sampled_states_AT_nodes" %in% names(df)) {
+    df$sampled_states_AT_nodes_txt <- state_text(df$sampled_states_AT_nodes)
+  }
+  if ("sampled_states_AT_brbots" %in% names(df)) {
+    df$sampled_states_AT_brbots_txt <- state_text(df$sampled_states_AT_brbots)
+  }
+  if ("samp_LEFT_dcorner" %in% names(df)) {
+    df$samp_LEFT_dcorner_txt <- state_text(df$samp_LEFT_dcorner)
+  }
+  if ("samp_RIGHT_dcorner" %in% names(df)) {
+    df$samp_RIGHT_dcorner_txt <- state_text(df$samp_RIGHT_dcorner)
+  }
+  df
+}
+
+write_bsm_event_tables <- function(bsm_output, outdir, state_labels = character(0)) {
   dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
   RES_clado_events_tables <- bsm_output$RES_clado_events_tables
   RES_ana_events_tables <- bsm_output$RES_ana_events_tables
@@ -822,8 +855,8 @@ write_bsm_event_tables <- function(bsm_output, outdir) {
   save(RES_clado_events_tables, file = file.path(outdir, "RES_clado_events_tables.Rdata"))
   save(RES_ana_events_tables, file = file.path(outdir, "RES_ana_events_tables.Rdata"))
 
-  all_clado <- rbind_bsm_tables(RES_clado_events_tables)
-  all_ana <- rbind_bsm_tables(RES_ana_events_tables)
+  all_clado <- add_bsm_state_labels(rbind_bsm_tables(RES_clado_events_tables), state_labels)
+  all_ana <- add_bsm_state_labels(rbind_bsm_tables(RES_ana_events_tables), state_labels)
 
   write.csv(all_clado, file = file.path(outdir, "bsm_clado_events.csv"), row.names = FALSE)
   write.csv(all_ana, file = file.path(outdir, "bsm_ana_events.csv"), row.names = FALSE)
@@ -844,6 +877,19 @@ run_bsm_if_requested <- function(args, res) {
 
   dir.create(bsm_outdir, recursive = TRUE, showWarnings = FALSE)
   stochastic_mapping_inputs_list <- get_inputs_for_stochastic_mapping(res = res)
+  bsm_state_labels <- character(0)
+  try({
+    returned_mats <- get_Qmat_COOmat_from_BioGeoBEARS_run_object(
+      BioGeoBEARS_run_object = res$inputs
+    )
+    bsm_state_labels <- vapply(
+      returned_mats$ranges_list,
+      range_label_for_state,
+      FUN.VALUE = character(1),
+      area_names = returned_mats$areanames
+    )
+    bsm_state_labels <- apply_state_label_display(bsm_state_labels)
+  }, silent = TRUE)
   save(stochastic_mapping_inputs_list, file = file.path(bsm_outdir, "BSM_inputs_file.Rdata"))
 
   bsm_output <- runBSM(
@@ -859,7 +905,7 @@ run_bsm_if_requested <- function(args, res) {
     master_nodenum_toPrint = 0
   )
 
-  summary <- write_bsm_event_tables(bsm_output, bsm_outdir)
+  summary <- write_bsm_event_tables(bsm_output, bsm_outdir, state_labels = bsm_state_labels)
   jsonlite::write_json(
     list(
       nummaps = bsm_nummaps,
@@ -867,6 +913,7 @@ run_bsm_if_requested <- function(args, res) {
       maxtries_per_branch = bsm_maxtries,
       clado_rows = summary$clado_rows,
       ana_rows = summary$ana_rows,
+      state_labels = bsm_state_labels,
       clado_csv = file.path(bsm_outdir, "bsm_clado_events.csv"),
       ana_csv = file.path(bsm_outdir, "bsm_ana_events.csv")
     ),
