@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from application.services.bsm_sampling_diagnostics_service import BSMSamplingDiagnosticsService
 from domain.models.sbgb_config import SBGB_MODEL_DISPLAY
 
 
@@ -29,6 +30,11 @@ class BSMRunConfigDialog(QDialog):
         self.maps_spin.setMinimum(1)
         self.maps_spin.setMaximum(100000)
         self.maps_spin.setValue(DEFAULT_BSM_NUMMAPS)
+        self.maps_spin.valueChanged.connect(self._refresh_sampling_note)
+
+        self.sampling_diagnostics = BSMSamplingDiagnosticsService()
+        self.sampling_note = QLabel(self)
+        self.sampling_note.setWordWrap(True)
 
         self.seed_spin = QSpinBox(self)
         self.seed_spin.setMinimum(-2147483647)
@@ -60,7 +66,37 @@ class BSMRunConfigDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(note)
         layout.addLayout(form)
+        layout.addWidget(self.sampling_note)
         layout.addWidget(buttons)
+        self._refresh_sampling_note()
+
+    def _refresh_sampling_note(self, *args):
+        diagnostics = self.sampling_diagnostics.describe_count(self.maps_spin.value())
+        half_width = diagnostics.get("worst_case_mc95_half_width")
+        error_text = "unknown" if half_width is None else "±%.1f percentage points" % (100.0 * half_width)
+        self.sampling_note.setText(
+            "%s: %d maps. Conservative worst-case 95%% Monte Carlo half-width: %s. "
+            "This describes sampling precision only; it does not test model adequacy."
+            % (
+                diagnostics.get("sampling_label", ""),
+                diagnostics.get("map_count", 0),
+                error_text,
+            )
+        )
+        tier = diagnostics.get("sampling_tier")
+        if tier in ("debug_only", "preview"):
+            color = "#fff0e6"
+            border = "#cf6b32"
+        elif tier == "exploratory":
+            color = "#fff7d6"
+            border = "#b7962e"
+        else:
+            color = "#eef7f0"
+            border = "#568a61"
+        self.sampling_note.setStyleSheet(
+            "QLabel { background: %s; border: 1px solid %s; padding: 6px; color: #30343a; }"
+            % (color, border)
+        )
 
     def values(self):
         return {

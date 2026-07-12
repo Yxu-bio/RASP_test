@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QSizePolicy,
     QSplitter,
     QStyle,
     QTabWidget,
@@ -152,8 +153,14 @@ class TemporalRangePlaybackDialog(QDialog):
         self.mode_label = QLabel(self._mode_text(), self)
         self.mode_label.setWordWrap(True)
         self.mode_label.setStyleSheet("QLabel { color: #3f4a52; }")
+        self.sampling_label = QLabel(self._sampling_text(), self)
+        self.sampling_label.setWordWrap(True)
+        self.sampling_label.setMaximumHeight(64)
+        self.sampling_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.warning_label = QLabel(self._warning_text(), self)
         self.warning_label.setWordWrap(True)
+        self.warning_label.setMaximumHeight(92)
+        self.warning_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.warning_label.setStyleSheet(
             "QLabel { background: #fff5d8; border: 1px solid #d7b85d; padding: 6px; color: #4b411f; }"
         )
@@ -196,6 +203,7 @@ class TemporalRangePlaybackDialog(QDialog):
         root.addLayout(display_controls)
 
         root.addWidget(self.mode_label)
+        root.addWidget(self.sampling_label)
         root.addWidget(self.warning_label)
 
         right = QWidget(self)
@@ -264,6 +272,43 @@ class TemporalRangePlaybackDialog(QDialog):
                 continue
             lines.append(warning)
         return "\n".join(line for line in lines if line)
+
+    def _sampling_text(self):
+        diagnostics = dict(self.timeline.metadata.get("bsm_sampling_diagnostics", {}) or {})
+        if not diagnostics:
+            return ""
+        count = int(diagnostics.get("map_count", 0) or 0)
+        half_width = diagnostics.get("worst_case_mc95_half_width")
+        error_text = "unknown" if half_width is None else "±%.1f pp" % (100.0 * float(half_width))
+        text = "%s BSM sampling: %d maps; conservative worst-case 95%% Monte Carlo half-width %s" % (
+            diagnostics.get("sampling_label", ""),
+            count,
+            error_text,
+        )
+        p95 = diagnostics.get("split_half_p95_total_variation")
+        if p95 is not None:
+            text += "; split-half stability %s, p95 total variation %.1f pp across %d branch-time checks" % (
+                str(diagnostics.get("stability_label", "")),
+                100.0 * float(p95),
+                int(diagnostics.get("split_half_query_count", 0) or 0),
+            )
+        text += ". Sampling diagnostics do not test model adequacy."
+        return text
+
+    def _style_sampling_label(self):
+        diagnostics = dict(self.timeline.metadata.get("bsm_sampling_diagnostics", {}) or {})
+        tier = diagnostics.get("sampling_tier")
+        stability = diagnostics.get("stability_status")
+        if tier in ("debug_only", "preview") or stability == "high_variation":
+            color, border = "#fff0e6", "#cf6b32"
+        elif tier == "exploratory" or stability == "moderate":
+            color, border = "#fff7d6", "#b7962e"
+        else:
+            color, border = "#eef7f0", "#568a61"
+        self.sampling_label.setStyleSheet(
+            "QLabel { background: %s; border: 1px solid %s; padding: 6px; color: #30343a; }"
+            % (color, border)
+        )
 
     def _on_slider_changed(self, value):
         if self._updating_time_controls:
@@ -386,8 +431,15 @@ class TemporalRangePlaybackDialog(QDialog):
         mode = str(self.playback_mode_combo.currentData() or "endpoints")
         self.sample_combo.setVisible(mode == "bsm_sample")
         self.sample_combo.setEnabled(mode == "bsm_sample" and self.sample_combo.count() > 0)
+        if hasattr(self, "sampling_label"):
+            self.sampling_label.setText(self._sampling_text())
+            self.sampling_label.setToolTip(self.sampling_label.text())
+            self.sampling_label.setVisible(mode.startswith("bsm_") and bool(self.sampling_label.text()))
+            self._style_sampling_label()
         if hasattr(self, "warning_label"):
             self.warning_label.setText(self._warning_text())
+            self.warning_label.setToolTip(self.warning_label.text())
+            self.warning_label.setVisible(bool(self.warning_label.text()))
         if hasattr(self, "mode_label"):
             self.mode_label.setText(self._mode_text())
 

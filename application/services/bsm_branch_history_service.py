@@ -1,10 +1,14 @@
 from collections import defaultdict
 
+from application.services.bsm_sampling_diagnostics_service import BSMSamplingDiagnosticsService
 from domain.models.temporal_range_result import TemporalRangeHistorySegment
 
 
 class BSMBranchHistoryService:
     """Convert BioGeoBEARS BSM event tables into branch state segments."""
+
+    def __init__(self):
+        self.sampling_diagnostics = BSMSamplingDiagnosticsService()
 
     def attach(self, timeline, bsm_result):
         if timeline is None or bsm_result is None:
@@ -133,6 +137,7 @@ class BSMBranchHistoryService:
         timeline.metadata["bsm_summary_interactive_available"] = bool(
             all_maps_loaded and len(segments) <= 500000
         )
+        timeline.metadata["bsm_sampling_diagnostics"] = self.sampling_diagnostics.evaluate_timeline(timeline)
         if all_maps_loaded and len(segments) > 500000:
             timeline.warnings.append(
                 "Full BSM histories are loaded, but interactive all-map summaries are disabled above "

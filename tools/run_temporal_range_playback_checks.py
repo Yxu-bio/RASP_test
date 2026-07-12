@@ -20,12 +20,14 @@ from PyQt5.QtWidgets import QApplication
 
 from application.services.temporal_range_playback_service import TemporalRangePlaybackService
 from application.services.bsm_branch_history_service import BSMBranchHistoryService
+from application.services.bsm_sampling_diagnostics_service import BSMSamplingDiagnosticsService
 from application.services.biogeobears_analysis_service import BioGeoBEARSAnalysisService
 from domain.models.biogeobears_event_result import BioGeoBEARSEventResult
 from domain.models.diva_result import DivaNodeResult, DivaResult
 from domain.models.spatial_data import AreaSpatialRecord
 from domain.models.state_matrix import StateMatrix
 from gui.dialogs.temporal_range_playback_dialog import TemporalRangePlaybackDialog
+from gui.dialogs.bsm_run_config_dialog import BSMRunConfigDialog
 from gui.dialogs.result_view_window import ResultViewWindow
 from gui.widgets.temporal_range_map_view import TemporalRangeMapView
 from infrastructure.biogeobears.biogeobears_output_parser import BioGeoBEARSOutputParser
@@ -179,6 +181,15 @@ def main():
     )
     BSMBranchHistoryService().attach(timeline, bsm_result)
     check(timeline.history_sample_ids == ["1", "2"], "BSM sample IDs were not attached in order.")
+    sampling = dict(timeline.metadata.get("bsm_sampling_diagnostics", {}) or {})
+    check(sampling.get("sampling_tier") == "debug_only", "Two BSM maps were not classified as debug-only.")
+    check(
+        float(sampling.get("worst_case_mc95_half_width", 0.0) or 0.0) > 0.5,
+        "Two BSM maps produced an implausibly narrow Monte Carlo interval.",
+    )
+    count_diagnostics = BSMSamplingDiagnosticsService()
+    check(count_diagnostics.describe_count(50)["sampling_tier"] == "exploratory", "Fifty BSM maps were misclassified.")
+    check(count_diagnostics.describe_count(100)["sampling_tier"] == "standard", "One hundred BSM maps were misclassified.")
     bsm_frame = service.frame(
         timeline,
         1.25,
@@ -295,6 +306,7 @@ def main():
         range_matrix=matrix,
         bsm_result=bsm_result,
     )
+    check("Debug only BSM sampling" in dialog.sampling_label.text(), "The playback sampling warning is missing.")
     dialog.time_slider.setValue(500)
     app.processEvents()
     check(dialog.range_table.rowCount() > 0, "The playback range table is empty.")
@@ -328,6 +340,13 @@ def main():
         check(dialog.grab().save(screenshot_path), "Could not save the playback screenshot.")
     dialog.close()
     app.processEvents()
+
+    bsm_config_dialog = BSMRunConfigDialog()
+    bsm_config_dialog.maps_spin.setValue(2)
+    check("Debug only" in bsm_config_dialog.sampling_note.text(), "BSM config lacks the debug-only warning.")
+    bsm_config_dialog.maps_spin.setValue(100)
+    check("Standard" in bsm_config_dialog.sampling_note.text(), "BSM config lacks the standard sampling guidance.")
+    bsm_config_dialog.close()
 
     result_window = ResultViewWindow()
     result_window.set_leaf_state_context(leaf_states)
