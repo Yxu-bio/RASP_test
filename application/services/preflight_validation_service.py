@@ -28,6 +28,8 @@ class PreflightReport:
 
 
 class PreflightValidationService:
+    LEGACY_DIVA_MAX_TAXA = 1024
+
     VALID_BGB_MODELS = {
         "DEC",
         "DECJ",
@@ -71,6 +73,7 @@ class PreflightValidationService:
 
         area_names, max_observed_range = self._validate_range_rows(report, matrix)
         self._validate_config(report, config, area_names, max_observed_range, tree)
+        self._validate_engine_limits(report, method_name, tree_taxa)
 
         entries = list(tree_entries or [])
         if entries:
@@ -82,6 +85,21 @@ class PreflightValidationService:
                     "%d tree-set entries have no parsed tree object and may be skipped." % missing_tree_count,
                 )
         return report
+
+    def _validate_engine_limits(self, report, method_name, tree_taxa):
+        normalized_method = str(method_name or "").strip().upper()
+        if normalized_method not in {"DIVA", "S-DIVA"}:
+            return
+        taxon_count = len(list(tree_taxa or []))
+        if taxon_count > self.LEGACY_DIVA_MAX_TAXA:
+            self._error(
+                report,
+                "engine.diva_taxa_limit",
+                "The bundled legacy DIVA.exe is not safe for trees with more than %d taxa; "
+                "the current tree has %d taxa. Use DEC/BioGeoBEARS for this dataset, "
+                "or prune/split the tree before running DIVA/S-DIVA."
+                % (self.LEGACY_DIVA_MAX_TAXA, taxon_count),
+            )
 
     def _validate_range_rows(self, report, matrix):
         area_names = [

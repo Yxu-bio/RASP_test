@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "bundle_version": "2026.07.11-dev",
+  "platform": "windows-x86_64",
+  "archive_timestamp": "2026-07-11T00:00:00",
+  "archive_name": "RASP5-engine-bundle-{bundle_version}-{platform}-{channel}.zip",
+  "components": [
+    {
+      "id": "bayarea",
+      "name": "BayArea",
+      "version": "1.0.3+rasp",
+      "license_spdx": "MIT",
+      "redistribution_status": "cleared",
+      "upstream": "https://github.com/mlandis/bayarea",
+      "source_revision": "e6918143cb9a79c3fedf55eed72e6a73961d131a",
+      "payload": [
+        {"source": "engines/bayarea/bin", "target": "engines/bayarea/bin"},
+        {"source": "engines/bayarea/README.md", "target": "engines/bayarea/README.md"}
+      ],
+      "license_files": [
+        {"source": "engines/bayarea/src/LICENSE", "target": "THIRD_PARTY_LICENSES/BayArea-MIT.txt"}
+      ],
+      "source_material": [
+        {"source": "docs/patches/bayarea-v1.0.3-rasp.patch", "target": "SOURCE_AND_PATCHES/bayarea-v1.0.3-rasp.patch"},
+        {"source": "docs/bayarea-release-status.md", "target": "SOURCE_AND_PATCHES/bayarea-release-status.md"}
+      ]
+    },
+    {
+      "id": "lagrange-ng",
+      "name": "lagrange-ng",
+      "version": "6a07587+rasp",
+      "license_spdx": "GPL-2.0-only",
+      "redistribution_status": "cleared",
+      "upstream": "https://github.com/computations/lagrange-ng",
+      "source_revision": "6a07587f8b4fb04e4a112668624cb01d8542a945",
+      "payload": [
+        {"source": "engines/lagrange-ng", "target": "engines/lagrange-ng"}
+      ],
+      "exclude": [
+        "*.before_*",
+        "__init__.py",
+        "**/__pycache__/**",
+        "**/*.pyc"
+      ],
+      "license_files": [
+        {"source": "engines/R/share/licenses/GPL-2", "target": "THIRD_PARTY_LICENSES/lagrange-ng-GPL-2.0.txt"}
+      ],
+      "source_material": [
+        {"source": "docs/patches/lagrange-ng-6a07587-rasp.patch", "target": "SOURCE_AND_PATCHES/lagrange-ng-6a07587-rasp.patch"},
+        {"source": "docs/lagrange-ng-patched-guide.md", "target": "SOURCE_AND_PATCHES/lagrange-ng-patched-guide.md"}
+      ]
+    },
+    {
+      "id": "bayestraits",
+      "name": "BayesTraits",
+      "version": "5.0.2",
+      "license_spdx": "GPL-3.0-only",
+      "redistribution_status": "cleared",
+      "upstream": "https://github.com/AndrewPMeade/BayesTraits-Release",
+      "source_revision": "20e40f395c000fb354672159c0bab1e276df72e9",
+      "payload": [
+        {"source": "engines/bayestraits/BayesTraitsV5.exe", "target": "engines/bayestraits/BayesTraitsV5.exe"},
+        {"source": "engines/bayestraits/VERSION.txt", "target": "engines/bayestraits/VERSION.txt"}
+      ],
+      "license_files": [
+        {"source": "engines/R/share/licenses/GPL-3", "target": "THIRD_PARTY_LICENSES/BayesTraits-GPL-3.0.txt"}
+      ],
+      "source_material": []
+    },
+    {
+      "id": "mrbayes",
+      "name": "MrBayes",
+      "version": "3.2.7",
+      "license_spdx": "GPL-3.0-only",
+      "redistribution_status": "cleared",
+      "upstream": "https://github.com/NBISweden/MrBayes",
+      "source_revision": "v3.2.7 / d50016695db24c58bcb36c83c487bd365fe2a566",
+      "payload": [
+        {"source": "engines/mrbayes/mb.3.2.7-win32.exe", "target": "engines/mrbayes/mb.3.2.7-win32.exe"}
+      ],
+      "license_files": [
+        {"source": "engines/R/share/licenses/GPL-3", "target": "THIRD_PARTY_LICENSES/MrBayes-GPL-3.0.txt"}
+      ],
+      "source_material": []
+    },
+    {
+      "id": "diva",
+      "name": "DIVA",
+      "version": "legacy-rasp-diva-1.1-derived",
+      "license_spdx": "LicenseRef-DIVA-1.1-Free-Distribution",
+      "redistribution_status": "cleared",
+      "upstream": "https://sourceforge.net/projects/diva/",
+      "source_revision": "Legacy RASP-modified executable",
+      "payload": [
+        {"source": "engines/diva/DIVA.exe", "target": "engines/diva/DIVA.exe"}
+      ],
+      "license_files": [
+        {"source": "release/licenses/DIVA-NOTICE.txt", "target": "THIRD_PARTY_LICENSES/DIVA-NOTICE.txt"}
+      ],
+      "source_material": []
+    },
+    {
+      "id": "r-runtime",
+      "name": "R runtime and installed packages",
+      "version": "4.5.3",
+      "license_spdx": "GPL-2.0-only OR GPL-3.0-only",
+      "redistribution_status": "cleared",
+      "upstream": "https://cran.r-project.org/",
+      "source_revision": "R 4.5.3 Windows x64 plus installed package library",
+      "payload": [
+        {"source": "engines/R", "target": "engines/R"}
+      ],
+      "exclude": [
+        "src/**",
+        "tests/**",
+        "unins000.dat",
+        "unins000.exe",
+        "**/__pycache__/**",
+        "**/*.pyc",
+        "**/*.pyo"
+      ],
+      "license_files": [
+        {"source": "engines/R/COPYING", "target": "THIRD_PARTY_LICENSES/R-COPYING.txt"}
+      ],
+      "source_material": []
+    },
+    {
+      "id": "biogeobears-runner",
+      "name": "RASP BioGeoBEARS runner",
+      "version": "RASP5",
+      "license_spdx": "NOASSERTION",
+      "redistribution_status": "cleared",
+      "first_party": true,
+      "upstream": "https://github.com/Yxu-bio/RASP_test",
+      "source_revision": "Same revision as the RASP application release",
+      "payload": [
+        {"source": "engines/biogeobears/bgb_runner.R", "target": "engines/biogeobears/bgb_runner.R"},
+        {"source": "engines/biogeobears/setup_biogeobears_lib.R", "target": "engines/biogeobears/setup_biogeobears_lib.R"}
+      ],
+      "license_files": [],
+      "source_material": []
+    }
+  ],
+  "bundle_files": [
+    {"source": "release/THIRD_PARTY_ENGINES.md", "target": "THIRD_PARTY_ENGINES.md"},
+    {"source": "release/README.md", "target": "RELEASE-BUNDLE-README.md"}
+  ],
+  "critical_files": [
+    {"path": "engines/bayarea/bin/bayarea.exe", "size": 372170, "sha256": "F2BAD391D9DC828C6C87D060863F8BA69BC7D9827FBE239AE1D91547BF14EC12"},
+    {"path": "engines/lagrange-ng/lagrange-ng.exe", "size": 38870588, "sha256": "DD13911EED072C09D24E07FA9B8FA737B98A50C013E0EB8F1169005665BFF048"},
+    {"path": "engines/lagrange-ng/libgcc_s_seh-1.dll", "size": 151364, "sha256": "C4B60AA264FB06DA283C31C2A169F8F36E8AFECC47E14679DD01B980C0ACEFD5"},
+    {"path": "engines/lagrange-ng/libgfortran-5.dll", "size": 3757305, "sha256": "63E1F3DB4DD3C61ACDEFCC76B0068DDA95E6625A17181441B4BB89DE3E596EB6"},
+    {"path": "engines/lagrange-ng/libgomp-1.dll", "size": 310348, "sha256": "7154DEF6C097FBB6153EDF86B048657D187B4B2466011BD26FA302DECAF02E34"},
+    {"path": "engines/lagrange-ng/libnlopt.dll", "size": 690511, "sha256": "AB36260E8C8CFC9475707082985DE6F4B3FB70054198A54976FD6AFAC2AC9A42"},
+    {"path": "engines/lagrange-ng/libopenblas.dll", "size": 43830173, "sha256": "D8207CEEF9716C571EBDC9C372232A413E910DCEFE7F24873DA15A0AD1D30697"},
+    {"path": "engines/lagrange-ng/libquadmath-0.dll", "size": 399855, "sha256": "FC6A2D12B84DEE970F076896D829D42448FDAC04D41526F8D535E301DE338C12"},
+    {"path": "engines/lagrange-ng/libstdc++-6.dll", "size": 2463202, "sha256": "57BDFFA90E6AC252D5FBFD437AEACE6598FBF7CFAA354BC6F797F022D3F8DFD9"},
+    {"path": "engines/lagrange-ng/libwinpthread-1.dll", "size": 63678, "sha256": "2B1640F66A7A2E0254A491C7D0A83FBCC6F353D6B1316786C546A732B3E7A7F8"},
+    {"path": "engines/bayestraits/BayesTraitsV5.exe", "size": 12225536, "sha256": "CAF64A7979E20B81DB3DBFB603CE3333C0CF8B5620A518EB7629D59350A4F997"},
+    {"path": "engines/mrbayes/mb.3.2.7-win32.exe", "size": 2375725, "sha256": "A7358C7E5B906C1872C8948A89BACF5E3A1966F69ADFF57F3C5D8F6346D19E62"},
+    {"path": "engines/diva/DIVA.exe", "size": 69120, "sha256": "945620C1A56E3D386BEB3D3126A331628953B4E704B0254DE05C5E9818FF8858"},
+    {"path": "engines/R/bin/Rscript.exe", "size": 154624, "sha256": "D9134A5BEEC18CD74A55AF84D9099993594D4063208F14BE050E78EBBF85C759"},
+    {"path": "engines/biogeobears/bgb_runner.R", "size": 35243, "sha256": "C122332F9C4146C0D327E24675DC9139F1D91FEF9959063508DC781E3536C65D"}
+  ]
+}

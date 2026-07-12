@@ -1,0 +1,196 @@
+diff --git a/src/AdjustmentMatrix.cpp b/src/AdjustmentMatrix.cpp
+index 84c42aa..38cfdeb 100644
+--- a/src/AdjustmentMatrix.cpp
++++ b/src/AdjustmentMatrix.cpp
+@@ -124,7 +124,7 @@ AdjustmentMatrix::AdjustmentMatrix(const std::filesystem::path& filename,
+                                    const std::vector<std::string>& area_names) {
+   if (!std::filesystem::exists(filename)) {
+     throw std::runtime_error{
+-        std::format("Can't find the matrix file '{}'", filename.c_str())};
++        std::format("Can't find the matrix file '{}'", filename.string())};
+   }
+   try {
+     CSVReader reader(filename);
+@@ -132,9 +132,9 @@ AdjustmentMatrix::AdjustmentMatrix(const std::filesystem::path& filename,
+   } catch (CSVValueError& err) {
+     LOG_ERROR(
+         "There was an error reading one of the values in the matrix file '{}'",
+-        filename.c_str());
++        filename.string());
+     throw std::runtime_error{
+-        std::format("Failed to read the matrix file '{}'", filename.c_str())};
++        std::format("Failed to read the matrix file '{}'", filename.string())};
+   }
+ 
+   _type = determine_matrix_symmetry(_arcs, area_names.size());
+diff --git a/src/ConfigFile.hpp b/src/ConfigFile.hpp
+index 01cf2d8..9daa32d 100644
+--- a/src/ConfigFile.hpp
++++ b/src/ConfigFile.hpp
+@@ -89,7 +89,7 @@ class ConfigFile {
+               p.adjustment_matrix_filename.value(), _area_names};
+         } catch (const std::exception& err) {
+           LOG_ERROR("Failed to read adjustment matrix {}: {}",
+-                    p.adjustment_matrix_filename->c_str(),
++                    p.adjustment_matrix_filename->string(),
+                     err.what());
+ 
+           OllKorrect = false;
+@@ -262,7 +262,7 @@ class ConfigFile {
+   void setup_log() const {
+     if (!log_filename().empty()) {
+       logger::get_log_states().add_file_stream(
+-          log_filename().c_str(),
++          log_filename().string(),
+           INFO | IMPORTANT | WARNING | ERROR | PROGRESS | DEBUG);
+     }
+   }
+@@ -362,8 +362,8 @@ class ConfigFile {
+         | std::views::transform([&](const auto& a) -> PeriodParams {
+             auto [key, p] = a;
+             return {
+-                .dispersion_rate = p.dispersion.value_or(0.01),
+-                .extinction_rate = p.extinction.value_or(0.01),
++                .dispersion_rate = p.dispersion.value_or(_dispersion),
++                .extinction_rate = p.extinction.value_or(_extinction),
+                 .distance_penalty = 1.0,
+                 .adjustment_matrix = p.adjustment_matrix
+                                          ? p.adjustment_matrix->to_matrix()
+diff --git a/src/ConfigFileParser.cpp b/src/ConfigFileParser.cpp
+index b4c9601..37eb3fe 100644
+--- a/src/ConfigFileParser.cpp
++++ b/src/ConfigFileParser.cpp
+@@ -106,13 +106,20 @@ ParsingResult<void> ConfigFileParser::parse_period_sub_statement(
+ 
+   if (!command) {
+     LOG_ERROR(
+-        "Expected one of [start | end | matrix | exclude | include] at {}",
++        "Expected one of [start | end | matrix | exclude | include | "
++        "dispersion | extinction] at {}",
+         _lexer.describePosition());
+     return std::unexpected{ParsingError::invalid_option};
+   }
+ 
+   if (command == "start") { return parse_and_assign(period.start); }
+   if (command == "end") { return parse_and_assign(period.end); }
++  if (command == "dispersion") {
++    return parse_and_assign(period.dispersion);
++  }
++  if (command == "extinction") {
++    return parse_and_assign(period.extinction);
++  }
+   if (command == "matrix") {
+     return parse_and_assign(period.adjustment_matrix_filename);
+   }
+diff --git a/src/Context.cpp b/src/Context.cpp
+index 44e936e..d2337e1 100644
+--- a/src/Context.cpp
++++ b/src/Context.cpp
+@@ -239,7 +239,10 @@ void Context::optimizeAndComputeValues(WorkerState& ts,
+     return;
+   }
+ 
+-  setInitialParams();
++  if (_run_mode == LagrangeOperationMode::OPTIMIZE
++      || (_checkpoint && _checkpoint->isFinalized())) {
++    setInitialParams();
++  }
+   double initial_lh = computeLLH(ts, tc);
+ 
+   if (_run_mode == LagrangeOperationMode::EVALUATE
+diff --git a/src/IO.cpp b/src/IO.cpp
+index 38633be..1dfd9c3 100644
+--- a/src/IO.cpp
++++ b/src/IO.cpp
+@@ -568,8 +568,8 @@ void print_run_header(const ConfigFile &config) {
+ #ifdef CURRENT_BUILD_TYPE
+   LOG(INFO, "Lagrange-ng build type: {}", BUILD_TYPE_STRING)
+ #endif
+-  LOG(INFO, "Using tree: {}", config.tree_filename().c_str());
+-  LOG(INFO, "Using data: {}", config.data_filename().c_str());
++  LOG(INFO, "Using tree: {}", config.tree_filename().string());
++  LOG(INFO, "Using data: {}", config.data_filename().string());
+   LOG(INFO,
+       "This system has {} GiB of memory",
+       get_system_memory() / 1024 / 1024 / 1024);
+diff --git a/src/Operation.cpp b/src/Operation.cpp
+index 0c5e0ab..a04019a 100644
+--- a/src/Operation.cpp
++++ b/src/Operation.cpp
+@@ -160,7 +160,9 @@ auto make_dist_map_func(size_t regions, size_t max_areas)
+     return [](Range d) -> size_t { return d; };
+   } else {
+     const auto dist_map = invert_dist_map(regions, max_areas);
+-    return [&dist_map](Range d) -> size_t { return dist_map.at(d); };
++    return [dist_map](Range d) -> size_t {
++      return dist_map.at(d);
++    };
+   }
+ }
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+index a41cf07..1d689b5 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -235,7 +235,7 @@ static auto read_tree_file_line_by_line(const std::filesystem::path &filename)
+ 
+   LOG_ASSERT(std::filesystem::exists(filename),
+              "Failed to find the tree file {}",
+-             filename.c_str());
++             filename.string());
+ 
+   std::ifstream ifs(filename);
+   std::string temp;
+diff --git a/tests/src/configfile.cpp b/tests/src/configfile.cpp
+index fb8afec..1a31053 100644
+--- a/tests/src/configfile.cpp
++++ b/tests/src/configfile.cpp
+@@ -144,6 +144,8 @@ TEST_F(ConfigFileTest, lines) {
+       "period foo\nperiod foo start = 1.0",
+       "period exclude\nperiod exclude exclude = 101",
+       "period foo\nperiod foo matrix = 'foo bar'",
++      "period foo\nperiod foo dispersion = 0.1",
++      "period foo\nperiod foo extinction = 0.2",
+   };
+ 
+   for (auto line : success_lines) {
+@@ -151,3 +153,39 @@ TEST_F(ConfigFileTest, lines) {
+     EXPECT_NO_THROW(ConfigFile(iss, true));
+   }
+ }
++
++TEST_F(ConfigFileTest, period_rate_parameters) {
++  constexpr auto config_text =
++      "areanames = RA RB RC\n"
++      "dispersion = 2.0\n"
++      "extinction = 3.0\n"
++      "period early\n"
++      "period early end = 1.0\n"
++      "period early dispersion = 0.5\n"
++      "period early extinction = 0.8\n"
++      "period middle\n"
++      "period middle start = 1.0\n"
++      "period middle end = 2.0\n"
++      "period middle dispersion = 1e-3\n"
++      "period middle extinction = 2e-3\n"
++      "period late\n"
++      "period late start = 2.0\n";
++
++  std::istringstream iss{config_text};
++  ConfigFile config{iss, true};
++  auto params = config.period_params();
++
++  ASSERT_EQ(params.size(), 3);
++
++  EXPECT_EQ(params[0].name, "early");
++  EXPECT_DOUBLE_EQ(params[0].dispersion_rate, 0.5);
++  EXPECT_DOUBLE_EQ(params[0].extinction_rate, 0.8);
++
++  EXPECT_EQ(params[1].name, "middle");
++  EXPECT_DOUBLE_EQ(params[1].dispersion_rate, 1e-3);
++  EXPECT_DOUBLE_EQ(params[1].extinction_rate, 2e-3);
++
++  EXPECT_EQ(params[2].name, "late");
++  EXPECT_DOUBLE_EQ(params[2].dispersion_rate, 2.0);
++  EXPECT_DOUBLE_EQ(params[2].extinction_rate, 3.0);
++}

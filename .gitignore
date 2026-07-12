@@ -1,5 +1,6 @@
 # Runtime outputs and generated analysis artifacts
 runs/
+dist/
 *.log
 *.tmp
 *.bak

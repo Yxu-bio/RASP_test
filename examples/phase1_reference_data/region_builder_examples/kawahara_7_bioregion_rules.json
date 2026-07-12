@@ -1,0 +1,192 @@
+{
+  "name": "kawahara_7_bioregions_rule_based",
+  "group": "Kawahara_2023_7_bioregions",
+  "source": "Kawahara et al. 2023 Table S27 + Natural Earth",
+  "boundary_kind": "approximate_rule_based_reference",
+  "official_author_boundary": false,
+  "build_notes": "Approximate country/subunit polygon spatialization of Kawahara et al. 2023 Table S27 7-bioregion scoring. Multi-region countries are split by coarse latitude/longitude or admin1 rules for RASP workflow testing; this is not an official author-provided polygon boundary file.",
+  "base_geojson": "../../../resources/spatial_base_layers/natural_earth/ne_50m_admin_0_map_subunits.geojson",
+  "sources": {
+    "admin1": {
+      "path": "../../../resources/spatial_base_layers/natural_earth/ne_10m_admin_1_states_provinces.geojson"
+    }
+  },
+  "base_mapping": {
+    "mapping_file": "kawahara_7_bioregion_mapping.csv",
+    "value_field": "match_value",
+    "area_field": "area_code",
+    "feature_fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "ADM0_ISO", "ADM0_TLC", "GU_A3", "SU_A3", "SUBUNIT", "NAME", "NAME_LONG"]
+  },
+  "area_order": [
+    "Afrotropics",
+    "Australasia",
+    "Indomalaya",
+    "Nearctic",
+    "Neotropics",
+    "East Palearctic",
+    "West Palearctic"
+  ],
+  "area_metadata": {
+    "Afrotropics": {"display_name": "Afrotropics", "color": "#8dd3c7"},
+    "Australasia": {"display_name": "Australasia", "color": "#ffffb3"},
+    "Indomalaya": {"display_name": "Indomalaya", "color": "#bebada"},
+    "Nearctic": {"display_name": "Nearctic", "color": "#fb8072"},
+    "Neotropics": {"display_name": "Neotropics", "color": "#80b1d3"},
+    "East Palearctic": {"display_name": "East Palearctic", "color": "#fdb462"},
+    "West Palearctic": {"display_name": "West Palearctic", "color": "#b3de69"}
+  },
+  "rules": [
+    {
+      "name": "Ignore Antarctica and non-target Southern Ocean subunits",
+      "type": "ignore",
+      "selector": {
+        "fields": ["ISO_A3", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["ATA", "HMD", "SGS", "ATF", "KAS"]
+      }
+    },
+    {
+      "name": "Kawahara small Palearctic subunit special cases",
+      "type": "assign",
+      "selector": {
+        "fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "GU_A3", "SU_A3", "SUBUNIT", "NAME", "NAME_LONG"],
+        "in": ["VAT", "SMR", "MCO", "LIE", "GGY", "ALA", "FRO", "ESH", "Western Sahara"]
+      },
+      "area": "West Palearctic"
+    },
+    {
+      "name": "Kawahara small Australasia subunit special cases",
+      "type": "assign",
+      "selector": {
+        "fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["FSM", "PCN", "NRU"]
+      },
+      "area": "Australasia"
+    },
+    {
+      "name": "Kawahara small Neotropics subunit special cases",
+      "type": "assign",
+      "selector": {
+        "fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["MAF", "SXM"]
+      },
+      "area": "Neotropics"
+    },
+    {
+      "name": "Kawahara Saint Pierre and Miquelon special case",
+      "type": "assign",
+      "selector": {
+        "fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["SPM"]
+      },
+      "area": "Nearctic"
+    },
+    {
+      "name": "Kawahara Bahrain special case",
+      "type": "assign",
+      "selector": {
+        "fields": ["ISO_A3", "ISO_A3_EH", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["BHR"]
+      },
+      "area": "Afrotropics"
+    },
+    {
+      "name": "Use admin1 split for Russia",
+      "type": "ignore",
+      "selector": {"field": "ADM0_A3", "equals": "RUS"}
+    },
+    {
+      "name": "Indonesia split at 125.5E",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "IDN"},
+      "axis": "lon",
+      "threshold": 125.5,
+      "less_area": "Indomalaya",
+      "greater_equal_area": "Australasia"
+    },
+    {
+      "name": "Mexico split at 22N",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "MEX"},
+      "axis": "lat",
+      "threshold": 22,
+      "less_area": "Neotropics",
+      "greater_equal_area": "Nearctic"
+    },
+    {
+      "name": "China split at 33N",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "CHN"},
+      "axis": "lat",
+      "threshold": 33,
+      "less_area": "Indomalaya",
+      "greater_equal_area": "East Palearctic"
+    },
+    {
+      "name": "Russia admin1 split",
+      "source": "admin1",
+      "type": "assign_by_values",
+      "selector": {"field": "adm0_a3", "equals": "RUS"},
+      "value_fields": ["name_en", "name", "gn_name"],
+      "areas": {
+        "East Palearctic": [
+          "Altai Krai",
+          "Altay",
+          "Altai Republic",
+          "Gorno-Altay",
+          "Amur Oblast",
+          "Amur",
+          "Buryatia",
+          "Republic of Buryatia",
+          "Buryat",
+          "Chelyabinsk Oblast",
+          "Chelyabinsk",
+          "Chukotka Autonomous Okrug",
+          "Chukchi Autonomous Okrug",
+          "Irkutsk Oblast",
+          "Irkutsk",
+          "Jewish Autonomous Oblast",
+          "Kamchatka Krai",
+          "Kamchatka",
+          "Kemerovo Oblast",
+          "Kemerovo",
+          "Khabarovsk Krai",
+          "Khabarovsk",
+          "Khakassia",
+          "Republic of Khakassia",
+          "Khakass",
+          "Khanty-Mansiysk Autonomous Okrug ? Ugra",
+          "Khanty-Mansiy",
+          "Krasnoyarsk Krai",
+          "Krasnoyarsk",
+          "Kurgan Oblast",
+          "Kurgan",
+          "Magadan Oblast",
+          "Magadan",
+          "Novosibirsk Oblast",
+          "Novosibirsk",
+          "Omsk Oblast",
+          "Omsk",
+          "Primorsky Krai",
+          "Primorskiy Kray",
+          "Primorsky",
+          "Sakha Republic",
+          "Sakha",
+          "Sakhalin Oblast",
+          "Sakhalin",
+          "Sverdlovsk Oblast",
+          "Sverdlovsk",
+          "Tomsk Oblast",
+          "Tomsk",
+          "Tuva",
+          "Tyumen Oblast",
+          "Tyumen",
+          "Yamalo-Nenets Autonomous Okrug",
+          "Yamal-Nenets",
+          "Zabaykalsky Krai",
+          "Transbaikal"
+        ]
+      },
+      "default_area": "West Palearctic"
+    }
+  ]
+}

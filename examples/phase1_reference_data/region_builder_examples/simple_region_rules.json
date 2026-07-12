@@ -1,0 +1,54 @@
+{
+  "name": "simple_region_builder_demo",
+  "group": "simple_region_builder_demo",
+  "source": "RASP5 demo using simplified world countries",
+  "boundary_kind": "approximate_rule_based_reference",
+  "official_author_boundary": false,
+  "build_notes": "Demo for the generic RASP5 Region GeoJSON builder. It is not a biological regionalization.",
+  "base_geojson": "../general_world_polygons/world_countries_simplified.geojson",
+  "base_mapping": {
+    "mapping_file": "simple_country_mapping.csv",
+    "value_field": "match_value",
+    "area_field": "area_code",
+    "feature_fields": ["name"]
+  },
+  "area_order": [
+    "Northern Test Region",
+    "Southern Test Region",
+    "Island Test Region"
+  ],
+  "area_metadata": {
+    "Northern Test Region": {
+      "display_name": "Northern Test Region",
+      "color": "#4C78A8"
+    },
+    "Southern Test Region": {
+      "display_name": "Southern Test Region",
+      "color": "#E45756"
+    },
+    "Island Test Region": {
+      "display_name": "Island Test Region",
+      "color": "#54A24B"
+    }
+  },
+  "rules": [
+    {
+      "name": "Mexico south of 22N goes to Southern Test Region",
+      "type": "split",
+      "selector": {"field": "name", "equals": "Mexico"},
+      "axis": "lat",
+      "threshold": 22,
+      "less_area": "Southern Test Region",
+      "greater_equal_area": "Northern Test Region"
+    },
+    {
+      "name": "Indonesia east of 125.5E goes to Island Test Region",
+      "type": "split",
+      "selector": {"field": "name", "equals": "Indonesia"},
+      "axis": "lon",
+      "threshold": 125.5,
+      "less_area": "Island Test Region",
+      "greater_equal_area": "Island Test Region"
+    }
+  ]
+}

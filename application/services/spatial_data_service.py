@@ -21,12 +21,29 @@ class SpatialDataService:
     LATITUDE_FIELDS = ["latitude", "lat", "decimallatitude", "decimal_latitude"]
     LONGITUDE_FIELDS = ["longitude", "lon", "lng", "decimallongitude", "decimal_longitude"]
     AREA_CODE_FIELDS = ["area_code", "area", "code", "id", "name", "label"]
+    AREA_GROUP_FIELDS = ["group", "area_group", "region", "bioregion", "category"]
+    AREA_COLOR_PALETTE = [
+        "#4C78A8",
+        "#F58518",
+        "#54A24B",
+        "#E45756",
+        "#72B7B2",
+        "#B279A2",
+        "#FF9DA6",
+        "#9D755D",
+        "#BAB0AC",
+        "#59A14F",
+        "#EDC948",
+        "#AF7AA1",
+    ]
 
-    def import_occurrences_csv(self, file_path: str):
+    def import_occurrences_csv(self, file_path: str, progress_callback=None, cancel_callback=None):
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError("Occurrence file does not exist: %s" % file_path)
         delimiter = self._detect_delimiter(path)
+        total_rows = self._count_data_rows(path) if progress_callback is not None else 0
+        progress_step = max(1, total_rows // 100) if total_rows else 1
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle, delimiter=delimiter)
             if not reader.fieldnames:
@@ -51,6 +68,9 @@ class SpatialDataService:
             duplicate_warning_count = 0
             duplicate_warning_limit = 100
             for row_index, row in enumerate(reader, start=2):
+                done = row_index - 1
+                if cancel_callback is not None and cancel_callback():
+                    raise RuntimeError("Occurrence import was cancelled.")
                 clean = dict((str(k or "").strip(), str(v or "").strip()) for k, v in dict(row or {}).items())
                 taxon = clean.get(taxon_field, "").strip()
                 lat_text = clean.get(lat_field, "").strip()
@@ -88,13 +108,24 @@ class SpatialDataService:
                         raw=clean,
                     )
                 )
+                if progress_callback is not None and (done == 1 or done == total_rows or done % progress_step == 0):
+                    total = total_rows or done
+                    progress_callback(done, total, "Loaded occurrence %d/%d" % (done, total))
         return records, issues
 
-    def import_area_geojson(self, file_path: str):
+    def import_area_geojson(self, file_path: str, progress_callback=None, cancel_callback=None):
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError("GeoJSON file does not exist: %s" % file_path)
+        if progress_callback is not None:
+            progress_callback(0, 100, "Reading area GeoJSON ...")
+        if cancel_callback is not None and cancel_callback():
+            raise RuntimeError("Area import cancelled.")
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if progress_callback is not None:
+            progress_callback(5, 100, "Parsing area polygons ...")
+        if cancel_callback is not None and cancel_callback():
+            raise RuntimeError("Area import cancelled.")
         crs = self._geojson_crs(payload)
         features = self._geojson_features(payload)
         if not features:
@@ -111,19 +142,29 @@ class SpatialDataService:
                 )
             )
         used_codes = set()
+        total_features = len(features)
+        progress_step = max(1, total_features // 100) if total_features else 1
         for index, feature in enumerate(features, start=1):
+            if cancel_callback is not None and cancel_callback():
+                raise RuntimeError("Area import cancelled.")
             geometry = dict(feature.get("geometry") or {})
             geometry_type = str(geometry.get("type", "") or "")
             if geometry_type not in ("Polygon", "MultiPolygon"):
                 issues.append(SpatialQAIssue("warning", "unsupported_geometry", "Skipped non-polygon feature: %s." % geometry_type, row=index))
+                if progress_callback is not None and (index == 1 or index == total_features or index % progress_step == 0):
+                    progress_callback(index, total_features, "Parsed area feature %d/%d" % (index, total_features))
                 continue
             if not list(self._geometry_points(geometry)):
                 issues.append(SpatialQAIssue("error", "empty_geometry", "Skipped empty polygon geometry.", row=index))
+                if progress_callback is not None and (index == 1 or index == total_features or index % progress_step == 0):
+                    progress_callback(index, total_features, "Parsed area feature %d/%d" % (index, total_features))
                 continue
             properties = dict(feature.get("properties") or {})
             area_code = self._area_code_from_feature(feature, properties, index)
             if area_code in used_codes:
                 issues.append(SpatialQAIssue("error", "duplicate_area_code", "Duplicate area code: %s." % area_code, row=index))
+                if progress_callback is not None and (index == 1 or index == total_features or index % progress_step == 0):
+                    progress_callback(index, total_features, "Parsed area feature %d/%d" % (index, total_features))
                 continue
             used_codes.add(area_code)
             centroid_lon, centroid_lat = self._geometry_centroid(geometry)
@@ -133,6 +174,7 @@ class SpatialDataService:
                     geometry_id=str(feature.get("id", "") or area_code),
                     display_name=str(properties.get("display_name", "") or properties.get("name", "") or area_code),
                     color=str(properties.get("color", "") or ""),
+                    group=str(self._value_by_alias(properties, self.AREA_GROUP_FIELDS) or ""),
                     centroid_lon=centroid_lon,
                     centroid_lat=centroid_lat,
                     source=str(path),
@@ -141,8 +183,12 @@ class SpatialDataService:
                     properties=properties,
                 )
             )
+            if progress_callback is not None and (index == 1 or index == total_features or index % progress_step == 0):
+                progress_callback(index, total_features, "Parsed area feature %d/%d" % (index, total_features))
         if not areas:
             raise ValueError("GeoJSON did not yield any usable polygon or multipolygon areas.")
+        if progress_callback is not None:
+            progress_callback(total_features, total_features, "Area GeoJSON parsed")
         return areas, issues
 
     def build_project(self, occurrences=None, areas=None, occurrence_source_path="", area_source_path="", qa_issues=None):
@@ -165,7 +211,93 @@ class SpatialDataService:
             if code in seen:
                 issues.append(SpatialQAIssue("error", "duplicate_area_code", "Duplicate area code: %s." % code, row=index))
             seen.add(code)
+            color = str(getattr(area, "color", "") or "").strip()
+            if color and not self._is_valid_color(color):
+                issues.append(SpatialQAIssue("warning", "invalid_area_color", "Area color should be a #RRGGBB value: %s." % color, row=index))
         return issues
+
+    def read_area_mapping_csv(self, file_path: str):
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError("Area mapping file does not exist: %s" % file_path)
+        delimiter = self._detect_delimiter(path)
+        rows = []
+        issues = []
+        seen = set()
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            if not reader.fieldnames:
+                raise ValueError("Area mapping file has no header row.")
+            field_map = self._build_field_map(reader.fieldnames)
+            code_field = self._find_field(field_map, self.AREA_CODE_FIELDS)
+            if not code_field:
+                raise ValueError("Area mapping file must contain an area_code/area/code/id/name/label column.")
+            display_field = self._find_field(field_map, ["display_name", "display", "name", "label"])
+            color_field = self._find_field(field_map, ["color", "colour", "hex", "hex_color"])
+            group_field = self._find_field(field_map, self.AREA_GROUP_FIELDS)
+            for row_index, row in enumerate(reader, start=2):
+                clean = dict((str(k or "").strip(), str(v or "").strip()) for k, v in dict(row or {}).items())
+                area_code = clean.get(code_field, "").strip()
+                if not area_code:
+                    issues.append(SpatialQAIssue("error", "empty_area_code", "Area metadata row has empty area code.", row=row_index))
+                    continue
+                if area_code in seen:
+                    issues.append(SpatialQAIssue("error", "duplicate_area_code", "Duplicate area metadata code: %s." % area_code, row=row_index))
+                    continue
+                seen.add(area_code)
+                color = clean.get(color_field, "").strip() if color_field else ""
+                if color and not self._is_valid_color(color):
+                    issues.append(SpatialQAIssue("warning", "invalid_area_color", "Area color is not a valid #RRGGBB value: %s." % color, row=row_index))
+                rows.append({
+                    "area_code": area_code,
+                    "display_name": clean.get(display_field, "").strip() if display_field else "",
+                    "color": color,
+                    "group": clean.get(group_field, "").strip() if group_field else "",
+                })
+        return rows, issues
+
+    def apply_area_metadata(self, areas, metadata_rows):
+        area_list = list(areas or [])
+        row_list = list(metadata_rows or [])
+        by_code = dict((str(area.area_code), area) for area in area_list)
+        updated = 0
+        missing = []
+        metadata_codes = set()
+        for row in row_list:
+            code = str(row.get("area_code", "") or "").strip()
+            if code:
+                metadata_codes.add(code)
+            area = by_code.get(code)
+            if area is None:
+                missing.append(code)
+                continue
+            display_name = str(row.get("display_name", "") or "").strip()
+            color = str(row.get("color", "") or "").strip()
+            group = str(row.get("group", "") or "").strip()
+            if display_name:
+                area.display_name = display_name
+            if color:
+                area.color = color
+            if group:
+                area.group = group
+            updated += 1
+        not_in_metadata = [
+            str(area.area_code)
+            for area in area_list
+            if str(area.area_code) not in metadata_codes
+        ]
+        return {
+            "updated": updated,
+            "metadata_without_area": sorted(missing),
+            "areas_without_metadata": sorted(not_in_metadata),
+        }
+
+    def assign_default_area_colors(self, areas, overwrite=False):
+        area_list = list(areas or [])
+        for index, area in enumerate(area_list):
+            if overwrite or not str(getattr(area, "color", "") or "").strip():
+                area.color = self.AREA_COLOR_PALETTE[index % len(self.AREA_COLOR_PALETTE)]
+        return len(area_list)
 
     def encode_occurrences_to_matrix(
         self,
@@ -340,6 +472,7 @@ class SpatialDataService:
             "geometry_id",
             "display_name",
             "color",
+            "group",
             "centroid_lon",
             "centroid_lat",
             "source",
@@ -354,6 +487,7 @@ class SpatialDataService:
                     "geometry_id": area.geometry_id,
                     "display_name": area.display_name,
                     "color": area.color,
+                    "group": getattr(area, "group", ""),
                     "centroid_lon": "" if area.centroid_lon is None else area.centroid_lon,
                     "centroid_lat": "" if area.centroid_lat is None else area.centroid_lat,
                     "source": area.source,
@@ -594,6 +728,11 @@ class SpatialDataService:
             return "\t"
         return ","
 
+    def _count_data_rows(self, path: Path) -> int:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            total_lines = sum(1 for _line in handle)
+        return max(0, total_lines - 1)
+
     def _build_field_map(self, fieldnames):
         return dict((self._normalize_field(name), str(name or "").strip()) for name in list(fieldnames or []))
 
@@ -624,6 +763,18 @@ class SpatialDataService:
 
     def _normalize_crs(self, value):
         return str(value or "").strip().lower()
+
+    def _is_valid_color(self, value):
+        text = str(value or "").strip()
+        if not text:
+            return True
+        if len(text) != 7 or not text.startswith("#"):
+            return False
+        try:
+            int(text[1:], 16)
+            return True
+        except Exception:
+            return False
 
     def _geojson_features(self, payload):
         if not isinstance(payload, dict):
@@ -833,6 +984,7 @@ class SpatialDataService:
             "geometry_id": record.geometry_id,
             "display_name": record.display_name,
             "color": record.color,
+            "group": getattr(record, "group", ""),
             "centroid_lon": record.centroid_lon,
             "centroid_lat": record.centroid_lat,
             "source": record.source,
@@ -849,6 +1001,7 @@ class SpatialDataService:
             geometry_id=str(data.get("geometry_id", "") or ""),
             display_name=str(data.get("display_name", "") or ""),
             color=str(data.get("color", "") or ""),
+            group=str(data.get("group", "") or ""),
             centroid_lon=None if lon is None or lon == "" else float(lon),
             centroid_lat=None if lat is None or lat == "" else float(lat),
             source=str(data.get("source", "") or ""),

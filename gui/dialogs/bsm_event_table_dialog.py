@@ -3,18 +3,29 @@ import math
 from collections import Counter, defaultdict
 from dataclasses import asdict, is_dataclass
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QPointF, QRectF, Qt
+from PyQt5.QtGui import QColor, QBrush, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt5.QtWidgets import (
     QComboBox,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QGridLayout,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsPathItem,
+    QGraphicsPolygonItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsSimpleTextItem,
+    QGraphicsView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -23,11 +34,38 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from application.services.bsm_dispersal_network_service import BSMDispersalNetworkService
+
+
+class _NetworkGraphicsView(QGraphicsView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
+        self.setDragMode(QGraphicsView.ScrollHandDrag)
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+
+    def wheelEvent(self, event):
+        factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
+        self.scale(factor, factor)
+
+    def fit_to_scene(self):
+        scene = self.scene()
+        if scene is None:
+            return
+        rect = scene.itemsBoundingRect()
+        if not rect.isNull():
+            self.fitInView(rect.adjusted(-30, -30, 30, 30), Qt.KeepAspectRatio)
+
 
 class BSMEventTableDialog(QDialog):
-    def __init__(self, result, parent=None):
+    def __init__(self, result, area_records=None, range_matrix=None, parent=None):
         super().__init__(parent)
         self.result = result
+        self.area_records = list(area_records or [])
+        self.range_matrix = range_matrix
+        self.network_service = BSMDispersalNetworkService()
+        self.current_network = None
         self.all_events = list(getattr(self.result, "events", []) or [])
         self.filtered_events = list(self.all_events)
         self.setWindowTitle("BioGeoBEARS BSM Event Table")
@@ -124,6 +162,76 @@ class BSMEventTableDialog(QDialog):
         self.summary_text = QTextEdit(page)
         self.summary_text.setReadOnly(True)
         layout.addWidget(self.summary_text)
+        return page
+
+    def _build_network_tab(self):
+        page = QWidget(self)
+        layout = QVBoxLayout(page)
+
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("Minimum mean dispersal events per map:", page))
+        self.network_threshold_edit = QLineEdit(page)
+        self.network_threshold_edit.setText("5")
+        self.network_threshold_edit.setPlaceholderText("5")
+        self.network_threshold_edit.editingFinished.connect(self._refresh_network_tab)
+        controls.addWidget(self.network_threshold_edit)
+        self.network_include_anagenetic_check = QCheckBox("Anagenetic d/a", page)
+        self.network_include_anagenetic_check.setChecked(True)
+        self.network_include_anagenetic_check.toggled.connect(self._refresh_network_tab)
+        controls.addWidget(self.network_include_anagenetic_check)
+        self.network_include_founder_check = QCheckBox("Founder-event j", page)
+        self.network_include_founder_check.setChecked(True)
+        self.network_include_founder_check.toggled.connect(self._refresh_network_tab)
+        controls.addWidget(self.network_include_founder_check)
+        self.network_show_edge_values_check = QCheckBox("Show edge values", page)
+        self.network_show_edge_values_check.setChecked(True)
+        self.network_show_edge_values_check.toggled.connect(self._redraw_network_tab)
+        controls.addWidget(self.network_show_edge_values_check)
+        self.network_refresh_button = QPushButton("Refresh", page)
+        self.network_refresh_button.clicked.connect(self._refresh_network_tab)
+        controls.addWidget(self.network_refresh_button)
+        controls.addStretch(1)
+        self.export_network_edges_button = QPushButton("Export edge CSV", page)
+        self.export_network_edges_button.clicked.connect(self._export_network_edges_csv)
+        controls.addWidget(self.export_network_edges_button)
+        self.export_network_nodes_button = QPushButton("Export node CSV", page)
+        self.export_network_nodes_button.clicked.connect(self._export_network_nodes_csv)
+        controls.addWidget(self.export_network_nodes_button)
+        self.export_network_geojson_button = QPushButton("Export GeoJSON", page)
+        self.export_network_geojson_button.clicked.connect(self._export_network_geojson)
+        controls.addWidget(self.export_network_geojson_button)
+        layout.addLayout(controls)
+
+        self.network_caption_label = QLabel("", page)
+        self.network_caption_label.setWordWrap(True)
+        layout.addWidget(self.network_caption_label)
+
+        splitter = QSplitter(Qt.Horizontal, page)
+        left = QWidget(splitter)
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        self.network_table = QTableWidget(left)
+        self.network_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.network_table.setAlternatingRowColors(True)
+        left_layout.addWidget(self.network_table, 1)
+
+        right = QWidget(splitter)
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        self.network_scene = QGraphicsScene(right)
+        self.network_view = _NetworkGraphicsView(right)
+        self.network_view.setScene(self.network_scene)
+        self.network_summary_text = QTextEdit(right)
+        self.network_summary_text.setReadOnly(True)
+        self.network_summary_text.setMaximumHeight(170)
+        right_layout.addWidget(self.network_view, 1)
+        right_layout.addWidget(self.network_summary_text)
+
+        splitter.addWidget(left)
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        layout.addWidget(splitter, 1)
         return page
 
     def _build_time_tab(self):
@@ -319,6 +427,521 @@ class BSMEventTableDialog(QDialog):
             self._populate_time_table()
         if hasattr(self, "raw_table"):
             self._populate_raw_table()
+        if hasattr(self, "network_table"):
+            if self.current_network is None:
+                self._refresh_network_tab()
+
+    def _refresh_network_tab(self, *args):
+        if not hasattr(self, "network_table"):
+            return
+        threshold = self._safe_float_or_none(getattr(self, "network_threshold_edit").text())
+        if threshold is None:
+            threshold = 5.0
+        try:
+            network = self.network_service.build_network(
+                self.result,
+                areas=self.area_records,
+                range_matrix=self.range_matrix,
+                min_mean_per_map=threshold,
+                include_anagenetic=self.network_include_anagenetic_check.isChecked(),
+                include_founder=self.network_include_founder_check.isChecked(),
+            )
+        except Exception as exc:
+            self.network_caption_label.setText("Could not build dispersal network: %s" % exc)
+            self.current_network = None
+            self._fill_table(self.network_table, [], [])
+            self.network_scene.clear()
+            self.network_summary_text.setPlainText(str(exc))
+            return
+        self.current_network = network
+        self._populate_network_table(network)
+        self._draw_network_preview(network)
+        self._populate_network_summary(network)
+
+    def _redraw_network_tab(self, *args):
+        if self.current_network:
+            self._draw_network_preview(self.current_network)
+
+    def _populate_network_table(self, network):
+        rows = list(network.get("display_edge_rows", []) or [])
+        headers = [
+            "source_area",
+            "target_area",
+            "source_name",
+            "target_name",
+            "mean_per_map",
+            "total_count",
+            "anagenetic_count",
+            "founder_count",
+        ]
+        table_rows = []
+        for row in rows:
+            table_rows.append([
+                row.get("source_area", ""),
+                row.get("target_area", ""),
+                row.get("source_name", ""),
+                row.get("target_name", ""),
+                self._format_number(row.get("mean_per_map", "")),
+                self._format_number(row.get("total_count", "")),
+                self._format_number(row.get("anagenetic_count", "")),
+                self._format_number(row.get("founder_count", "")),
+            ])
+        self._fill_table(self.network_table, headers, table_rows)
+        self.network_caption_label.setText(
+            "Showing %d / %d directed dispersal edges. Threshold: mean events per stochastic map >= %s. "
+            "Exports keep full numeric counts; GeoJSON uses currently visible edges."
+            % (
+                len(rows),
+                len(network.get("edge_rows", []) or []),
+                self._format_number(network.get("min_mean_per_map", 0)),
+            )
+        )
+
+    def _populate_network_summary(self, network):
+        edge_rows = list(network.get("edge_rows", []) or [])
+        display_rows = list(network.get("display_edge_rows", []) or [])
+        total_mean = sum(float(row.get("mean_per_map", 0.0) or 0.0) for row in edge_rows)
+        visible_mean = sum(float(row.get("mean_per_map", 0.0) or 0.0) for row in display_rows)
+        lines = [
+            "BSM dispersal network",
+            "",
+            "Stochastic maps: %s" % network.get("nummaps", ""),
+            "All directed edges: %d" % len(edge_rows),
+            "Visible directed edges: %d" % len(display_rows),
+            "Total mean dispersal events/map: %s" % self._format_number(total_mean),
+            "Visible mean dispersal events/map: %s" % self._format_number(visible_mean),
+            "Node richness source: current range matrix; multi-area taxa are split equally.",
+            "Source handling: multi-area source ranges are split equally across possible source areas.",
+        ]
+        warnings = list(network.get("warnings", []) or [])
+        if warnings:
+            lines.append("")
+            lines.append("Warnings")
+            for warning in warnings:
+                lines.append("  %s" % warning)
+        if display_rows:
+            lines.append("")
+            lines.append("Top visible edges")
+            for row in display_rows[:12]:
+                lines.append(
+                    "  %s -> %s: %s/map"
+                    % (
+                        row.get("source_area", ""),
+                        row.get("target_area", ""),
+                        self._format_number(row.get("mean_per_map", "")),
+                    )
+                )
+        self.network_summary_text.setPlainText("\n".join(lines))
+
+    def _draw_network_preview(self, network):
+        self.network_scene.clear()
+        areas = list(self.area_records or [])
+        node_rows = list(network.get("node_rows", []) or [])
+        edge_rows = list(network.get("display_edge_rows", []) or [])
+        bounds = self._network_bounds(areas, node_rows)
+        if bounds is None:
+            self.network_scene.setSceneRect(0, 0, 900, 520)
+            label = QGraphicsSimpleTextItem("Load area GeoJSON in Spatial Data Manager to preview the network on a map.")
+            label.setBrush(QBrush(QColor(60, 70, 80)))
+            label.setPos(20, 20)
+            self.network_scene.addItem(label)
+            return
+        transform = self._network_transform(bounds)
+        node_geometry = self._network_node_geometry(node_rows, transform)
+        self._draw_network_areas(areas, transform)
+        self._draw_network_edges(edge_rows, transform, node_geometry)
+        self._draw_network_nodes(node_rows, transform, node_geometry)
+        rect = self.network_scene.itemsBoundingRect().adjusted(-30, -30, 30, 30)
+        self.network_scene.setSceneRect(rect)
+        self.network_view.fit_to_scene()
+
+    def _draw_network_areas(self, areas, transform):
+        for index, area in enumerate(areas):
+            path = self._network_path_from_geometry(getattr(area, "geometry", {}) or {}, transform)
+            if path.isEmpty():
+                continue
+            color = self._network_color(getattr(area, "color", "") or "", index)
+            item = QGraphicsPathItem(path)
+            item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 34)))
+            item.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 130), 0.7))
+            item.setZValue(0)
+            self.network_scene.addItem(item)
+
+    def _draw_network_edges(self, edge_rows, transform, node_geometry):
+        if not edge_rows:
+            return
+        max_mean = max(float(row.get("mean_per_map", 0.0) or 0.0) for row in edge_rows) or 1.0
+        show_values = bool(
+            getattr(self, "network_show_edge_values_check", None) is not None
+            and self.network_show_edge_values_check.isChecked()
+        )
+        label_limit = min(12, len(edge_rows)) if show_values else 0
+        curve_by_pair = self._network_curve_by_pair(edge_rows)
+        for index, row in enumerate(edge_rows):
+            lon1 = self._safe_float_or_none(row.get("source_lon"))
+            lat1 = self._safe_float_or_none(row.get("source_lat"))
+            lon2 = self._safe_float_or_none(row.get("target_lon"))
+            lat2 = self._safe_float_or_none(row.get("target_lat"))
+            if None in (lon1, lat1, lon2, lat2):
+                continue
+            x1, y1 = transform(lon1, lat1)
+            x2, y2 = transform(lon2, lat2)
+            dx = x2 - x1
+            dy = y2 - y1
+            length = math.sqrt(dx * dx + dy * dy)
+            if length < 1e-6:
+                continue
+            nx = -dy / length
+            ny = dx / length
+            curve = self._network_edge_curve(row, index, curve_by_pair)
+            cx = (x1 + x2) * 0.5 + nx * curve
+            cy = (y1 + y2) * 0.5 + ny * curve
+            target_geom = node_geometry.get(str(row.get("target_area", "") or ""), {})
+            clip_radius = float(target_geom.get("radius", 0.0) or 0.0)
+            draw_cx, draw_cy, draw_x2, draw_y2, end_t = self._clip_quadratic_to_target_radius(
+                x1, y1, cx, cy, x2, y2, clip_radius + 2.5
+            )
+            mean = float(row.get("mean_per_map", 0.0) or 0.0)
+            width = 0.7 + 7.0 * math.sqrt(mean / max_mean)
+            line_cx, line_cy, line_x2, line_y2 = self._line_base_before_arrow_head(
+                x1, y1, draw_cx, draw_cy, draw_x2, draw_y2, width
+            )
+            path = QPainterPath(QPointF(x1, y1))
+            path.quadTo(QPointF(line_cx, line_cy), QPointF(line_x2, line_y2))
+            alpha = 70 + int(150 * math.sqrt(mean / max_mean))
+            source_geom = node_geometry.get(str(row.get("source_area", "") or ""), {})
+            source_color = QColor(str(source_geom.get("color", "") or ""))
+            if not source_color.isValid():
+                source_color = QColor(43, 91, 155)
+            color = QColor(source_color.red(), source_color.green(), source_color.blue(), min(230, alpha))
+            item = QGraphicsPathItem(path)
+            pen = QPen(color, width)
+            pen.setCapStyle(Qt.FlatCap)
+            item.setPen(pen)
+            item.setZValue(12)
+            item.setToolTip(
+                "%s -> %s\n%s mean events/map"
+                % (row.get("source_area", ""), row.get("target_area", ""), self._format_number(mean))
+            )
+            self.network_scene.addItem(item)
+            self._draw_network_arrow_head(line_x2, line_y2, draw_x2, draw_y2, color, width)
+            if index < label_limit:
+                self._draw_network_edge_label(
+                    row, mean, color, x1, y1, draw_cx, draw_cy, draw_x2, draw_y2, curve, end_t
+                )
+
+    def _network_curve_by_pair(self, edge_rows):
+        pair_keys = []
+        for row in list(edge_rows or []):
+            source = str(row.get("source_area", "") or "")
+            target = str(row.get("target_area", "") or "")
+            if not source or not target:
+                continue
+            key = tuple(sorted([source, target]))
+            if key not in pair_keys:
+                pair_keys.append(key)
+        pair_keys.sort()
+        curves = {}
+        for index, key in enumerate(pair_keys):
+            lane = index % 4
+            curves[key] = 20.0 + lane * 10.0
+        return curves
+
+    def _network_edge_curve(self, row, index, curve_by_pair):
+        source = str(row.get("source_area", "") or "")
+        target = str(row.get("target_area", "") or "")
+        if source and target and source != target:
+            sign = 1.0 if source < target else -1.0
+            base = float(curve_by_pair.get(tuple(sorted([source, target])), 24.0))
+        else:
+            sign = 1.0 if index % 2 == 0 else -1.0
+            base = 24.0
+        return base * sign
+
+    def _draw_network_edge_label(self, row, mean, color, x1, y1, cx, cy, x2, y2, curve, end_t=1.0):
+        t = max(0.18, min(0.82, 0.52 * max(0.15, float(end_t or 1.0))))
+        px, py = self._quadratic_point(x1, y1, cx, cy, x2, y2, t)
+        tx, ty = self._quadratic_tangent(x1, y1, cx, cy, x2, y2, t)
+        length = math.sqrt(tx * tx + ty * ty)
+        if length < 1e-6:
+            return
+        nx = -ty / length
+        ny = tx / length
+        side = 1.0 if curve >= 0 else -1.0
+        gap = 1.5
+        lx = px + nx * gap * side
+        ly = py + ny * gap * side
+
+        label = QGraphicsSimpleTextItem(self._format_network_value(mean, decimals=1))
+        font = QFont()
+        font.setPixelSize(9)
+        font.setBold(True)
+        label.setFont(font)
+        label_color = QColor(22, 28, 36)
+        label.setBrush(QBrush(label_color))
+        label.setToolTip(
+            "%s -> %s\n%s mean events/map"
+            % (row.get("source_area", ""), row.get("target_area", ""), self._format_number(mean))
+        )
+        rect = label.boundingRect()
+        label.setPos(lx - rect.width() * 0.5, ly - rect.height() * 0.5)
+        label.setZValue(25)
+        self.network_scene.addItem(label)
+
+    def _quadratic_point(self, x1, y1, cx, cy, x2, y2, t):
+        one = 1.0 - t
+        x = one * one * x1 + 2.0 * one * t * cx + t * t * x2
+        y = one * one * y1 + 2.0 * one * t * cy + t * t * y2
+        return x, y
+
+    def _quadratic_tangent(self, x1, y1, cx, cy, x2, y2, t):
+        x = 2.0 * (1.0 - t) * (cx - x1) + 2.0 * t * (x2 - cx)
+        y = 2.0 * (1.0 - t) * (cy - y1) + 2.0 * t * (y2 - cy)
+        return x, y
+
+    def _line_base_before_arrow_head(self, x1, y1, cx, cy, x2, y2, width):
+        head_length = max(9.0, float(width or 0.0) * 3.0)
+        samples = []
+        for index in range(0, 41):
+            t = float(index) / 40.0
+            px, py = self._quadratic_point(x1, y1, cx, cy, x2, y2, t)
+            samples.append((t, px, py))
+        distance = 0.0
+        for index in range(len(samples) - 1, 0, -1):
+            t1, px1, py1 = samples[index]
+            _t0, px0, py0 = samples[index - 1]
+            dx = px1 - px0
+            dy = py1 - py0
+            segment = math.sqrt(dx * dx + dy * dy)
+            if segment < 1e-6:
+                continue
+            if distance + segment >= head_length:
+                remaining = head_length - distance
+                ratio = remaining / segment
+                base_x = px1 - dx * ratio
+                base_y = py1 - dy * ratio
+                # Approximate the sub-curve control with De Casteljau using the
+                # nearest t. This keeps the curve tangent stable enough for the
+                # short arrow-base gap.
+                t = max(0.02, min(1.0, t1 - (1.0 / 40.0) * ratio))
+                line_cx = x1 + (cx - x1) * t
+                line_cy = y1 + (cy - y1) * t
+                return line_cx, line_cy, base_x, base_y
+            distance += segment
+        return cx, cy, x2, y2
+
+    def _draw_network_arrow_head(self, base_x, base_y, tip_x, tip_y, color, width):
+        tx = tip_x - base_x
+        ty = tip_y - base_y
+        length = math.sqrt(tx * tx + ty * ty)
+        if length < 1e-6:
+            return
+        ux = tx / length
+        uy = ty / length
+        size = max(7.0, width * 2.0)
+        nx = -uy
+        ny = ux
+        polygon = QPolygonF([
+            QPointF(tip_x, tip_y),
+            QPointF(base_x + nx * size * 0.45, base_y + ny * size * 0.45),
+            QPointF(base_x - nx * size * 0.45, base_y - ny * size * 0.45),
+        ])
+        item = QGraphicsPolygonItem(polygon)
+        item.setBrush(QBrush(color))
+        item.setPen(QPen(Qt.NoPen))
+        item.setZValue(13)
+        self.network_scene.addItem(item)
+
+    def _clip_quadratic_to_target_radius(self, x1, y1, cx, cy, x2, y2, radius):
+        radius = max(0.0, float(radius or 0.0))
+        if radius <= 0.0:
+            return cx, cy, x2, y2, 1.0
+        dx = x2 - x1
+        dy = y2 - y1
+        if math.sqrt(dx * dx + dy * dy) <= radius:
+            return cx, cy, x2, y2, 1.0
+        low = 0.0
+        high = 1.0
+        for _ in range(24):
+            mid = (low + high) * 0.5
+            px, py = self._quadratic_point(x1, y1, cx, cy, x2, y2, mid)
+            dist = math.sqrt((px - x2) * (px - x2) + (py - y2) * (py - y2))
+            if dist > radius:
+                low = mid
+            else:
+                high = mid
+        t = max(0.05, min(1.0, low))
+        end_x, end_y = self._quadratic_point(x1, y1, cx, cy, x2, y2, t)
+        sub_cx = x1 + (cx - x1) * t
+        sub_cy = y1 + (cy - y1) * t
+        return sub_cx, sub_cy, end_x, end_y, t
+
+    def _network_node_geometry(self, node_rows, transform):
+        rich_values = [float(row.get("richness", 0.0) or 0.0) for row in node_rows]
+        max_rich = max(rich_values) if rich_values else 1.0
+        if max_rich <= 0:
+            max_rich = 1.0
+        geometry = {}
+        for row in node_rows:
+            lon = self._safe_float_or_none(row.get("centroid_lon"))
+            lat = self._safe_float_or_none(row.get("centroid_lat"))
+            if lon is None or lat is None:
+                continue
+            x, y = transform(lon, lat)
+            richness = float(row.get("richness", 0.0) or 0.0)
+            radius = 7.0 + 21.0 * math.sqrt(richness / max_rich)
+            geometry[str(row.get("area_code", "") or "")] = {
+                "x": x,
+                "y": y,
+                "radius": radius,
+                "richness": richness,
+                "color": row.get("color", ""),
+            }
+        return geometry
+
+    def _draw_network_nodes(self, node_rows, transform, node_geometry):
+        for row in node_rows:
+            code = str(row.get("area_code", "") or "")
+            geom = node_geometry.get(code)
+            if not geom:
+                continue
+            x = float(geom.get("x", 0.0) or 0.0)
+            y = float(geom.get("y", 0.0) or 0.0)
+            radius = float(geom.get("radius", 0.0) or 0.0)
+            richness = float(geom.get("richness", 0.0) or 0.0)
+            base = QColor(str(row.get("color", "") or ""))
+            if not base.isValid():
+                base = QColor(120, 150, 180)
+            fill = QColor(base.red(), base.green(), base.blue(), 118)
+            outline = QColor(base.red(), base.green(), base.blue(), 185)
+            item = QGraphicsEllipseItem(x - radius, y - radius, radius * 2.0, radius * 2.0)
+            item.setBrush(QBrush(fill))
+            item.setPen(QPen(outline, 1.2))
+            item.setZValue(30)
+            item.setToolTip("%s\nrichness=%s" % (row.get("display_name", ""), self._format_number(richness)))
+            self.network_scene.addItem(item)
+
+            richness_label = QGraphicsSimpleTextItem(self._format_network_value(richness, decimals=0))
+            richness_font = QFont()
+            richness_font.setPixelSize(10)
+            richness_font.setBold(True)
+            richness_label.setFont(richness_font)
+            richness_label.setBrush(QBrush(QColor(16, 22, 28)))
+            richness_rect = richness_label.boundingRect()
+            richness_label.setPos(x - richness_rect.width() * 0.5, y - richness_rect.height() * 0.5)
+            richness_label.setZValue(32)
+            self.network_scene.addItem(richness_label)
+
+            name_label = QGraphicsSimpleTextItem("%s\n%s" % (code, row.get("display_name", "")))
+            name_font = QFont()
+            name_font.setPixelSize(9)
+            name_font.setBold(True)
+            name_label.setFont(name_font)
+            name_label.setBrush(QBrush(QColor(34, 37, 41)))
+            name_rect = name_label.boundingRect()
+            label_x = x - name_rect.width() * 0.5
+            label_y = y + radius + 3.0
+            bg_rect = QRectF(
+                label_x - 3.0,
+                label_y - 1.5,
+                name_rect.width() + 6.0,
+                name_rect.height() + 3.0,
+            )
+            bg = QGraphicsRectItem(bg_rect)
+            bg.setBrush(QBrush(QColor(255, 255, 255, 176)))
+            bg.setPen(QPen(Qt.NoPen))
+            bg.setZValue(31)
+            self.network_scene.addItem(bg)
+            name_label.setPos(label_x, label_y)
+            name_label.setZValue(32)
+            self.network_scene.addItem(name_label)
+
+    def _network_bounds(self, areas, node_rows):
+        bounds = None
+        for area in areas:
+            for lon, lat in self._network_geometry_points(getattr(area, "geometry", {}) or {}):
+                bounds = self._merge_bounds(bounds, lon, lat)
+        for row in node_rows:
+            lon = self._safe_float_or_none(row.get("centroid_lon"))
+            lat = self._safe_float_or_none(row.get("centroid_lat"))
+            if lon is not None and lat is not None:
+                bounds = self._merge_bounds(bounds, lon, lat)
+        if bounds is None:
+            return None
+        min_lon, min_lat, max_lon, max_lat = bounds
+        if abs(max_lon - min_lon) < 1e-9:
+            min_lon -= 0.5
+            max_lon += 0.5
+        if abs(max_lat - min_lat) < 1e-9:
+            min_lat -= 0.5
+            max_lat += 0.5
+        return min_lon, min_lat, max_lon, max_lat
+
+    def _network_transform(self, bounds):
+        min_lon, min_lat, max_lon, max_lat = bounds
+        width = max(1e-9, float(max_lon) - float(min_lon))
+        height = max(1e-9, float(max_lat) - float(min_lat))
+        scale = min(980.0 / width, 580.0 / height)
+        margin = 26.0
+
+        def transform(lon, lat):
+            return (
+                margin + (float(lon) - float(min_lon)) * scale,
+                margin + (float(max_lat) - float(lat)) * scale,
+            )
+
+        return transform
+
+    def _network_path_from_geometry(self, geometry, transform):
+        path = QPainterPath()
+        path.setFillRule(Qt.OddEvenFill)
+        geometry_type = str(geometry.get("type", "") or "")
+        coordinates = geometry.get("coordinates") or []
+        polygons = [coordinates] if geometry_type == "Polygon" else list(coordinates or []) if geometry_type == "MultiPolygon" else []
+        for polygon in polygons:
+            for ring in list(polygon or []):
+                points = list(ring or [])
+                if len(points) > 1500:
+                    stride = max(1, int(round(float(len(points)) / 1500.0)))
+                    points = points[::stride] + [points[-1]]
+                qpoints = []
+                for point in points:
+                    if len(point) < 2:
+                        continue
+                    x, y = transform(float(point[0]), float(point[1]))
+                    qpoints.append(QPointF(x, y))
+                if len(qpoints) >= 3:
+                    path.addPolygon(QPolygonF(qpoints))
+                    path.closeSubpath()
+        return path
+
+    def _network_geometry_points(self, geometry):
+        geometry_type = str(geometry.get("type", "") or "")
+        coordinates = geometry.get("coordinates") or []
+        polygons = [coordinates] if geometry_type == "Polygon" else list(coordinates or []) if geometry_type == "MultiPolygon" else []
+        for polygon in polygons:
+            for ring in list(polygon or []):
+                for point in list(ring or []):
+                    if len(point) >= 2:
+                        yield float(point[0]), float(point[1])
+
+    def _network_color(self, color_text, index):
+        color = QColor(str(color_text or ""))
+        if color.isValid():
+            return color
+        palette = [
+            "#4C78A8", "#F58518", "#54A24B", "#E45756", "#72B7B2",
+            "#B279A2", "#FF9DA6", "#9D755D", "#BAB0AC", "#59A14F",
+        ]
+        return QColor(palette[index % len(palette)])
+
+    def _merge_bounds(self, bounds, lon, lat):
+        lon = float(lon)
+        lat = float(lat)
+        if bounds is None:
+            return lon, lat, lon, lat
+        min_lon, min_lat, max_lon, max_lat = bounds
+        return min(min_lon, lon), min(min_lat, lat), max(max_lon, lon), max(max_lat, lat)
 
     def _reset_filters(self):
         for combo in [
@@ -489,6 +1112,15 @@ class BSMEventTableDialog(QDialog):
             return str(int(round(number)))
         return ("%.6f" % number).rstrip("0").rstrip(".")
 
+    def _format_network_value(self, value, decimals=1):
+        try:
+            number = float(value)
+        except Exception:
+            return str(value)
+        if int(decimals) <= 0:
+            return str(int(round(number)))
+        return ("%.*f" % (int(decimals), number)).rstrip("0").rstrip(".")
+
     def _export_events_csv(self):
         path, _selected = QFileDialog.getSaveFileName(
             self,
@@ -645,6 +1277,73 @@ class BSMEventTableDialog(QDialog):
                     out = dict(row)
                     out["raw_table"] = str(name)
                     writer.writerow({key: out.get(key, "") for key in headers})
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+
+    def _export_network_edges_csv(self):
+        network = self.current_network
+        if not network:
+            QMessageBox.information(self, "Export edge CSV", "No BSM dispersal network is available.")
+            return
+        path, _selected = QFileDialog.getSaveFileName(
+            self,
+            "Export BSM Dispersal Network Edges",
+            "",
+            "CSV files (*.csv);;All files (*)",
+        )
+        if not path:
+            return
+        if "." not in path.replace("\\", "/").split("/")[-1]:
+            path += ".csv"
+        try:
+            self.network_service.write_edges_csv(network, path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+
+    def _export_network_nodes_csv(self):
+        network = self.current_network
+        if not network:
+            QMessageBox.information(self, "Export node CSV", "No BSM dispersal network is available.")
+            return
+        path, _selected = QFileDialog.getSaveFileName(
+            self,
+            "Export BSM Dispersal Network Nodes",
+            "",
+            "CSV files (*.csv);;All files (*)",
+        )
+        if not path:
+            return
+        if "." not in path.replace("\\", "/").split("/")[-1]:
+            path += ".csv"
+        try:
+            self.network_service.write_nodes_csv(network, path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+
+    def _export_network_geojson(self):
+        network = self.current_network
+        if not network:
+            QMessageBox.information(self, "Export GeoJSON", "No BSM dispersal network is available.")
+            return
+        if not list(network.get("edge_geojson", {}).get("features", []) or []):
+            QMessageBox.information(
+                self,
+                "Export GeoJSON",
+                "No visible network edge has map coordinates. Load area GeoJSON before exporting map features.",
+            )
+            return
+        path, _selected = QFileDialog.getSaveFileName(
+            self,
+            "Export BSM Dispersal Network GeoJSON",
+            "",
+            "GeoJSON files (*.geojson);;JSON files (*.json);;All files (*)",
+        )
+        if not path:
+            return
+        if "." not in path.replace("\\", "/").split("/")[-1]:
+            path += ".geojson"
+        try:
+            self.network_service.write_geojson(network, path)
         except Exception as exc:
             QMessageBox.critical(self, "Export failed", str(exc))
 

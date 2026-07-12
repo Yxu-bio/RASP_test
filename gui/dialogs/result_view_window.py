@@ -125,6 +125,7 @@ class ResultViewWindow(QMainWindow):
 
         self.export_service = ExportService()
         self.leaf_state_map = {}
+        self.analysis_context_text = ""
 
         self.tree_panel = TreeGraphPanel()
         self.node_info_panel = NodeInfoPanel()
@@ -294,6 +295,7 @@ class ResultViewWindow(QMainWindow):
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
         self._refresh_figure_group_panel()
+        self._update_context_status()
 
     def set_window_title_by_method(self, method_name: str) -> None:
         self.current_method_name = method_name or ""
@@ -302,9 +304,21 @@ class ResultViewWindow(QMainWindow):
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
         self._refresh_figure_group_panel()
+        self._update_context_status()
 
     def set_leaf_state_context(self, leaf_state_map: dict) -> None:
         self.leaf_state_map = dict(leaf_state_map or {})
+
+    def set_analysis_context(self, text: str) -> None:
+        self.analysis_context_text = str(text or "")
+        self._update_context_status()
+
+    def _update_context_status(self) -> None:
+        method_text = self.current_method_name or "no method"
+        self.statusBar().showMessage(
+            "Result View consumes reconstruction result=%s. Information/Time use heuristic event summaries, not BioGeoBEARS BSM."
+            % method_text
+        )
 
     def refresh_view(self) -> None:
         self.tree_panel.refresh_tree()

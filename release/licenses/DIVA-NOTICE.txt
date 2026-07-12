@@ -1,0 +1,22 @@
+DIVA 1.1 redistribution and attribution notice
+================================================
+
+DIVA was developed by Fredrik Ronquist, Department of Systematic Zoology,
+Evolutionary Biology Centre, Uppsala University.
+
+The DIVA 1.1 User's Manual states that the program and manual may be copied and
+distributed freely provided that the source of results or ideas is cited. It
+also states that the source code may be copied, modified, and recompiled.
+
+RASP distributes a legacy RASP-modified DIVA executable for DIVA and S-DIVA
+compatibility. Results should cite DIVA and the applicable RASP publications.
+
+Original project download:
+https://sourceforge.net/projects/diva/
+
+Manual citation:
+Ronquist, F. 1996. DIVA version 1.1. Computer program and manual.
+
+Method citation:
+Ronquist, F. 1997. Dispersal-vicariance analysis: a new approach to the
+quantification of historical biogeography. Systematic Biology 46:195-203.

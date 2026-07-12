@@ -1,3 +1,4 @@
+import math
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -35,7 +36,7 @@ class BayAreaOutputParser:
 
         result = BioGeoBEARSResult(reference_tree=reference_tree)
         result.model_name = "BayArea"
-        result.result_note = "Parsed from BayArea v1.0.3 output. workdir=%s" % run_files.workdir
+        result.result_note = "Parsed from RASP-patched BayArea v1.0.3 output. workdir=%s" % run_files.workdir
         result.input_tree_count = 1
         result.effective_tree_count = 1
 
@@ -123,6 +124,12 @@ class BayAreaOutputParser:
         result.model_statistics = self._build_model_statistics(run_files, run_output, ln_likelihoods)
         diagnostics = self._parameter_diagnostics(run_files)
         result.model_statistics.update(diagnostics.get("statistics", {}))
+        if str(result.model_statistics.get("bayarea_model_type", "") or "").upper() == "INDEPENDENCE":
+            result.parse_warnings.append(
+                "BayArea INDEPENDENCE is retained for legacy compatibility but is not recommended for "
+                "new analyses because its stochastic-history sampler can mix extremely slowly. Treat "
+                "the result as diagnostic unless independent chains show adequate ESS and split-Rhat."
+            )
         for warning in diagnostics.get("warnings", []):
             result.parse_warnings.append(warning)
         try:
@@ -209,14 +216,32 @@ class BayAreaOutputParser:
         if len(lines) < 2:
             return {"statistics": {}, "warnings": []}
         header = lines[0].split("\t")
-        last = lines[-1].split("\t")
-        if len(last) < len(header):
+        rows = []
+        for line in lines[1:]:
+            parts = line.split("\t")
+            if len(parts) < len(header):
+                continue
+            row = {}
+            valid = True
+            for name, value in zip(header, parts):
+                try:
+                    row[name] = float(value)
+                except Exception:
+                    valid = False
+                    break
+            if not valid:
+                continue
+            cycle = int(row.get("n", 0.0))
+            if not self._include_sample(cycle, run_files.burnin):
+                continue
+            rows.append(row)
+        if not rows:
             return {"statistics": {}, "warnings": []}
-        row = dict(zip(header, last))
+        last_row = rows[-1]
 
         def number(name):
             try:
-                return float(row.get(name, ""))
+                return float(last_row.get(name, ""))
             except Exception:
                 return None
 
@@ -230,18 +255,111 @@ class BayAreaOutputParser:
             "bayarea_last_num_gain": num_gain,
             "bayarea_last_num_loss": num_loss,
         }
+        diagnostics = {}
+        for name in ["lnL", "gain", "loss", "gain-p", "loss-p", "distP", "numGain", "numLoss"]:
+            values = [float(row[name]) for row in rows if name in row]
+            if values:
+                diagnostics[name] = self._trace_diagnostic(values)
+        statistics["bayarea_trace_diagnostics"] = diagnostics
+
+        max_num_gain = max((float(row["numGain"]) for row in rows if "numGain" in row), default=None)
+        max_num_loss = max((float(row["numLoss"]) for row in rows if "numLoss" in row), default=None)
+        statistics["bayarea_max_num_gain"] = max_num_gain
+        statistics["bayarea_max_num_loss"] = max_num_loss
+
         warnings = []
-        if num_gain is not None and num_loss is not None:
-            event_count = max(float(num_gain), float(num_loss))
+        if max_num_gain is not None and max_num_loss is not None:
+            event_count = max(max_num_gain, max_num_loss)
             threshold = max(500.0, float(getattr(run_files, "taxon_count", 0) or 0) * 20.0)
             if event_count > threshold:
                 warnings.append(
-                    "BayArea sampled very large histories at the last MCMC sample "
-                    "(numGain=%.0f, numLoss=%.0f). If this run is slow or unstable, "
-                    "try a smaller rateProposalTuner such as 0.1, especially for INDEPENDENCE."
-                    % (num_gain, num_loss)
+                    "BayArea sampled very large histories during MCMC "
+                    "(maximum numGain=%.0f, numLoss=%.0f). The chain may be unstable; "
+                    "for INDEPENDENCE, use a stability-first rateProposalTuner near 0.005 "
+                    "and inspect the gain/loss traces because very small tuners mix slowly."
+                    % (max_num_gain, max_num_loss)
+                )
+        for name in ["gain", "loss", "distP"]:
+            diagnostic = diagnostics.get(name)
+            if not diagnostic or int(diagnostic.get("sample_count", 0)) < 100:
+                continue
+            ess = float(diagnostic.get("ess_approx", 0.0) or 0.0)
+            shift = float(diagnostic.get("relative_half_shift", 0.0) or 0.0)
+            if ess < 50.0:
+                sample_count = int(diagnostic.get("sample_count", 0))
+                ess_count = int(diagnostic.get("ess_diagnostic_sample_count", sample_count))
+                if ess_count < sample_count:
+                    sample_text = "%d evenly spaced diagnostic points from %d retained samples" % (
+                        ess_count,
+                        sample_count,
+                    )
+                else:
+                    sample_text = "%d retained samples" % sample_count
+                warnings.append(
+                    "BayArea %s trace has low approximate single-chain ESS (%.1f from %s). "
+                    "Use a longer chain and compare independent seeds before interpreting the posterior."
+                    % (name, ess, sample_text)
+                )
+            if shift > 0.25:
+                warnings.append(
+                    "BayArea %s trace differs strongly between its first and second retained halves "
+                    "(relative mean shift %.1f%%); burn-in or chain length is likely insufficient."
+                    % (name, shift * 100.0)
                 )
         return {"statistics": statistics, "warnings": warnings}
+
+    def _trace_diagnostic(self, values):
+        finite = [float(value) for value in values if math.isfinite(float(value))]
+        count = len(finite)
+        if count <= 0:
+            return {
+                "sample_count": 0,
+                "ess_approx": 0.0,
+                "relative_half_shift": 0.0,
+            }
+
+        midpoint = max(1, count // 2)
+        first = finite[:midpoint]
+        second = finite[midpoint:] or finite[-1:]
+        first_mean = sum(first) / float(len(first))
+        second_mean = sum(second) / float(len(second))
+        denominator = max(abs(second_mean), 1e-12)
+        ess_values = finite
+        if count > 5000:
+            step = int(math.ceil(float(count) / 5000.0))
+            ess_values = finite[::step]
+        return {
+            "sample_count": count,
+            "ess_diagnostic_sample_count": len(ess_values),
+            "minimum": min(finite),
+            "maximum": max(finite),
+            "mean": sum(finite) / float(count),
+            "first_half_mean": first_mean,
+            "second_half_mean": second_mean,
+            "relative_half_shift": abs(first_mean - second_mean) / denominator,
+            "ess_approx": self._approximate_ess(ess_values),
+        }
+
+    def _approximate_ess(self, values, max_lag=500):
+        count = len(values)
+        if count < 3:
+            return float(count)
+        mean = sum(values) / float(count)
+        variance = sum((value - mean) ** 2 for value in values) / float(count)
+        if variance <= 0.0:
+            return float(count)
+
+        rho_sum = 0.0
+        for lag in range(1, min(int(max_lag), count - 1) + 1):
+            covariance = sum(
+                (values[index] - mean) * (values[index - lag] - mean)
+                for index in range(lag, count)
+            ) / float(count - lag)
+            rho = covariance / variance
+            if rho <= 0.0:
+                break
+            rho_sum += rho
+        return max(1.0, min(float(count), float(count) / (1.0 + 2.0 * rho_sum)))
 
     def _write_legacy_analysis_log(
         self,

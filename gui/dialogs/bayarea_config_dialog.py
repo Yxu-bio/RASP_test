@@ -60,7 +60,7 @@ class BayAreaConfigDialog(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, "Invalid configuration", str(exc))
             return
-        if not self._confirm_independence_rate_tuner(self._config):
+        if not self._confirm_independence_usage(self._config):
             return
         if not self._confirm_distance_coordinates(self._config):
             return
@@ -164,11 +164,21 @@ class BayAreaConfigDialog(QDialog):
         self.sample_frequency_spin = QSpinBox(group)
         self.sample_frequency_spin.setRange(1, 2147483647)
         self.sample_frequency_spin.setSingleStep(100)
-        self.burnin_spin = QSpinBox(group)
-        self.burnin_spin.setRange(0, 2147483647)
-        self.burnin_spin.setSingleStep(1000)
+        self.independent_chains_spin = QSpinBox(group)
+        self.independent_chains_spin.setRange(1, 8)
+        self.independent_chains_spin.valueChanged.connect(self._update_parallel_chain_limit)
+        self.parallel_chains_spin = QSpinBox(group)
+        self.parallel_chains_spin.setRange(1, 8)
+        self.independent_chains_spin.setToolTip(
+            "Independent MCMC chains used for split-Rhat and pooled posterior estimates."
+        )
+        self.parallel_chains_spin.setToolTip(
+            "Maximum BayArea processes run at once. Each process is otherwise single-threaded."
+        )
         form.addRow("Chain Length", self.chain_length_spin)
         form.addRow("Sample freq.", self.sample_frequency_spin)
+        form.addRow("Independent chains", self.independent_chains_spin)
+        form.addRow("Parallel chains", self.parallel_chains_spin)
         return group
 
     def _build_model_group(self):
@@ -215,15 +225,22 @@ class BayAreaConfigDialog(QDialog):
         self.gain_prior_spin.setToolTip("Half-Cauchy prior scale for area gain rate.")
         self.loss_prior_spin.setToolTip("Half-Cauchy prior scale for area loss rate.")
         self.distance_power_prior_spin.setToolTip("Prior scale for the geographic distance-power parameter; only used by DISTANCE NORM.")
-        self.area_proposal_tuner_spin.setToolTip("Average probability of resampling area histories; BayArea requires 0 to 1.")
-        self.rate_proposal_tuner_spin.setToolTip("Proposal window for gain/loss rates. INDEPENDENCE is safest near 0.005.")
+        self.area_proposal_tuner_spin.setToolTip(
+            "Controls how many areas are resampled in each history proposal: BayArea always resamples "
+            "at least one area and adds a Poisson(num_areas * tuner) count, capped at num_areas. "
+            "The accepted range is 0 to 1."
+        )
+        self.rate_proposal_tuner_spin.setToolTip(
+            "Proposal window for gain/loss rates. For INDEPENDENCE, 0.005 is stability-first "
+            "but may mix slowly; inspect gain/loss traces after the run."
+        )
         self.distance_proposal_tuner_spin.setToolTip("Proposal window for distance-power proposals; only used by DISTANCE NORM.")
         form.addRow("Gain prior", self.gain_prior_spin)
         form.addRow("Loss prior", self.loss_prior_spin)
         form.addRow("Dist. power prior", self.distance_power_prior_spin)
-        form.addRow("Area proposal", self.area_proposal_tuner_spin)
-        form.addRow("Rate proposal", self.rate_proposal_tuner_spin)
-        form.addRow("Dist. proposal", self.distance_proposal_tuner_spin)
+        form.addRow("Area proposal tuner", self.area_proposal_tuner_spin)
+        form.addRow("Rate proposal tuner", self.rate_proposal_tuner_spin)
+        form.addRow("Dist. proposal tuner", self.distance_proposal_tuner_spin)
         return group
 
     def _build_advanced_group(self):
@@ -273,7 +290,8 @@ class BayAreaConfigDialog(QDialog):
         try:
             self.chain_length_spin.setValue(int(config.chain_length))
             self.sample_frequency_spin.setValue(int(config.sample_frequency))
-            self.burnin_spin.setValue(int(config.burnin))
+            self.independent_chains_spin.setValue(int(getattr(config, "independent_chains", 1) or 1))
+            self.parallel_chains_spin.setValue(int(getattr(config, "parallel_chains", 1) or 1))
             self.seed_edit.setPlaceholderText("engine random")
             self.seed_edit.setText("" if config.seed is None else str(config.seed))
             self._set_combo_data(self.model_combo, normalize_bayarea_model_type(config.model_type))
@@ -328,6 +346,8 @@ class BayAreaConfigDialog(QDialog):
             geo_distance_power_positive=bool(self.distance_power_combo.currentData()),
             geo_distance_truncate=bool(self.distance_truncate_combo.currentData()),
             seed=seed,
+            independent_chains=int(self.independent_chains_spin.value()),
+            parallel_chains=int(self.parallel_chains_spin.value()),
             gain_prior=float(self.gain_prior_spin.value()),
             loss_prior=float(self.loss_prior_spin.value()),
             distance_power_prior=float(self.distance_power_prior_spin.value()),
@@ -352,7 +372,19 @@ class BayAreaConfigDialog(QDialog):
         self.distance_truncate_combo.setEnabled(distance_model)
         self.distance_power_prior_spin.setEnabled(distance_model)
         self.distance_proposal_tuner_spin.setEnabled(distance_model)
+        if model_type == "INDEPENDENCE":
+            self.apply_recommended_button.setText("Stability-first settings")
+            self.apply_recommended_button.setToolTip(
+                "Applies conservative proposal settings to reduce runaway histories. "
+                "This does not make INDEPENDENCE a recommended model."
+            )
+        else:
+            self.apply_recommended_button.setText("Recommended settings")
+            self.apply_recommended_button.setToolTip("")
         self.model_guide_label.setText(self._model_guide_text(model_type))
+        self.model_guide_label.setStyleSheet(
+            "color: #b91c1c; font-weight: 600;" if model_type == "INDEPENDENCE" else ""
+        )
 
     def _on_model_changed(self):
         if not self._loading_config:
@@ -368,15 +400,24 @@ class BayAreaConfigDialog(QDialog):
         self.area_proposal_tuner_spin.setValue(float(defaults["area_proposal_tuner"]))
         self.rate_proposal_tuner_spin.setValue(float(defaults["rate_proposal_tuner"]))
         self.distance_proposal_tuner_spin.setValue(float(defaults["distance_proposal_tuner"]))
+        self.independent_chains_spin.setValue(int(defaults["independent_chains"]))
+        self.parallel_chains_spin.setValue(int(defaults["parallel_chains"]))
         self._set_combo_data(self.distance_power_combo, bool(defaults["geo_distance_power_positive"]))
         self._set_combo_data(self.distance_truncate_combo, bool(defaults["geo_distance_truncate"]))
         self._update_model_controls()
 
+    def _update_parallel_chain_limit(self, *_args):
+        chains = max(1, int(self.independent_chains_spin.value()))
+        self.parallel_chains_spin.setMaximum(chains)
+        if self.parallel_chains_spin.value() > chains:
+            self.parallel_chains_spin.setValue(chains)
+
     def _model_guide_text(self, model_type):
         if normalize_bayarea_model_type(model_type) == "INDEPENDENCE":
             return (
-                "INDEPENDENCE ignores distance. Recommended rate proposal is 0.005; larger values can "
-                "drift to huge sampled histories and run for a very long time."
+                "Not recommended. INDEPENDENCE is retained for legacy compatibility, but its sampler "
+                "can mix extremely slowly or generate very large histories. Prefer DISTANCE NORM when "
+                "meaningful geographic coordinates are available."
             )
         return (
             "DISTANCE NORM follows the official BayArea tutorial style: real non-identical coordinates, "
@@ -410,21 +451,28 @@ class BayAreaConfigDialog(QDialog):
         )
         return choice == QMessageBox.Yes
 
-    def _confirm_independence_rate_tuner(self, config):
+    def _confirm_independence_usage(self, config):
         if normalize_bayarea_model_type(config.model_type) != "INDEPENDENCE":
             return True
         try:
             rate_tuner = float(config.rate_proposal_tuner)
         except Exception:
             return True
-        if rate_tuner <= 0.02:
-            return True
+        tuner_warning = ""
+        if rate_tuner > 0.02:
+            tuner_warning = (
+                "\n\nThe selected Rate proposal tuner (%.6g) is also above 0.02 and can cause "
+                "extremely large sampled histories or very long runs." % rate_tuner
+            )
         choice = QMessageBox.question(
             self,
-            "BayArea INDEPENDENCE",
-            "The INDEPENDENCE model is sensitive to the Rate proposal tuner. Values above 0.02 can "
-            "make BayArea sample extremely large histories and run for a very long time. Continue with %.6g?"
-            % rate_tuner,
+            "BayArea INDEPENDENCE is not recommended",
+            "INDEPENDENCE is retained only for legacy compatibility and is not recommended for new "
+            "analyses. Its stochastic-history sampler can mix extremely slowly even for long chains, "
+            "so apparently completed results may still have very low ESS and unacceptable split-Rhat. "
+            "Use DISTANCE NORM with meaningful coordinates when scientifically appropriate."
+            + tuner_warning
+            + "\n\nRun INDEPENDENCE anyway?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -466,23 +514,54 @@ class BayAreaConfigDialog(QDialog):
 
     def _apply_geo_text(self, text):
         rows = [line.strip() for line in str(text or "").splitlines() if line.strip() and not line.strip().startswith("#")]
-        values = []
+        named_values = {}
+        positional_values = []
         for line in rows:
             if "," in line:
                 parts = [x.strip() for x in line.split(",")]
-                if len(parts) >= 3:
-                    values.append((parts[1], parts[2]))
-                elif len(parts) >= 2:
-                    values.append((parts[0], parts[1]))
             else:
                 parts = line.split()
-                if len(parts) >= 2:
-                    values.append((parts[0], parts[1]))
-        if len(values) < len(self.area_names):
-            raise ValueError("Geographic data does not contain enough rows for all areas.")
+
+            if len(parts) >= 3 and parts[0] in self.area_names:
+                if parts[0] in named_values:
+                    raise ValueError("Geographic data contains duplicate area '%s'." % parts[0])
+                named_values[parts[0]] = self._parse_coordinate_pair(parts[1], parts[2], parts[0])
+                continue
+
+            if len(parts) >= 2:
+                try:
+                    positional_values.append(self._parse_coordinate_pair(parts[0], parts[1], "row %d" % (len(positional_values) + 1)))
+                except ValueError:
+                    normalized = [part.strip().lower() for part in parts[:3]]
+                    if any(value in ("area", "name", "latitude", "lat", "longitude", "lon", "long") for value in normalized):
+                        continue
+                    raise
+
+        if named_values:
+            missing = [area for area in self.area_names if area not in named_values]
+            if missing:
+                raise ValueError("Geographic data is missing areas: %s." % ", ".join(missing))
+            values = [named_values[area] for area in self.area_names]
+        else:
+            values = positional_values
+            if len(values) < len(self.area_names):
+                raise ValueError("Geographic data does not contain enough rows for all areas.")
+
         for row, (lat, lon) in enumerate(values[: len(self.area_names)]):
             self.geo_table.item(row, 1).setText(str(lat))
             self.geo_table.item(row, 2).setText(str(lon))
+
+    def _parse_coordinate_pair(self, latitude, longitude, label):
+        try:
+            lat = float(str(latitude).strip())
+            lon = float(str(longitude).strip())
+        except Exception as exc:
+            raise ValueError("Invalid coordinates for %s." % label) from exc
+        if not (-90.0 <= lat <= 90.0):
+            raise ValueError("Latitude for %s must be between -90 and 90." % label)
+        if not (-180.0 <= lon <= 180.0):
+            raise ValueError("Longitude for %s must be between -180 and 180." % label)
+        return lat, lon
 
     def _clear_geo_table(self):
         for row in range(len(self.area_names)):

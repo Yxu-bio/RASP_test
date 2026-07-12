@@ -47,6 +47,7 @@ from gui.workers.dec_run_worker import DECRunWorker
 from gui.workers.sdec_run_worker import SDECRunWorker
 from gui.workers.biogeobears_run_worker import BioGeoBEARSRunWorker
 from gui.workers.biogeobears_bsm_event_worker import BioGeoBEARSBSMEventWorker
+from gui.workers.biogeobears_bsm_load_worker import BioGeoBEARSBSMLoadWorker
 from gui.workers.sbgb_run_worker import SBGBRunWorker
 from gui.workers.bayarea_run_worker import BayAreaRunWorker
 from gui.workers.bbm_run_worker import BBMRunWorker
@@ -79,8 +80,10 @@ from gui.dialogs.phytools_config_dialog import PhytoolsConfigDialog
 from gui.dialogs.project_import_dialog import ProjectImportDialog
 from gui.dialogs.result_view_window import ResultViewWindow
 from gui.dialogs.bsm_event_table_dialog import BSMEventTableDialog
+from gui.dialogs.bsm_network_map_editor_dialog import BSMNetworkMapEditorDialog
 from gui.dialogs.bsm_run_config_dialog import BSMRunConfigDialog
 from gui.dialogs.spatial_data_manager_dialog import SpatialDataManagerDialog
+from gui.dialogs.region_geojson_builder_dialog import RegionGeoJsonBuilderDialog
 from gui.widgets.matrix_preview_table import MatrixPreviewTable
 from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
@@ -489,6 +492,9 @@ class MainWindow(QMainWindow):
         self.open_spatial_data_manager_action = QAction("Spatial Data Manager...", self)
         self.open_spatial_data_manager_action.triggered.connect(self.open_spatial_data_manager)
         spatial_menu.addAction(self.open_spatial_data_manager_action)
+        self.open_region_geojson_builder_action = QAction("Region GeoJSON Builder...", self)
+        self.open_region_geojson_builder_action.triggered.connect(self.open_region_geojson_builder)
+        spatial_menu.addAction(self.open_region_geojson_builder_action)
 
         self.run_diva_action = QAction("DIVA", self)
         self.run_diva_action.triggered.connect(self.run_diva)
@@ -549,15 +555,26 @@ class MainWindow(QMainWindow):
         self.generate_bgb_bsm_action = QAction("Generate BioGeoBEARS BSM Events", self)
         self.generate_bgb_bsm_action.triggered.connect(self.generate_biogeobears_bsm_events)
         event_menu.addAction(self.generate_bgb_bsm_action)
+
+        self.load_existing_bgb_bsm_action = QAction("Load Existing BioGeoBEARS BSM Result...", self)
+        self.load_existing_bgb_bsm_action.triggered.connect(self.load_existing_biogeobears_bsm_result)
+        event_menu.addAction(self.load_existing_bgb_bsm_action)
         event_menu.addSeparator()
 
         self.open_bsm_event_table_action = QAction("BSM Event Table Viewer", self)
         self.open_bsm_event_table_action.triggered.connect(self.open_bsm_event_table_viewer)
         event_menu.addAction(self.open_bsm_event_table_action)
 
+        self.open_bsm_network_map_editor_action = QAction("BSM Network Map Editor", self)
+        self.open_bsm_network_map_editor_action.triggered.connect(self.open_bsm_network_map_editor)
+        event_menu.addAction(self.open_bsm_network_map_editor_action)
+
         self.open_result_action = QAction("Open Result Window", self)
         self.open_result_action.triggered.connect(self.open_result_window)
         view_menu.addAction(self.open_result_action)
+        self.project_context_action = QAction("Project Context / Data Flow...", self)
+        self.project_context_action.triggered.connect(self.show_project_context_dialog)
+        view_menu.addAction(self.project_context_action)
 
     def _choose_file(self, title, file_filter):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -937,6 +954,7 @@ class MainWindow(QMainWindow):
 
         self.current_result_window.set_renderer(renderer)
         self.current_result_window.set_leaf_state_context(leaf_state_map)
+        self.current_result_window.set_analysis_context(self._build_project_context_text())
         self.current_result_window.set_window_title_by_method(ctx["method_name"])
         self.current_result_window.set_result(ctx["result"])
         self.current_result_window.refresh_view()
@@ -954,8 +972,237 @@ class MainWindow(QMainWindow):
                 "No BioGeoBEARS BSM event table is available. Run a BioGeoBEARS result first, then use Biogeographic Event Analysis -> Generate BioGeoBEARS BSM Events.",
             )
             return
-        dialog = BSMEventTableDialog(result, self)
+        spatial_areas = []
+        if self.current_spatial_project is not None:
+            spatial_areas = list(getattr(self.current_spatial_project, "areas", []) or [])
+        dialog = BSMEventTableDialog(
+            result,
+            area_records=spatial_areas,
+            range_matrix=self.current_matrix,
+            parent=self,
+        )
         dialog.exec_()
+
+    def open_bsm_network_map_editor(self):
+        result = self._current_bsm_result()
+        if result is None:
+            QMessageBox.information(
+                self,
+                "BSM Network Map Editor",
+                "No BioGeoBEARS BSM event result is available. Run a BioGeoBEARS result first, then use Biogeographic Event Analysis -> Generate BioGeoBEARS BSM Events.",
+            )
+            return
+        spatial_areas = []
+        if self.current_spatial_project is not None:
+            spatial_areas = list(getattr(self.current_spatial_project, "areas", []) or [])
+        dialog = BSMNetworkMapEditorDialog(
+            result,
+            area_records=spatial_areas,
+            range_matrix=self.current_matrix,
+            parent=self,
+        )
+        dialog.exec_()
+
+    def show_project_context_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Project Context / Data Flow")
+        dialog.resize(860, 680)
+        layout = QVBoxLayout(dialog)
+        text = QTextEdit(dialog)
+        text.setReadOnly(True)
+        text.setPlainText(self._build_project_context_text())
+        layout.addWidget(text)
+        dialog.exec_()
+
+    def _build_project_context_text(self):
+        lines = [
+            "RASP project context / data flow",
+            "",
+            "This page is a read-only summary of the currently loaded inputs and analysis outputs.",
+            "It is intended to make the Spatial Data, Ancestral Reconstruction, and Biogeographic Event Analysis modules explicit.",
+            "",
+            "1. Data preparation",
+            "-------------------",
+        ]
+
+        tree_leaf_count = self._current_tree_leaf_count()
+        lines.append("Consensus tree: %s" % ("loaded, %d taxa" % tree_leaf_count if tree_leaf_count is not None else "not loaded"))
+        tree_collection_count = len(getattr(self.current_tree_collection, "trees", []) or []) if self.current_tree_collection is not None else 0
+        if tree_collection_count:
+            lines.append("Tree collection: loaded, %d tree(s)" % tree_collection_count)
+        else:
+            loaded_entries = len(getattr(self, "current_loaded_entries", []) or [])
+            lines.append("Tree collection: %s" % ("loaded/prepared, %d entry(s)" % loaded_entries if loaded_entries else "not loaded"))
+
+        matrix = self.current_matrix
+        matrix_taxa = len(getattr(matrix, "taxa_names", []) or []) if matrix is not None else 0
+        matrix_columns = [str(col) for col in list(getattr(matrix, "state_columns", []) or [])] if matrix is not None else []
+        lines.append(
+            "Current matrix: %s"
+            % (
+                "loaded, %d taxa, %d state/trait column(s)" % (matrix_taxa, len(matrix_columns))
+                if matrix is not None else "not loaded"
+            )
+        )
+        if matrix_columns:
+            lines.append("  columns: %s" % ", ".join(matrix_columns[:24]) + (" ..." if len(matrix_columns) > 24 else ""))
+        if matrix is not None:
+            lines.append("  source: %s" % (str(getattr(matrix, "source_path", "") or "unknown")))
+
+        spatial_project = self.current_spatial_project
+        spatial_areas = list(getattr(spatial_project, "areas", []) or []) if spatial_project is not None else []
+        spatial_occurrences = list(getattr(spatial_project, "occurrences", []) or []) if spatial_project is not None else []
+        encoded_matrix = getattr(spatial_project, "encoded_matrix", None) if spatial_project is not None else None
+        encoded_audit_rows = list(getattr(spatial_project, "encoded_audit_rows", []) or []) if spatial_project is not None else []
+        lines.extend([
+            "",
+            "Spatial project: %s" % ("loaded" if spatial_project is not None else "not loaded"),
+            "  area polygons: %d" % len(spatial_areas),
+            "  occurrence records: %d" % len(spatial_occurrences),
+            "  encoded matrix: %s" % ("available" if encoded_matrix is not None else "not available"),
+            "  encoding audit rows: %d" % len(encoded_audit_rows),
+        ])
+        if spatial_project is not None:
+            lines.append("  area source: %s" % (str(getattr(spatial_project, "area_source_path", "") or "unknown")))
+            lines.append("  occurrence source: %s" % (str(getattr(spatial_project, "occurrence_source_path", "") or "unknown")))
+
+        lines.extend([
+            "",
+            "2. Ancestral reconstruction result",
+            "---------------------------------",
+        ])
+        active_method = str(getattr(self, "current_method_name", "") or "")
+        active_result = self._active_reconstruction_result()
+        lines.append("Active method: %s" % (active_method or "none"))
+        lines.append("Active result: %s" % ("available" if active_result is not None else "not available"))
+        if active_result is not None:
+            result_nodes = len(getattr(active_result, "node_results", []) or getattr(active_result, "nodes", []) or [])
+            if result_nodes:
+                lines.append("  node result rows: %d" % result_nodes)
+            warnings = list(getattr(active_result, "parse_warnings", []) or [])
+            if warnings:
+                lines.append("  result warnings: %d" % len(warnings))
+
+        lines.extend([
+            "",
+            "3. Biogeographic event analysis",
+            "-------------------------------",
+        ])
+        bgb_result = getattr(self, "current_biogeobears_result", None)
+        bgb_config = getattr(self, "current_biogeobears_config", None)
+        bsm_result = self._current_bsm_result()
+        lines.append("Current BioGeoBEARS result: %s" % ("available" if bgb_result is not None else "not available"))
+        if bgb_config is not None:
+            lines.append("  BioGeoBEARS config model: %s" % str(getattr(bgb_config, "model_name", "unknown") or "unknown"))
+        lines.append("Current BioGeoBEARS BSM result: %s" % ("available" if bsm_result is not None else "not available"))
+        if bsm_result is not None:
+            summary = dict(getattr(bsm_result, "summary", {}) or {})
+            raw_tables = dict(getattr(bsm_result, "raw_tables", {}) or {})
+            event_rows = len(getattr(bsm_result, "events", []) or [])
+            maps = summary.get("nummaps", "unknown")
+            raw_row_count = int(summary.get("ana_rows", 0) or 0) + int(summary.get("clado_rows", 0) or 0)
+            lines.append("  stochastic maps: %s" % maps)
+            lines.append("  parsed preview event rows: %d" % event_rows)
+            lines.append("  raw event rows: %d" % raw_row_count)
+            if raw_tables:
+                lines.append("  raw tables: %s" % ", ".join(sorted(raw_tables.keys())[:12]))
+
+        lines.extend([
+            "",
+            "4. Active connections",
+            "---------------------",
+            "Spatial Data -> reconstruction matrix: %s" % self._spatial_matrix_connection_label(spatial_project, matrix),
+            "BioGeoBEARS result -> BSM generation: %s" % ("ready" if bgb_result is not None and bgb_config is not None else "not ready"),
+            "BSM result -> BSM Event Table: %s" % ("ready" if bsm_result is not None else "not ready"),
+            "BSM result + spatial areas -> BSM Network Map: %s" % ("map mode ready" if bsm_result is not None and spatial_areas else "circle network only or not ready"),
+            "BSM result + current matrix -> network node richness: %s" % ("available" if bsm_result is not None and matrix is not None else "not available"),
+            "",
+            "5. Interpretation boundary",
+            "--------------------------",
+            "Result View Information/Time: old-RASP-style heuristic events inferred from node reconstructions.",
+            "Biogeographic Event Analysis: BioGeoBEARS stochastic mapping events summarized from BSM histories.",
+            "These two event layers are intentionally separate and should not be treated as the same data source.",
+        ])
+
+        warnings = self._project_context_warnings(
+            matrix=matrix,
+            spatial_areas=spatial_areas,
+            bgb_result=bgb_result,
+            bsm_result=bsm_result,
+        )
+        if warnings:
+            lines.extend(["", "6. Context warnings", "-------------------"])
+            for warning in warnings:
+                lines.append("- %s" % warning)
+
+        return "\n".join(lines)
+
+    def _current_tree_leaf_count(self):
+        if self.current_tree is None:
+            return None
+        try:
+            return len(self.current_tree.get_leaf_names())
+        except Exception:
+            return None
+
+    def _active_reconstruction_result(self):
+        method = str(getattr(self, "current_method_name", "") or "")
+        if self._is_biogeobears_method(method):
+            return self.current_biogeobears_result
+        if method == "S-DIVA":
+            return self.current_sdiva_result
+        if method == "DEC":
+            return self.current_dec_result
+        if method == "S-DEC":
+            return self.current_sdec_result
+        return self.current_result
+
+    def _spatial_matrix_connection_label(self, spatial_project, matrix):
+        if spatial_project is None:
+            return "not active, no spatial project"
+        encoded_matrix = getattr(spatial_project, "encoded_matrix", None)
+        if encoded_matrix is None:
+            return "not active, spatial project has no encoded matrix"
+        if matrix is encoded_matrix:
+            return "active, current matrix is the spatial encoded matrix"
+        return "not active, current matrix is not the spatial encoded matrix"
+
+    def _project_context_warnings(self, matrix=None, spatial_areas=None, bgb_result=None, bsm_result=None):
+        warnings = []
+        spatial_areas = list(spatial_areas or [])
+        if bsm_result is not None and not spatial_areas:
+            warnings.append("A BSM result is loaded, but no spatial areas are loaded; BSM Network Map will use circle-network layout only.")
+        if bsm_result is not None and matrix is None:
+            warnings.append("A BSM result is loaded, but no current matrix is loaded; network node richness cannot be computed from the matrix.")
+        if bgb_result is not None and bsm_result is None:
+            warnings.append("A BioGeoBEARS result is available, but no BSM event result is loaded/generated yet.")
+        if matrix is not None and spatial_areas:
+            matrix_columns = [str(col) for col in list(getattr(matrix, "state_columns", []) or []) if str(col)]
+            area_codes = [str(getattr(area, "area_code", "") or "") for area in spatial_areas]
+            area_names = [str(getattr(area, "display_name", "") or "") for area in spatial_areas]
+            if matrix_columns and not self._matrix_columns_match_spatial_areas(matrix_columns, area_codes, area_names):
+                warnings.append("Current matrix columns do not obviously match loaded spatial area codes/names; BSM map labels may need area mapping checks.")
+        return warnings
+
+    def _matrix_columns_match_spatial_areas(self, matrix_columns, area_codes, area_names):
+        if not matrix_columns:
+            return True
+        normalized_areas = set()
+        for value in list(area_codes or []) + list(area_names or []):
+            normalized = self._normalize_context_token(value)
+            if normalized:
+                normalized_areas.add(normalized)
+        if not normalized_areas:
+            return False
+        matched = 0
+        for column in matrix_columns:
+            if self._normalize_context_token(column) in normalized_areas:
+                matched += 1
+        return matched >= max(1, min(len(matrix_columns), len(normalized_areas)) // 2)
+
+    def _normalize_context_token(self, value):
+        text = str(value or "").strip().lower()
+        return "".join(ch for ch in text if ch.isalnum())
 
     def _build_tree_loaded_summary_text(self, file_path, leaf_count):
         return (
@@ -1330,6 +1577,29 @@ class MainWindow(QMainWindow):
         dialog.exec_()
         self.current_spatial_project = dialog.project()
 
+    def open_region_geojson_builder(self):
+        dialog = RegionGeoJsonBuilderDialog(
+            spatial_service=self.spatial_data_service,
+            load_areas_callback=self._load_spatial_areas_from_builder,
+            parent=self,
+        )
+        dialog.exec_()
+
+    def _load_spatial_areas_from_builder(self, areas, source_path, issues):
+        from domain.models.spatial_data import SpatialDataProject
+
+        if self.current_spatial_project is None:
+            self.current_spatial_project = SpatialDataProject()
+        self.current_spatial_project.areas = list(areas or [])
+        self.current_spatial_project.area_source_path = str(source_path or "")
+        self.current_spatial_project.qa_issues.extend(list(issues or []))
+        self.current_spatial_project.encoded_matrix = None
+        self.current_spatial_project.encoded_audit_rows = []
+        self.append_run_log(
+            "Loaded region GeoJSON areas into spatial project: %s area(s) from %s"
+            % (len(self.current_spatial_project.areas), source_path)
+        )
+
     def _apply_spatial_encoded_matrix(self, matrix):
         self.current_matrix = matrix
         state_columns = [
@@ -1535,6 +1805,91 @@ class MainWindow(QMainWindow):
             "source_columns": list(binary_columns),
         }
 
+    def _area_code_sequence(self, count):
+        if int(count or 0) > 26:
+            raise ValueError(
+                "Area-code mapping currently supports up to 26 areas for legacy range engines; "
+                "detected %d areas." % int(count or 0)
+            )
+        return [chr(ord("A") + index) for index in range(int(count or 0))]
+
+    def _is_single_area_code(self, value):
+        text = str(value or "").strip()
+        return len(text) == 1 and text.isalnum() and text.upper() == text
+
+    def _build_area_code_mapping(self, area_names):
+        labels = [str(area).strip() for area in list(area_names or []) if str(area).strip()]
+        if not labels:
+            return [], {}, {}
+        if len(set(labels)) != len(labels):
+            raise ValueError("Duplicate area names detected: %s" % ", ".join(labels))
+
+        if all(self._is_single_area_code(area) for area in labels):
+            codes = [area.upper() for area in labels]
+            if len(set(codes)) == len(codes):
+                return codes, dict(zip(labels, codes)), dict(zip(codes, labels))
+
+        codes = self._area_code_sequence(len(labels))
+        return codes, dict(zip(labels, codes)), dict(zip(codes, labels))
+
+    def _coded_taxon_ranges(self, bit_rows, area_codes):
+        return [
+            "".join(code for code, bit in zip(area_codes, str(bits or "")) if str(bit) == "1")
+            for _taxon, bits in list(bit_rows or [])
+        ]
+
+    def _make_coded_range_matrix(self, profile):
+        area_names = list(profile.get("area_names") or [])
+        bit_rows = list(profile.get("rows") or [])
+        area_codes, label_to_code, code_to_label = self._build_area_code_mapping(area_names)
+
+        row_by_name = {
+            str(row.get("Name", "") or "").strip(): row
+            for row in list(getattr(self.current_matrix, "rows", []) or [])
+        }
+        rows = []
+        ids = []
+        taxa_names = []
+        for taxon, bits in bit_rows:
+            source_row = row_by_name.get(str(taxon), {})
+            row_id = str(source_row.get("ID", "") or len(rows) + 1)
+            row = {"ID": row_id, "Name": str(taxon)}
+            for code, bit in zip(area_codes, str(bits or "")):
+                row[code] = str(bit)
+            rows.append(row)
+            ids.append(row_id)
+            taxa_names.append(str(taxon))
+
+        matrix = StateMatrix(
+            ids=ids,
+            taxa_names=taxa_names,
+            state_columns=list(area_codes),
+            rows=rows,
+            source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
+        )
+        matrix.area_label_to_code = dict(label_to_code)
+        matrix.area_code_to_label = dict(code_to_label)
+        matrix.area_display_names = list(area_names)
+        matrix.area_code_mapping_enabled = list(area_codes) != list(area_names)
+        matrix.range_taxon_ranges = self._coded_taxon_ranges(bit_rows, area_codes)
+        return matrix
+
+    def _log_area_code_mapping(self, matrix):
+        if not bool(getattr(matrix, "area_code_mapping_enabled", False)):
+            return
+        mapping = dict(getattr(matrix, "area_code_to_label", {}) or {})
+        if not mapping:
+            return
+        key = tuple(sorted((str(code), str(label)) for code, label in mapping.items()))
+        if getattr(self, "_last_logged_area_code_mapping", None) == key:
+            return
+        self._last_logged_area_code_mapping = key
+        parts = ["%s=%s" % (code, label) for code, label in sorted(mapping.items())]
+        self.append_run_log(
+            "Range matrix area labels were mapped to engine-safe codes: %s"
+            % "; ".join(parts)
+        )
+
     def _encoded_range_profile(self, matrix, encoded_columns):
         builder = self.dec_service.dataset_builder
         rows = []
@@ -1646,31 +2001,13 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, title, str(exc))
             return None
-
-        row_by_name = {
-            str(row.get("Name", "") or "").strip(): row
-            for row in list(getattr(self.current_matrix, "rows", []) or [])
-        }
-        rows = []
-        ids = []
-        taxa_names = []
-        for taxon, bits in bit_rows:
-            source_row = row_by_name.get(str(taxon), {})
-            row_id = str(source_row.get("ID", "") or len(rows) + 1)
-            row = {"ID": row_id, "Name": str(taxon)}
-            for area, bit in zip(area_names, bits):
-                row[area] = str(bit)
-            rows.append(row)
-            ids.append(row_id)
-            taxa_names.append(str(taxon))
-
-        return StateMatrix(
-            ids=ids,
-            taxa_names=taxa_names,
-            state_columns=list(area_names),
-            rows=rows,
-            source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
-        )
+        profile = dict(profile)
+        profile["rows"] = bit_rows
+        try:
+            return self._make_coded_range_matrix(profile)
+        except Exception as exc:
+            QMessageBox.warning(self, title, str(exc))
+            return None
 
     def _current_range_matrix_view_silent(self, preferred_column=None):
         if self.current_matrix is None:
@@ -1690,31 +2027,9 @@ class MainWindow(QMainWindow):
             if not area_names or not bit_rows:
                 return None
             bit_rows = self._aligned_bit_rows_for_current_tree(bit_rows)
-
-            row_by_name = {
-                str(row.get("Name", "") or "").strip(): row
-                for row in list(getattr(self.current_matrix, "rows", []) or [])
-            }
-            rows = []
-            ids = []
-            taxa_names = []
-            for taxon, bits in bit_rows:
-                source_row = row_by_name.get(str(taxon), {})
-                row_id = str(source_row.get("ID", "") or len(rows) + 1)
-                row = {"ID": row_id, "Name": str(taxon)}
-                for area, bit in zip(area_names, bits):
-                    row[area] = str(bit)
-                rows.append(row)
-                ids.append(row_id)
-                taxa_names.append(str(taxon))
-
-            return StateMatrix(
-                ids=ids,
-                taxa_names=taxa_names,
-                state_columns=list(area_names),
-                rows=rows,
-                source_path=str(getattr(self.current_matrix, "source_path", "") or ""),
-            )
+            profile = dict(profile)
+            profile["rows"] = bit_rows
+            return self._make_coded_range_matrix(profile)
         except Exception:
             return None
 
@@ -1864,7 +2179,7 @@ class MainWindow(QMainWindow):
     def open_matrix_file(self):
         file_path = self._choose_file(
             "选择矩阵文件",
-            "Table Files (*.csv *.tsv *.txt);;All Files (*)",
+            "Table Files (*.csv *.tsv *.txt *.xlsx);;Excel Files (*.xlsx);;All Files (*)",
         )
         if not file_path:
             return
@@ -2215,24 +2530,40 @@ class MainWindow(QMainWindow):
         if range_context is None:
             return None
         area_names, _taxon_ranges = range_context
+        range_matrix_for_fossils = self._current_range_matrix_view_silent() or self.current_matrix
 
-        fossil_nodes = self._sdiva_fossil_nodes_for_config(self.current_tree, self.current_matrix)
+        taxon_count = self._tree_taxon_count_for_config(self.current_tree)
+        lazy_fossils = taxon_count >= 500
+        fossil_nodes = [] if lazy_fossils else self._sdiva_fossil_nodes_for_config(
+            self.current_tree,
+            range_matrix_for_fossils,
+        )
         current_config = self._prepare_sdiva_config_for_fossil_nodes(
             self.current_diva_config,
             area_names,
             fossil_nodes,
         )
+        if lazy_fossils:
+            self.append_run_log(
+                "DIVA config opened in large-tree mode: Fossil nodes are loaded on demand for %d taxa."
+                % taxon_count
+            )
 
         dialog = SDivaConfigDialog(
             area_names=area_names,
             config=current_config,
-            fossil_count=len(fossil_nodes) if fossil_nodes else self._count_internal_nodes_for_config(self.current_tree),
+            fossil_count=self._count_internal_nodes_for_config(self.current_tree),
             fossil_nodes=fossil_nodes,
             final_tree_available=False,
             parent=self,
             title="DIVA 配置",
             show_final_tree=False,
             show_threads=False,
+            lazy_fossils=lazy_fossils,
+            fossil_loader=lambda: self._sdiva_fossil_nodes_for_config(
+                self.current_tree,
+                self._current_range_matrix_view_silent() or self.current_matrix,
+            ),
         )
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -2301,20 +2632,37 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "无法配置", "未能从状态矩阵中识别区域。")
             return None
 
-        fossil_nodes = self._sdiva_fossil_nodes_for_config(self.current_tree, self.current_matrix)
+        range_matrix_for_fossils = self._current_range_matrix_view_silent() or self.current_matrix
+
+        taxon_count = self._tree_taxon_count_for_config(self.current_tree)
+        lazy_fossils = taxon_count >= 500
+        fossil_nodes = [] if lazy_fossils else self._sdiva_fossil_nodes_for_config(
+            self.current_tree,
+            range_matrix_for_fossils,
+        )
         current_config = self._prepare_sdiva_config_for_fossil_nodes(
             self.current_sdiva_config,
             area_names,
             fossil_nodes,
         )
+        if lazy_fossils:
+            self.append_run_log(
+                "S-DIVA config opened in large-tree mode: Fossil nodes are loaded on demand for %d taxa."
+                % taxon_count
+            )
 
         dialog = SDivaConfigDialog(
             area_names=area_names,
             config=current_config,
-            fossil_count=len(fossil_nodes) if fossil_nodes else self._count_internal_nodes_for_config(self.current_tree),
+            fossil_count=self._count_internal_nodes_for_config(self.current_tree),
             fossil_nodes=fossil_nodes,
             final_tree_available=self._is_sdiva_final_tree_available(self.current_tree),
             parent=self,
+            lazy_fossils=lazy_fossils,
+            fossil_loader=lambda: self._sdiva_fossil_nodes_for_config(
+                self.current_tree,
+                self._current_range_matrix_view_silent() or self.current_matrix,
+            ),
         )
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -2690,9 +3038,9 @@ class MainWindow(QMainWindow):
         if range_matrix is None:
             return None
 
-        profile = self._range_matrix_profile()
-        area_names = list(profile.get("area_names") or [])
-        taxon_ranges = list(profile.get("taxon_ranges") or [])
+        self._log_area_code_mapping(range_matrix)
+        area_names = list(getattr(range_matrix, "state_columns", []) or [])
+        taxon_ranges = list(getattr(range_matrix, "range_taxon_ranges", []) or [])
         if not area_names:
             QMessageBox.warning(self, title, "No areas were detected from the matrix.")
             return None
@@ -2700,9 +3048,13 @@ class MainWindow(QMainWindow):
         return list(area_names), [value for value in taxon_ranges if value]
 
     def _infer_taxon_ranges_for_config(self, area_names):
-        profile = self._range_matrix_profile()
-        if list(profile.get("area_names") or []) == list(area_names or []):
-            return [value for value in list(profile.get("taxon_ranges") or []) if value]
+        range_matrix = self._current_range_matrix_view_silent()
+        if range_matrix is not None and list(getattr(range_matrix, "state_columns", []) or []) == list(area_names or []):
+            return [
+                value
+                for value in list(getattr(range_matrix, "range_taxon_ranges", []) or [])
+                if value
+            ]
         return []
 
     def _estimate_root_age_for_config(self):
@@ -2724,6 +3076,17 @@ class MainWindow(QMainWindow):
             return sum(1 for node in tree.traverse() if not node.is_leaf())
         except Exception:
             return 0
+
+    def _tree_taxon_count_for_config(self, tree):
+        if tree is None:
+            return 0
+        try:
+            return len(list(tree.iter_leaves()))
+        except Exception:
+            try:
+                return len(list(tree.get_leaf_names()))
+            except Exception:
+                return 0
 
     def _is_sdiva_final_tree_available(self, tree):
         if tree is None:
@@ -3028,9 +3391,9 @@ class MainWindow(QMainWindow):
             service=self.bayarea_service,
             tree=self.current_tree,
             matrix=range_matrix,
-            run_name="bayarea_debug",
             config=config,
         )
+        worker.cancelled.connect(self._on_bayarea_cancelled)
 
         self._start_analysis_worker(
             worker_attr_name="bayarea_worker",
@@ -3040,21 +3403,83 @@ class MainWindow(QMainWindow):
             on_success=self._on_bayarea_finished,
             on_failed=self._on_bayarea_failed,
             on_finished=self._on_bayarea_worker_finished,
+            on_progress=self._on_bayarea_progress,
         )
+        self.progress_panel.set_cancel_handler(self._cancel_bayarea, "Cancel BayArea")
+
+    def _on_bayarea_progress(self, percent, message):
+        self.progress_panel.set_progress(int(percent), str(message or "Running BayArea"))
+
+    def _cancel_bayarea(self):
+        worker = self.bayarea_worker
+        if worker is None:
+            return
+        worker.cancel()
+        self.progress_panel.set_busy_indeterminate("Stopping BayArea ...")
+
+    def _on_bayarea_cancelled(self, message):
+        self.progress_panel.set_idle("BayArea cancelled")
+        self.append_run_log(str(message or "BayArea run cancelled."))
 
     def _on_bayarea_finished(self, result):
         result = self._prompt_bayarea_burnin(result)
+        self._warn_bayarea_convergence(result)
         self._apply_biogeobears_result(result)
+
+    def _warn_bayarea_convergence(self, result):
+        stats = dict(getattr(result, "model_statistics", {}) or {})
+        rhat = dict(stats.get("bayarea_split_rhat", {}) or {})
+        failed = []
+        for name, value in rhat.items():
+            try:
+                number = float(value)
+            except Exception:
+                continue
+            if number > 1.05:
+                failed.append("%s=%s" % (name, "infinite" if number == float("inf") else "%.3f" % number))
+        if failed:
+            QMessageBox.warning(
+                self,
+                "BayArea convergence warning",
+                "The BayArea run completed, but the independent chains did not converge "
+                "(split-Rhat above 1.05: %s).\n\n"
+                "The reconstruction will remain available for diagnosis, but it should not be used "
+                "as a final inference. Increase chain length and inspect every parameter trace."
+                % ", ".join(failed),
+            )
+            return
+
+        warnings = list(getattr(result, "parse_warnings", []) or [])
+        convergence_warnings = [
+            warning for warning in warnings
+            if "low approximate single-chain ESS" in str(warning)
+            or "first and second retained halves" in str(warning)
+        ]
+        if convergence_warnings:
+            QMessageBox.warning(
+                self,
+                "BayArea convergence warning",
+                "The BayArea run completed, but at least one parameter trace has low ESS or strong "
+                "within-chain drift. The result will be displayed for diagnosis; inspect the Tracer "
+                "view and run independent chains before final interpretation.",
+            )
 
     def _prompt_bayarea_burnin(self, result):
         stats = dict(getattr(result, "model_statistics", {}) or {})
         parameters_path = str(stats.get("parameters_path", "") or "").strip()
-        if not parameters_path:
+        parameters_paths = [
+            str(path).strip()
+            for path in list(stats.get("bayarea_chain_parameters_paths", []) or [])
+            if str(path).strip()
+        ]
+        if not parameters_paths and parameters_path:
+            parameters_paths = [parameters_path]
+        if not parameters_paths:
             return result
 
         try:
             dialog = BayAreaTracerDialog(
-                parameters_path=parameters_path,
+                parameters_path=parameters_paths,
                 sample_frequency=int(stats.get("sample_frequency", 0) or 0),
                 chain_length=int(stats.get("chain_length", 0) or 0),
                 burnin=int(stats.get("burnin", 0) or 0),
@@ -3086,6 +3511,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "BayArea 运行失败", message)
 
     def _on_bayarea_worker_finished(self):
+        self.progress_panel.clear_cancel_handler()
         self._finish_analysis_worker(
             worker_attr_name="bayarea_worker",
             action=self.run_bayarea_action,
@@ -3802,6 +4228,90 @@ class MainWindow(QMainWindow):
         self._finish_analysis_worker(
             worker_attr_name="biogeobears_bsm_worker",
             action=self.generate_bgb_bsm_action,
+        )
+
+    def load_existing_biogeobears_bsm_result(self):
+        default_path = str(self._default_bsm_result_open_path())
+        source_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Load Existing BioGeoBEARS BSM Result",
+            default_path,
+            "BioGeoBEARS BSM files (*.json *.csv *.Rdata *.rds);;All files (*)",
+        )
+        if not source_path:
+            return
+
+        worker = BioGeoBEARSBSMLoadWorker(
+            service=self.biogeobears_service,
+            source_path=source_path,
+        )
+        self._start_analysis_worker(
+            worker_attr_name="biogeobears_bsm_load_worker",
+            worker=worker,
+            action=self.load_existing_bgb_bsm_action,
+            busy_text="Loading existing BioGeoBEARS BSM result",
+            on_success=self._on_existing_biogeobears_bsm_loaded,
+            on_failed=self._on_existing_biogeobears_bsm_load_failed,
+            on_finished=self._on_existing_biogeobears_bsm_load_worker_finished,
+        )
+
+    def _default_bsm_result_open_path(self):
+        root = Path("runs") / "biogeobears"
+        candidates = []
+        if root.exists():
+            for directory in root.rglob("*"):
+                if not directory.is_dir():
+                    continue
+                if (
+                    (directory / "bsm_ana_events.csv").exists()
+                    or (directory / "RES_ana_events_tables.Rdata").exists()
+                    or (directory / "bsm_summary.json").exists()
+                ):
+                    candidates.append(directory)
+        if candidates:
+            candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+            newest = candidates[0]
+            for filename in (
+                "bsm_summary.json",
+                "bsm_ana_events.csv",
+                "RES_ana_events_tables.Rdata",
+                "RES_clado_events_tables.Rdata",
+            ):
+                path = newest / filename
+                if path.exists():
+                    return path
+            return newest
+        return root
+
+    def _on_existing_biogeobears_bsm_loaded(self, result):
+        self.current_bgb_bsm_event_result = result
+        preview_count = len(getattr(result, "events", []) or [])
+        summary = dict(getattr(result, "summary", {}) or {})
+        maps = summary.get("nummaps", "")
+        total_rows = int(summary.get("ana_rows", 0) or 0) + int(summary.get("clado_rows", 0) or 0)
+        self.progress_panel.set_done("Existing BioGeoBEARS BSM result loaded")
+        self.append_run_log(
+            "Existing BioGeoBEARS BSM result loaded: preview_events=%d, raw_event_rows=%d, maps=%s"
+            % (preview_count, total_rows, maps or "unknown")
+        )
+        self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] or [BSM Network Map Editor].")
+        QMessageBox.information(
+            self,
+            "BioGeoBEARS BSM loaded",
+            "Loaded existing BSM result.\n"
+            "Stochastic maps: %s\n"
+            "Raw event rows: %d\n"
+            "Event table preview rows: %d" % (maps or "unknown", total_rows, preview_count),
+        )
+
+    def _on_existing_biogeobears_bsm_load_failed(self, message):
+        self.progress_panel.set_error("Load existing BioGeoBEARS BSM failed")
+        QMessageBox.critical(self, "Load existing BioGeoBEARS BSM failed", message)
+
+    def _on_existing_biogeobears_bsm_load_worker_finished(self):
+        self._finish_analysis_worker(
+            worker_attr_name="biogeobears_bsm_load_worker",
+            action=self.load_existing_bgb_bsm_action,
         )
 
     def run_biogeobears_model_test(self):

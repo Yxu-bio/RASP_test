@@ -1,0 +1,427 @@
+source_name,area_code,rule,polygon_count
+"Zimbabwe","Afrotropics","Dore country/subunit metadata",1
+"Zambia","Afrotropics","Dore country/subunit metadata",1
+"Yemen","Western Palearctic","Dore country/subunit metadata",4
+"Suqutra","Western Palearctic","Dore country/subunit metadata",1
+"Vietnam","Indomalaya","Dore country/subunit metadata",8
+"Venezuela","Neotropics","Dore country/subunit metadata",5
+"Vatican","Western Palearctic","Dore country/subunit metadata",1
+"Vanuatu","Australasia","Dore country/subunit metadata",14
+"Uzbekistan","Eastern Palearctic","Dore country/subunit metadata",3
+"Uruguay","Neotropics","Dore country/subunit metadata",1
+"Federated States of Micronesia","Australasia","Dore country/subunit metadata",5
+"Marshall Islands","Australasia","Dore country/subunit metadata",5
+"Northern Mariana Islands","Australasia","Dore country/subunit metadata",6
+"United States Virgin Islands","Neotropics","Dore country/subunit metadata",3
+"Guam","Australasia","Dore country/subunit metadata",1
+"American Samoa","Australasia","Dore country/subunit metadata",1
+"Puerto Rico","Neotropics","Dore country/subunit metadata",3
+"Alaska","Nearctic","Dore USA special case; non-Hawaii subunit",68
+"Hawaii","Australasia","Dore USA/Hawaii special case; NE subunit",7
+"United States","Nearctic","Dore USA special case; non-Hawaii subunit",52
+"Diego Garcia Naval Support Facility","Western Palearctic","Dore country/subunit metadata",1
+"Saint Helena","Afrotropics","Dore country/subunit metadata",1
+"Ascension","Afrotropics","Dore country/subunit metadata",1
+"Pitcairn Islands","Western Palearctic","Dore country/subunit metadata",1
+"Anguilla","Neotropics","Dore country/subunit metadata",1
+"Falkland Islands","Western Palearctic","Dore country/subunit metadata",6
+"Cayman Islands","Western Palearctic","Dore country/subunit metadata",3
+"Bermuda","Neotropics","Dore country/subunit metadata",1
+"British Virgin Islands","Neotropics","Dore country/subunit metadata",3
+"Turks and Caicos Islands","Neotropics","Dore country/subunit metadata",3
+"Montserrat","Western Palearctic","Dore country/subunit metadata",1
+"Jersey","Western Palearctic","Dore country/subunit metadata",1
+"Guernsey","Western Palearctic","Dore country/subunit metadata",1
+"Isle of Man","Western Palearctic","Dore country/subunit metadata",1
+"Wales","Western Palearctic","Dore country/subunit metadata",2
+"Scotland","Western Palearctic","Dore country/subunit metadata",20
+"Northern Ireland","Western Palearctic","Dore country/subunit metadata",1
+"England","Western Palearctic","Dore country/subunit metadata",2
+"United Arab Emirates","Western Palearctic","Dore country/subunit metadata",5
+"Ukraine","Western Palearctic","Dore country/subunit metadata",2
+"Uganda","Afrotropics","Dore country/subunit metadata",1
+"Turkmenistan","Eastern Palearctic","Dore country/subunit metadata",2
+"Turkey","Western Palearctic","Dore country/subunit metadata",3
+"Tunisia","Western Palearctic","Dore country/subunit metadata",3
+"Tobago","Neotropics","Dore country/subunit metadata",1
+"Trinidad","Neotropics","Dore country/subunit metadata",1
+"Tonga","Australasia","Dore country/subunit metadata",3
+"Togo","Afrotropics","Dore country/subunit metadata",1
+"East Timor","Australasia","Dore country/subunit metadata",2
+"Oecussi","Australasia","Dore country/subunit metadata",1
+"Thailand","Indomalaya","Dore country/subunit metadata",10
+"Zanzibar","Afrotropics","Dore country/subunit metadata",2
+"Tanzania","Afrotropics","Dore country/subunit metadata",2
+"Tajikistan","Eastern Palearctic","Dore country/subunit metadata",3
+"Taiwan","Indomalaya","Dore country/subunit metadata",2
+"Syria","Western Palearctic","Dore country/subunit metadata",1
+"Switzerland","Western Palearctic","Dore country/subunit metadata",1
+"Sweden","Western Palearctic","Dore country/subunit metadata",6
+"eSwatini","Afrotropics","Dore country/subunit metadata",1
+"Suriname","Neotropics","Dore country/subunit metadata",1
+"South Sudan","Afrotropics","Dore country/subunit metadata",1
+"Sudan","Afrotropics","Dore country/subunit metadata",1
+"Sri Lanka","Indomalaya","Dore country/subunit metadata",3
+"Balearic Islands","Western Palearctic","Dore country/subunit metadata",4
+"Spain","Western Palearctic","Dore country/subunit metadata",1
+"Canary Islands","Western Palearctic","Dore country/subunit metadata",7
+"South Korea","Eastern Palearctic","Dore country/subunit metadata",9
+"Ulleungdo","Eastern Palearctic","Dore country/subunit metadata",1
+"Jejudo","Eastern Palearctic","Dore country/subunit metadata",1
+"South Africa","Afrotropics","Dore country/subunit metadata",1
+"Prince Edward Islands","Afrotropics","Dore country/subunit metadata",1
+"Somalia","Afrotropics","Dore country/subunit metadata",1
+"Somaliland","Afrotropics","Dore country/subunit metadata",1
+"Solomon Islands","Australasia","Dore country/subunit metadata",21
+"Slovakia","Western Palearctic","Dore country/subunit metadata",1
+"Slovenia","Western Palearctic","Dore country/subunit metadata",1
+"Singapore","Indomalaya","Dore country/subunit metadata",1
+"Sierra Leone","Afrotropics","Dore country/subunit metadata",2
+"Seychelles","Afrotropics","Dore country/subunit metadata",1
+"Serbia","Western Palearctic","Dore country/subunit metadata",1
+"Vojvodina","Western Palearctic","Dore country/subunit metadata",1
+"Senegal","Afrotropics","Dore country/subunit metadata",1
+"Saudi Arabia","Western Palearctic","Dore country/subunit metadata",4
+"Principe","Afrotropics","Dore country/subunit metadata",1
+"São Tomé","Afrotropics","Dore country/subunit metadata",1
+"San Marino","Western Palearctic","Dore country/subunit metadata",1
+"Samoa","Australasia","Dore country/subunit metadata",2
+"Saint Vincent and the Grenadines","Neotropics","Dore country/subunit metadata",3
+"Saint Lucia","Neotropics","Dore country/subunit metadata",1
+"Saint Kitts and Nevis","Neotropics","Dore country/subunit metadata",2
+"Rwanda","Afrotropics","Dore country/subunit metadata",1
+"Romania","Western Palearctic","Dore country/subunit metadata",1
+"Qatar","Western Palearctic","Dore country/subunit metadata",1
+"Madeira","Western Palearctic","Dore country/subunit metadata",1
+"Portugal","Western Palearctic","Dore country/subunit metadata",1
+"Azores","Western Palearctic","Dore country/subunit metadata",7
+"Poland","Western Palearctic","Dore country/subunit metadata",1
+"Philippines","Indomalaya","Dore country/subunit metadata",48
+"Peru","Neotropics","Dore country/subunit metadata",1
+"Paraguay","Neotropics","Dore country/subunit metadata",1
+"Papua New Guinea","Australasia","Dore country/subunit metadata",24
+"Bougainville","Australasia","Dore country/subunit metadata",2
+"Panama","Neotropics","Dore country/subunit metadata",5
+"Palau","Australasia","Dore country/subunit metadata",2
+"Oman","Western Palearctic","Dore country/subunit metadata",4
+"Norway","Western Palearctic","Dore country/subunit metadata",22
+"Jan Mayen","Western Palearctic","Dore country/subunit metadata",1
+"Svalbard","Western Palearctic","Dore country/subunit metadata",9
+"North Korea","Eastern Palearctic","Dore country/subunit metadata",2
+"Nigeria","Afrotropics","Dore country/subunit metadata",2
+"Niger","Afrotropics","Dore country/subunit metadata",1
+"Nicaragua","Neotropics","Dore country/subunit metadata",1
+"South Island","Australasia","Dore country/subunit metadata",5
+"North Island","Australasia","Dore country/subunit metadata",2
+"New Zealand SubAntarctic islands","Australasia","Dore country/subunit metadata",2
+"Chatham Islands","Australasia","Dore country/subunit metadata",2
+"Niue","Australasia","Dore country/subunit metadata",1
+"Tokelau","Australasia","Dore country/subunit metadata",2
+"Cook Islands","Australasia","Dore country/subunit metadata",1
+"Netherlands","Western Palearctic","Dore 7-PaleA Netherlands mainland -> Western Palearctic",9
+"Aruba","Neotropics","Dore country/subunit metadata",1
+"Caribbean Netherlands","Neotropics","Netherlands Caribbean subunit",3
+"Curaçao","Neotropics","Dore country/subunit metadata",1
+"Nepal","Indomalaya","Dore country/subunit metadata",1
+"Nauru","Australasia","Dore country/subunit metadata",1
+"Namibia","Afrotropics","Dore country/subunit metadata",1
+"Mozambique","Afrotropics","Dore country/subunit metadata",1
+"Morocco","Western Palearctic","Dore country/subunit metadata",1
+"Western Sahara","Western Palearctic","Dore country/subunit metadata",1
+"Montenegro","Western Palearctic","Dore country/subunit metadata",1
+"Mongolia","Eastern Palearctic","Dore country/subunit metadata",1
+"Moldova","Western Palearctic","Dore country/subunit metadata",1
+"Monaco","Western Palearctic","Dore country/subunit metadata",1
+"Mexico","Neotropics","Dore split: Mexico latitude < 22",6
+"Mexico","Nearctic","Dore split: Mexico latitude >= 22",11
+"Mauritius","Afrotropics","Dore country/subunit metadata",1
+"Mauritania","Afrotropics","Dore country/subunit metadata",2
+"Malta","Western Palearctic","Dore country/subunit metadata",2
+"Mali","Afrotropics","Dore country/subunit metadata",1
+"Maldives","Indomalaya","Dore country/subunit metadata",2
+"Malaysia","Indomalaya","Dore country/subunit metadata",9
+"Malawi","Afrotropics","Dore country/subunit metadata",3
+"Madagascar","Afrotropics","Dore country/subunit metadata",3
+"North Macedonia","Western Palearctic","Dore country/subunit metadata",1
+"Luxembourg","Western Palearctic","Dore country/subunit metadata",1
+"Lithuania","Western Palearctic","Dore country/subunit metadata",2
+"Liechtenstein","Western Palearctic","Dore country/subunit metadata",1
+"Libya","Western Palearctic","Dore country/subunit metadata",1
+"Liberia","Afrotropics","Dore country/subunit metadata",1
+"Lesotho","Afrotropics","Dore country/subunit metadata",1
+"Lebanon","Western Palearctic","Dore country/subunit metadata",1
+"Latvia","Western Palearctic","Dore country/subunit metadata",1
+"Laos","Indomalaya","Dore country/subunit metadata",1
+"Kyrgyzstan","Eastern Palearctic","Dore country/subunit metadata",1
+"Kuwait","Western Palearctic","Dore country/subunit metadata",2
+"Kosovo","Western Palearctic","Dore country/subunit metadata",1
+"Kiribati","Australasia","Dore country/subunit metadata",19
+"Kenya","Afrotropics","Dore country/subunit metadata",2
+"Kazakhstan","Eastern Palearctic","Dore country/subunit metadata",4
+"Jordan","Western Palearctic","Dore country/subunit metadata",1
+"Japan","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",21
+"Bonin Islands","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Hokkaido","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Kyushu","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Shikoku","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Honshu","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Nanseishoto","Indomalaya","Japan Nanseishoto approximation",7
+"Izushoto","Eastern Palearctic","Dore 7-PaleA Japan Palearctic entries -> Eastern",1
+"Jamaica","Neotropics","Dore country/subunit metadata",1
+"Italy","Western Palearctic","Dore country/subunit metadata",3
+"Pantelleria","Western Palearctic","Dore country/subunit metadata",1
+"Sicily","Western Palearctic","Dore country/subunit metadata",1
+"Sardinia","Western Palearctic","Dore country/subunit metadata",3
+"Israel","Western Palearctic","Dore country/subunit metadata",1
+"Gaza","Western Palearctic","Dore country/subunit metadata",1
+"West Bank","Western Palearctic","Dore country/subunit metadata",1
+"Ireland","Western Palearctic","Dore country/subunit metadata",2
+"Iraq","Western Palearctic","Dore country/subunit metadata",1
+"Iran","Eastern Palearctic","Dore country/subunit metadata",2
+"Indonesia","Indomalaya","Dore split: Indonesia longitude < 125.5",84
+"Indonesia","Australasia","Dore split: Indonesia longitude >= 125.5",51
+"Iceland","Western Palearctic","Dore country/subunit metadata",1
+"Hungary","Western Palearctic","Dore country/subunit metadata",1
+"Honduras","Neotropics","Dore country/subunit metadata",3
+"Haiti","Neotropics","Dore country/subunit metadata",3
+"Guyana","Neotropics","Dore country/subunit metadata",1
+"Guinea-Bissau","Afrotropics","Dore country/subunit metadata",7
+"Guinea","Afrotropics","Dore country/subunit metadata",1
+"Guatemala","Neotropics","Dore country/subunit metadata",1
+"Grenada","Neotropics","Dore country/subunit metadata",1
+"Greece","Western Palearctic","Dore country/subunit metadata",40
+"Ghana","Afrotropics","Dore country/subunit metadata",1
+"Germany","Western Palearctic","Dore country/subunit metadata",6
+"Georgia","Western Palearctic","Dore country/subunit metadata",1
+"Gambia","Afrotropics","Dore country/subunit metadata",1
+"Gabon","Afrotropics","Dore country/subunit metadata",1
+"Corsica","Western Palearctic","Dore 7-PaleA France mainland -> Western Palearctic",1
+"France","Western Palearctic","Dore 7-PaleA France mainland -> Western Palearctic",2
+"Mayotte","Afrotropics","Dore TAAF/Europa Island special case",1
+"Réunion","Afrotropics","Dore TAAF/Europa Island special case",1
+"Martinique","Neotropics","Dore France overseas special case",1
+"Guadeloupe","Neotropics","Dore France overseas special case",3
+"French Guiana","Neotropics","Dore France overseas special case",1
+"Saint Pierre and Miquelon","Nearctic","Dore country/subunit metadata",2
+"Wallis and Futuna","Australasia","Dore country/subunit metadata",2
+"Saint Martin","Neotropics","Dore country/subunit metadata",1
+"Saint Barthelemy","Neotropics","Dore country/subunit metadata",1
+"French Polynesia","Australasia","Dore country/subunit metadata",21
+"New Caledonia","Australasia","Dore country/subunit metadata",6
+"French Southern and Antarctic Lands","Afrotropics","Dore TAAF/Europa Island special case",3
+"Aland","Western Palearctic","Dore country/subunit metadata",3
+"Finland","Western Palearctic","Dore country/subunit metadata",8
+"Fiji","Australasia","Dore country/subunit metadata",21
+"Ethiopia","Afrotropics","Dore country/subunit metadata",1
+"Estonia","Western Palearctic","Dore country/subunit metadata",4
+"Eritrea","Afrotropics","Dore country/subunit metadata",3
+"Bioko","Afrotropics","Dore country/subunit metadata",1
+"Rio Muni","Afrotropics","Dore country/subunit metadata",1
+"El Salvador","Neotropics","Dore country/subunit metadata",1
+"Egypt","Western Palearctic","Dore country/subunit metadata",1
+"Ecuador","Neotropics","Dore country/subunit metadata",3
+"Galapagos Islands","Neotropics","Dore country/subunit metadata",6
+"Dominican Republic","Neotropics","Dore country/subunit metadata",1
+"Dominica","Neotropics","Dore country/subunit metadata",1
+"Djibouti","Afrotropics","Dore country/subunit metadata",1
+"Greenland","Western Palearctic","Dore country/subunit metadata",17
+"Faroe Islands","Western Palearctic","Dore country/subunit metadata",5
+"Denmark","Western Palearctic","Dore country/subunit metadata",11
+"Bornholm","Western Palearctic","Dore country/subunit metadata",1
+"Czechia","Western Palearctic","Dore country/subunit metadata",1
+"Northern Cyprus","Western Palearctic","Dore country/subunit metadata",1
+"Cyprus","Western Palearctic","Dore country/subunit metadata",1
+"Cuba","Neotropics","Dore country/subunit metadata",7
+"Croatia","Western Palearctic","Dore country/subunit metadata",13
+"Ivory Coast","Afrotropics","Dore country/subunit metadata",2
+"Costa Rica","Neotropics","Dore country/subunit metadata",1
+"Democratic Republic of the Congo","Afrotropics","Dore country/subunit metadata",1
+"Republic of the Congo","Afrotropics","Dore country/subunit metadata",1
+"Comoros","Afrotropics","Dore country/subunit metadata",3
+"Colombia","Neotropics","Dore country/subunit metadata",2
+"China","Indomalaya","Dore split: China latitude < 33",12
+"China","Eastern Palearctic","Dore split: China latitude >= 33, then 7-PaleA Eastern",1
+"Hainan","Indomalaya","Dore split: China latitude < 33",1
+"Macao S.A.R","Indomalaya","Dore country/subunit metadata",1
+"Hong Kong S.A.R.","Indomalaya","Dore country/subunit metadata",3
+"Easter Island","Neotropics","Dore country/subunit metadata",1
+"Isla Sala y Gomez","Neotropics","Dore country/subunit metadata",1
+"Chile","Neotropics","Dore country/subunit metadata",29
+"Chad","Afrotropics","Dore country/subunit metadata",1
+"Central African Republic","Afrotropics","Dore country/subunit metadata",1
+"Cabo Verde","Afrotropics","Dore country/subunit metadata",8
+"Canada","Nearctic","Dore country/subunit metadata",141
+"Cameroon","Afrotropics","Dore country/subunit metadata",1
+"Cambodia","Indomalaya","Dore country/subunit metadata",3
+"Myanmar","Indomalaya","Dore country/subunit metadata",19
+"Burundi","Afrotropics","Dore country/subunit metadata",1
+"Burkina Faso","Afrotropics","Dore country/subunit metadata",1
+"Bulgaria","Western Palearctic","Dore country/subunit metadata",1
+"Brunei","Indomalaya","Dore country/subunit metadata",2
+"Brazil","Neotropics","Dore country/subunit metadata",17
+"Botswana","Afrotropics","Dore country/subunit metadata",1
+"Republic Srpska","Western Palearctic","Dore country/subunit metadata",1
+"Bosnia and Herzegovina","Western Palearctic","Dore country/subunit metadata",2
+"Bolivia","Neotropics","Dore country/subunit metadata",1
+"Bhutan","Indomalaya","Dore country/subunit metadata",1
+"Benin","Afrotropics","Dore country/subunit metadata",1
+"Belize","Neotropics","Dore country/subunit metadata",3
+"Flemish Region","Western Palearctic","Dore country/subunit metadata",1
+"Walloon Region","Western Palearctic","Dore country/subunit metadata",2
+"Brussels Capital Region","Western Palearctic","Dore country/subunit metadata",1
+"Belarus","Western Palearctic","Dore country/subunit metadata",1
+"Barbados","Neotropics","Dore country/subunit metadata",1
+"Bangladesh","Indomalaya","Dore country/subunit metadata",7
+"Bahrain","Western Palearctic","Dore country/subunit metadata",1
+"The Bahamas","Neotropics","Dore country/subunit metadata",15
+"Azerbaijan","Western Palearctic","Dore country/subunit metadata",3
+"Austria","Western Palearctic","Dore country/subunit metadata",1
+"Australia","Australasia","Dore country/subunit metadata",32
+"Tasmania","Australasia","Dore country/subunit metadata",9
+"Macquarie Island","Australasia","Dore country/subunit metadata",1
+"Christmas Island","Australasia","Dore country/subunit metadata",1
+"Cocos (Keeling) Islands","Indomalaya","Dore country/subunit metadata",2
+"Norfolk Island","Australasia","Dore country/subunit metadata",1
+"Ashmore and Cartier Islands","Australasia","Dore country/subunit metadata",1
+"Armenia","Western Palearctic","Dore country/subunit metadata",2
+"Argentina","Neotropics","Dore country/subunit metadata",4
+"Antigua","Neotropics","Dore country/subunit metadata",1
+"Barbuda","Neotropics","Dore country/subunit metadata",1
+"Angola","Afrotropics","Dore country/subunit metadata",2
+"Andorra","Western Palearctic","Dore country/subunit metadata",1
+"Algeria","Western Palearctic","Dore country/subunit metadata",1
+"Albania","Western Palearctic","Dore country/subunit metadata",1
+"Afghanistan","Eastern Palearctic","Dore country/subunit metadata",1
+"Siachen Glacier","Indomalaya","Dore country/subunit metadata",1
+"Sint Maarten","Neotropics","Dore country/subunit metadata",1
+"Tuvalu","Australasia","Dore country/subunit metadata",1
+"Ladakh","Eastern Palearctic","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Arunachal Pradesh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Altai Republic","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Pskov","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Krasnodar Krai","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Karachay-Cherkess Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kabardino-Balkaria","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of North Ossetia-Alania","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Ingushetia","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Chechen Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Dagestan","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Murmansk","Western Palearctic","Dore 7-PaleA Russia adm1 split",5
+"Karelia","Western Palearctic","Dore 7-PaleA Russia adm1 split",5
+"Leningrad","Western Palearctic","Dore 7-PaleA Russia adm1 split",6
+"Gilgit-Baltistan","Eastern Palearctic","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Sikkim","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"West Bengal","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",5
+"Assam","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Uttarakhand","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Kaliningrad","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Smolensk","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Bryansk","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kursk","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Belgorod","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Voronezh","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Rostov","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Buryatia","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Tuva Republic","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Zabaykalsky Krai","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Amur","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Jewish","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Khabarovsk Krai","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",7
+"Primorsky Krai","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",3
+"Nagaland","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Manipur","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Mizoram","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Tripura","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Meghalaya","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Khyber Pakhtunkhwa","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Federally Administered Tribal Areas","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Balochistan","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Tyumen","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kurgan","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Omsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",3
+"Novosibirsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Chelyabinsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Altai Republic","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Orenburg","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Saratov","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Astrakhan","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Volgograd","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Punjab","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Punjab","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Rajasthan","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Sindh","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",2
+"Gujarat","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Himachal Pradesh","Eastern Palearctic","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Jammu and Kashmir","Eastern Palearctic","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Autonomous Republic of Crimea","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Bihar","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Uttar Pradesh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Azad Kashmir","Eastern Palearctic","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Andhra Pradesh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",2
+"Odisha","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Magadan","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",4
+"Dadra and Nagar Haveli and Daman and Diu","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",3
+"Maharashtra","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Goa","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Karnataka","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Kerala","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Puducherry","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",4
+"Tamil Nadu","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",2
+"Sakhalin","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",23
+"Sevastopol","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Chukotka Autonomous Okrug","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",10
+"Yamalo-Nenets Autonomous Okrug","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",14
+"Nenets Autonomous Okrug","Western Palearctic","Dore 7-PaleA Russia adm1 split",15
+"Sakha Republic","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",26
+"Saint Petersburg","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Arkhangelsk","Western Palearctic","Dore 7-PaleA Russia adm1 split",48
+"Krasnoyarsk Krai","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",56
+"Lakshadweep","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",11
+"Andaman and Nicobar Islands","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",18
+"Republic of Kalmykia","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kamchatka Krai","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",4
+"","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Jharkhand","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Delhi","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Chandigarh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Madhya Pradesh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Islamabad Capital Territory","Indomalaya","Dore Pakistan Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Bashkortostan","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Sverdlovsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Khanty-Mansi Autonomous Okrug","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Lipetsk","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Tambov","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Tomsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Tatarstan","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Ulyanovsk","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Penza","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kemerovo","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Oryol","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Irkutsk","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Khakassia","Eastern Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Mordovia","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kaluga","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kostroma","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Yaroslavl","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Vladimir","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Ryazan","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Ivanovo","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Nizhny Novgorod","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Tula","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Chuvash Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Vologda","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Novgorod","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Tver","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Moscow","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Moscow","Western Palearctic","Dore 7-PaleA Russia adm1 split",3
+"Mari El Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Kirov","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Udmurt Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Komi Republic","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Perm Krai","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Samara","Western Palearctic","Dore 7-PaleA Russia adm1 split",2
+"Stavropol Krai","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Republic of Adygea","Western Palearctic","Dore 7-PaleA Russia adm1 split",1
+"Chhattisgarh","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Haryana","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1
+"Telangana","Indomalaya","Dore India Palearctic adm1 -> Eastern; other adm1 -> Indomalaya approximation",1

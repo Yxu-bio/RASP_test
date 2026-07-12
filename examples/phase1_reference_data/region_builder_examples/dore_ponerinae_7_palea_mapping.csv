@@ -1,0 +1,489 @@
+match_value,area_code,source_field
+MYS,Indomalaya,ISO_A3
+Malaysia,Indomalaya,SUBUNIT
+CHL,Neotropics,ISO_A3
+Chile,Neotropics,SUBUNIT
+BOL,Neotropics,ISO_A3
+Bolivia,Neotropics,SUBUNIT
+PER,Neotropics,ISO_A3
+Peru,Neotropics,SUBUNIT
+ARG,Neotropics,ISO_A3
+Argentina,Neotropics,SUBUNIT
+DSB,Western Palearctic,ISO_A3
+Dhekelia Sovereign Base Area,Western Palearctic,SUBUNIT
+CYP,Western Palearctic,ISO_A3
+Cyprus,Western Palearctic,SUBUNIT
+ISR,Western Palearctic,ISO_A3
+Israel,Western Palearctic,SUBUNIT
+PSE,Western Palearctic,ISO_A3
+Palestine,Western Palearctic,SUBUNIT
+LBN,Western Palearctic,ISO_A3
+Lebanon,Western Palearctic,SUBUNIT
+ETH,Afrotropics,ISO_A3
+Ethiopia,Afrotropics,SUBUNIT
+SSD,Afrotropics,ISO_A3
+South Sudan,Afrotropics,SUBUNIT
+SOM,Afrotropics,ISO_A3
+Somalia,Afrotropics,SUBUNIT
+KEN,Afrotropics,ISO_A3
+Kenya,Afrotropics,SUBUNIT
+MWI,Afrotropics,ISO_A3
+Malawi,Afrotropics,SUBUNIT
+TZA,Afrotropics,ISO_A3
+Tanzania,Afrotropics,SUBUNIT
+SYR,Western Palearctic,ISO_A3
+Syria,Western Palearctic,SUBUNIT
+SOL,Afrotropics,ISO_A3
+Somaliland,Afrotropics,SUBUNIT
+SUR,Neotropics,ISO_A3
+Suriname,Neotropics,SUBUNIT
+GUY,Neotropics,ISO_A3
+Guyana,Neotropics,SUBUNIT
+KOR,Eastern Palearctic,ISO_A3
+South Korea,Eastern Palearctic,SUBUNIT
+PRK,Eastern Palearctic,ISO_A3
+North Korea,Eastern Palearctic,SUBUNIT
+MAR,Western Palearctic,ISO_A3
+Morocco,Western Palearctic,SUBUNIT
+ESH,Western Palearctic,ISO_A3
+Western Sahara,Western Palearctic,SUBUNIT
+CRI,Neotropics,ISO_A3
+Costa Rica,Neotropics,SUBUNIT
+NIC,Neotropics,ISO_A3
+Nicaragua,Neotropics,SUBUNIT
+COG,Afrotropics,ISO_A3
+Republic of the Congo,Afrotropics,SUBUNIT
+COD,Afrotropics,ISO_A3
+Democratic Republic of the Congo,Afrotropics,SUBUNIT
+BTN,Indomalaya,ISO_A3
+Bhutan,Indomalaya,SUBUNIT
+UKR,Western Palearctic,ISO_A3
+Ukraine,Western Palearctic,SUBUNIT
+BLR,Western Palearctic,ISO_A3
+Belarus,Western Palearctic,SUBUNIT
+NAM,Afrotropics,ISO_A3
+Namibia,Afrotropics,SUBUNIT
+ZAF,Afrotropics,ISO_A3
+South Africa,Afrotropics,SUBUNIT
+MAF,Neotropics,ISO_A3
+Saint Martin,Neotropics,SUBUNIT
+SXM,Neotropics,ISO_A3
+Sint Maarten,Neotropics,SUBUNIT
+OMN,Western Palearctic,ISO_A3
+Oman,Western Palearctic,SUBUNIT
+UZB,Eastern Palearctic,ISO_A3
+Uzbekistan,Eastern Palearctic,SUBUNIT
+KAZ,Eastern Palearctic,ISO_A3
+Kazakhstan,Eastern Palearctic,SUBUNIT
+TJK,Eastern Palearctic,ISO_A3
+Tajikistan,Eastern Palearctic,SUBUNIT
+LTU,Western Palearctic,ISO_A3
+Lithuania,Western Palearctic,SUBUNIT
+BRA,Neotropics,ISO_A3
+Brazil,Neotropics,SUBUNIT
+URY,Neotropics,ISO_A3
+Uruguay,Neotropics,SUBUNIT
+MNG,Eastern Palearctic,ISO_A3
+Mongolia,Eastern Palearctic,SUBUNIT
+CZE,Western Palearctic,ISO_A3
+Czechia,Western Palearctic,SUBUNIT
+DEU,Western Palearctic,ISO_A3
+Germany,Western Palearctic,SUBUNIT
+EST,Western Palearctic,ISO_A3
+Estonia,Western Palearctic,SUBUNIT
+LVA,Western Palearctic,ISO_A3
+Latvia,Western Palearctic,SUBUNIT
+NOR,Western Palearctic,ISO_A3
+Norway,Western Palearctic,SUBUNIT
+SWE,Western Palearctic,ISO_A3
+Sweden,Western Palearctic,SUBUNIT
+FIN,Western Palearctic,ISO_A3
+Finland,Western Palearctic,SUBUNIT
+VNM,Indomalaya,ISO_A3
+Vietnam,Indomalaya,SUBUNIT
+KHM,Indomalaya,ISO_A3
+Cambodia,Indomalaya,SUBUNIT
+LUX,Western Palearctic,ISO_A3
+Luxembourg,Western Palearctic,SUBUNIT
+ARE,Western Palearctic,ISO_A3
+United Arab Emirates,Western Palearctic,SUBUNIT
+BEL,Western Palearctic,ISO_A3
+Belgium,Western Palearctic,SUBUNIT
+GEO,Western Palearctic,ISO_A3
+Georgia,Western Palearctic,SUBUNIT
+MKD,Western Palearctic,ISO_A3
+North Macedonia,Western Palearctic,SUBUNIT
+ALB,Western Palearctic,ISO_A3
+Albania,Western Palearctic,SUBUNIT
+AZE,Western Palearctic,ISO_A3
+Azerbaijan,Western Palearctic,SUBUNIT
+KOS,Western Palearctic,ISO_A3
+Kosovo,Western Palearctic,SUBUNIT
+TUR,Western Palearctic,ISO_A3
+Turkey,Western Palearctic,SUBUNIT
+ESP,Western Palearctic,ISO_A3
+Spain,Western Palearctic,SUBUNIT
+LAO,Indomalaya,ISO_A3
+Laos,Indomalaya,SUBUNIT
+KGZ,Eastern Palearctic,ISO_A3
+Kyrgyzstan,Eastern Palearctic,SUBUNIT
+ARM,Western Palearctic,ISO_A3
+Armenia,Western Palearctic,SUBUNIT
+DNK,Western Palearctic,ISO_A3
+Denmark,Western Palearctic,SUBUNIT
+LBY,Western Palearctic,ISO_A3
+Libya,Western Palearctic,SUBUNIT
+TUN,Western Palearctic,ISO_A3
+Tunisia,Western Palearctic,SUBUNIT
+ROU,Western Palearctic,ISO_A3
+Romania,Western Palearctic,SUBUNIT
+HUN,Western Palearctic,ISO_A3
+Hungary,Western Palearctic,SUBUNIT
+SVK,Western Palearctic,ISO_A3
+Slovakia,Western Palearctic,SUBUNIT
+POL,Western Palearctic,ISO_A3
+Poland,Western Palearctic,SUBUNIT
+IRL,Western Palearctic,ISO_A3
+Ireland,Western Palearctic,SUBUNIT
+GBR,Western Palearctic,ISO_A3
+United Kingdom,Western Palearctic,SUBUNIT
+GRC,Western Palearctic,ISO_A3
+Greece,Western Palearctic,SUBUNIT
+ZMB,Afrotropics,ISO_A3
+Zambia,Afrotropics,SUBUNIT
+SLE,Afrotropics,ISO_A3
+Sierra Leone,Afrotropics,SUBUNIT
+GIN,Afrotropics,ISO_A3
+Guinea,Afrotropics,SUBUNIT
+LBR,Afrotropics,ISO_A3
+Liberia,Afrotropics,SUBUNIT
+CAF,Afrotropics,ISO_A3
+Central African Republic,Afrotropics,SUBUNIT
+SDN,Afrotropics,ISO_A3
+Sudan,Afrotropics,SUBUNIT
+DJI,Afrotropics,ISO_A3
+Djibouti,Afrotropics,SUBUNIT
+ERI,Afrotropics,ISO_A3
+Eritrea,Afrotropics,SUBUNIT
+AUT,Western Palearctic,ISO_A3
+Austria,Western Palearctic,SUBUNIT
+IRQ,Western Palearctic,ISO_A3
+Iraq,Western Palearctic,SUBUNIT
+ITA,Western Palearctic,ISO_A3
+Italy,Western Palearctic,SUBUNIT
+CHE,Western Palearctic,ISO_A3
+Switzerland,Western Palearctic,SUBUNIT
+IRN,Eastern Palearctic,ISO_A3
+Iran,Eastern Palearctic,SUBUNIT
+LIE,Western Palearctic,ISO_A3
+Liechtenstein,Western Palearctic,SUBUNIT
+CIV,Afrotropics,ISO_A3
+Ivory Coast,Afrotropics,SUBUNIT
+SRB,Western Palearctic,ISO_A3
+Republic of Serbia,Western Palearctic,SUBUNIT
+MLI,Afrotropics,ISO_A3
+Mali,Afrotropics,SUBUNIT
+SEN,Afrotropics,ISO_A3
+Senegal,Afrotropics,SUBUNIT
+NGA,Afrotropics,ISO_A3
+Nigeria,Afrotropics,SUBUNIT
+BEN,Afrotropics,ISO_A3
+Benin,Afrotropics,SUBUNIT
+AGO,Afrotropics,ISO_A3
+Angola,Afrotropics,SUBUNIT
+HRV,Western Palearctic,ISO_A3
+Croatia,Western Palearctic,SUBUNIT
+SVN,Western Palearctic,ISO_A3
+Slovenia,Western Palearctic,SUBUNIT
+QAT,Western Palearctic,ISO_A3
+Qatar,Western Palearctic,SUBUNIT
+SAU,Western Palearctic,ISO_A3
+Saudi Arabia,Western Palearctic,SUBUNIT
+BWA,Afrotropics,ISO_A3
+Botswana,Afrotropics,SUBUNIT
+ZWE,Afrotropics,ISO_A3
+Zimbabwe,Afrotropics,SUBUNIT
+BGR,Western Palearctic,ISO_A3
+Bulgaria,Western Palearctic,SUBUNIT
+THA,Indomalaya,ISO_A3
+Thailand,Indomalaya,SUBUNIT
+SMR,Western Palearctic,ISO_A3
+San Marino,Western Palearctic,SUBUNIT
+HTI,Neotropics,ISO_A3
+Haiti,Neotropics,SUBUNIT
+DOM,Neotropics,ISO_A3
+Dominican Republic,Neotropics,SUBUNIT
+TCD,Afrotropics,ISO_A3
+Chad,Afrotropics,SUBUNIT
+KWT,Western Palearctic,ISO_A3
+Kuwait,Western Palearctic,SUBUNIT
+SLV,Neotropics,ISO_A3
+El Salvador,Neotropics,SUBUNIT
+GTM,Neotropics,ISO_A3
+Guatemala,Neotropics,SUBUNIT
+TLS,Australasia,ISO_A3
+East Timor,Australasia,SUBUNIT
+BRN,Indomalaya,ISO_A3
+Brunei,Indomalaya,SUBUNIT
+MCO,Western Palearctic,ISO_A3
+Monaco,Western Palearctic,SUBUNIT
+DZA,Western Palearctic,ISO_A3
+Algeria,Western Palearctic,SUBUNIT
+MOZ,Afrotropics,ISO_A3
+Mozambique,Afrotropics,SUBUNIT
+SWZ,Afrotropics,ISO_A3
+eSwatini,Afrotropics,SUBUNIT
+BDI,Afrotropics,ISO_A3
+Burundi,Afrotropics,SUBUNIT
+RWA,Afrotropics,ISO_A3
+Rwanda,Afrotropics,SUBUNIT
+MMR,Indomalaya,ISO_A3
+Myanmar,Indomalaya,SUBUNIT
+BGD,Indomalaya,ISO_A3
+Bangladesh,Indomalaya,SUBUNIT
+AND,Western Palearctic,ISO_A3
+Andorra,Western Palearctic,SUBUNIT
+AFG,Eastern Palearctic,ISO_A3
+Afghanistan,Eastern Palearctic,SUBUNIT
+MNE,Western Palearctic,ISO_A3
+Montenegro,Western Palearctic,SUBUNIT
+BIH,Western Palearctic,ISO_A3
+Bosnia and Herzegovina,Western Palearctic,SUBUNIT
+UGA,Afrotropics,ISO_A3
+Uganda,Afrotropics,SUBUNIT
+GUT,Neotropics,ISO_A3
+US Naval Base Guantanamo Bay,Neotropics,SUBUNIT
+CUB,Neotropics,ISO_A3
+Cuba,Neotropics,SUBUNIT
+HND,Neotropics,ISO_A3
+Honduras,Neotropics,SUBUNIT
+ECU,Neotropics,ISO_A3
+Ecuador,Neotropics,SUBUNIT
+COL,Neotropics,ISO_A3
+Colombia,Neotropics,SUBUNIT
+PRY,Neotropics,ISO_A3
+Paraguay,Neotropics,SUBUNIT
+BIS,Neotropics,ISO_A3
+Brazilian Island,Neotropics,SUBUNIT
+PRT,Western Palearctic,ISO_A3
+Portugal,Western Palearctic,SUBUNIT
+MDA,Western Palearctic,ISO_A3
+Moldova,Western Palearctic,SUBUNIT
+TKM,Eastern Palearctic,ISO_A3
+Turkmenistan,Eastern Palearctic,SUBUNIT
+JOR,Western Palearctic,ISO_A3
+Jordan,Western Palearctic,SUBUNIT
+NPL,Indomalaya,ISO_A3
+Nepal,Indomalaya,SUBUNIT
+LSO,Afrotropics,ISO_A3
+Lesotho,Afrotropics,SUBUNIT
+CMR,Afrotropics,ISO_A3
+Cameroon,Afrotropics,SUBUNIT
+GAB,Afrotropics,ISO_A3
+Gabon,Afrotropics,SUBUNIT
+NER,Afrotropics,ISO_A3
+Niger,Afrotropics,SUBUNIT
+BFA,Afrotropics,ISO_A3
+Burkina Faso,Afrotropics,SUBUNIT
+TGO,Afrotropics,ISO_A3
+Togo,Afrotropics,SUBUNIT
+GHA,Afrotropics,ISO_A3
+Ghana,Afrotropics,SUBUNIT
+GNB,Afrotropics,ISO_A3
+Guinea-Bissau,Afrotropics,SUBUNIT
+GIB,Western Palearctic,ISO_A3
+Gibraltar,Western Palearctic,SUBUNIT
+CAN,Nearctic,ISO_A3
+Canada,Nearctic,SUBUNIT
+BLZ,Neotropics,ISO_A3
+Belize,Neotropics,SUBUNIT
+PAN,Neotropics,ISO_A3
+Panama,Neotropics,SUBUNIT
+VEN,Neotropics,ISO_A3
+Venezuela,Neotropics,SUBUNIT
+PNG,Australasia,ISO_A3
+Papua New Guinea,Australasia,SUBUNIT
+EGY,Western Palearctic,ISO_A3
+Egypt,Western Palearctic,SUBUNIT
+YEM,Western Palearctic,ISO_A3
+Yemen,Western Palearctic,SUBUNIT
+MRT,Afrotropics,ISO_A3
+Mauritania,Afrotropics,SUBUNIT
+GNQ,Afrotropics,ISO_A3
+Equatorial Guinea,Afrotropics,SUBUNIT
+GMB,Afrotropics,ISO_A3
+Gambia,Afrotropics,SUBUNIT
+HKG,Indomalaya,ISO_A3
+Hong Kong S.A.R.,Indomalaya,SUBUNIT
+VAT,Western Palearctic,ISO_A3
+Vatican,Western Palearctic,SUBUNIT
+CPN,Western Palearctic,ISO_A3
+Northern Cyprus,Western Palearctic,SUBUNIT
+CNM,Western Palearctic,ISO_A3
+Cyprus No Mans Area,Western Palearctic,SUBUNIT
+SCG,Indomalaya,ISO_A3
+Siachen Glacier,Indomalaya,SUBUNIT
+BKC,Eastern Palearctic,ISO_A3
+Baykonur Cosmodrome,Eastern Palearctic,SUBUNIT
+ASB,Western Palearctic,ISO_A3
+Akrotiri Sovereign Base Area,Western Palearctic,SUBUNIT
+SPG,Neotropics,ISO_A3
+Southern Patagonian Ice Field,Neotropics,SUBUNIT
+BTW,Afrotropics,ISO_A3
+Bir Tawil,Afrotropics,SUBUNIT
+AUS,Australasia,ISO_A3
+Australia,Australasia,SUBUNIT
+GRL,Nearctic,ISO_A3
+Greenland,Nearctic,SUBUNIT
+FJI,Australasia,ISO_A3
+Fiji,Australasia,SUBUNIT
+NZL,Australasia,ISO_A3
+New Zealand,Australasia,SUBUNIT
+NCL,Australasia,ISO_A3
+New Caledonia,Australasia,SUBUNIT
+MDG,Afrotropics,ISO_A3
+Madagascar,Afrotropics,SUBUNIT
+PHL,Indomalaya,ISO_A3
+Philippines,Indomalaya,SUBUNIT
+LKA,Indomalaya,ISO_A3
+Sri Lanka,Indomalaya,SUBUNIT
+CUW,Neotropics,ISO_A3
+Curaçao,Neotropics,SUBUNIT
+ABW,Neotropics,ISO_A3
+Aruba,Neotropics,SUBUNIT
+BHS,Neotropics,ISO_A3
+The Bahamas,Neotropics,SUBUNIT
+TCA,Neotropics,ISO_A3
+Turks and Caicos Islands,Neotropics,SUBUNIT
+TWN,Indomalaya,ISO_A3
+Taiwan,Indomalaya,SUBUNIT
+SPM,Nearctic,ISO_A3
+Saint Pierre and Miquelon,Nearctic,SUBUNIT
+ISL,Western Palearctic,ISO_A3
+Iceland,Western Palearctic,SUBUNIT
+PCN,Australasia,ISO_A3
+Pitcairn Islands,Australasia,SUBUNIT
+PYF,Australasia,ISO_A3
+French Polynesia,Australasia,SUBUNIT
+SYC,Afrotropics,ISO_A3
+Seychelles,Afrotropics,SUBUNIT
+KIR,Australasia,ISO_A3
+Kiribati,Australasia,SUBUNIT
+MHL,Australasia,ISO_A3
+Marshall Islands,Australasia,SUBUNIT
+TTO,Neotropics,ISO_A3
+Trinidad and Tobago,Neotropics,SUBUNIT
+GRD,Neotropics,ISO_A3
+Grenada,Neotropics,SUBUNIT
+VCT,Neotropics,ISO_A3
+Saint Vincent and the Grenadines,Neotropics,SUBUNIT
+BRB,Neotropics,ISO_A3
+Barbados,Neotropics,SUBUNIT
+LCA,Neotropics,ISO_A3
+Saint Lucia,Neotropics,SUBUNIT
+DMA,Neotropics,ISO_A3
+Dominica,Neotropics,SUBUNIT
+UMI,Australasia,ISO_A3
+United States Minor Outlying Islands,Australasia,SUBUNIT
+MSR,Neotropics,ISO_A3
+Montserrat,Neotropics,SUBUNIT
+ATG,Neotropics,ISO_A3
+Antigua and Barbuda,Neotropics,SUBUNIT
+KNA,Neotropics,ISO_A3
+Saint Kitts and Nevis,Neotropics,SUBUNIT
+VIR,Neotropics,ISO_A3
+United States Virgin Islands,Neotropics,SUBUNIT
+BLM,Neotropics,ISO_A3
+Saint Barthelemy,Neotropics,SUBUNIT
+PRI,Neotropics,ISO_A3
+Puerto Rico,Neotropics,SUBUNIT
+AIA,Neotropics,ISO_A3
+Anguilla,Neotropics,SUBUNIT
+VGB,Neotropics,ISO_A3
+British Virgin Islands,Neotropics,SUBUNIT
+JAM,Neotropics,ISO_A3
+Jamaica,Neotropics,SUBUNIT
+CYM,Neotropics,ISO_A3
+Cayman Islands,Neotropics,SUBUNIT
+BMU,Neotropics,ISO_A3
+Bermuda,Neotropics,SUBUNIT
+SHN,Afrotropics,ISO_A3
+Saint Helena,Afrotropics,SUBUNIT
+MUS,Afrotropics,ISO_A3
+Mauritius,Afrotropics,SUBUNIT
+COM,Afrotropics,ISO_A3
+Comoros,Afrotropics,SUBUNIT
+STP,Afrotropics,ISO_A3
+São Tomé and Principe,Afrotropics,SUBUNIT
+CPV,Afrotropics,ISO_A3
+Cabo Verde,Afrotropics,SUBUNIT
+MLT,Western Palearctic,ISO_A3
+Malta,Western Palearctic,SUBUNIT
+JEY,Western Palearctic,ISO_A3
+Jersey,Western Palearctic,SUBUNIT
+GGY,Western Palearctic,ISO_A3
+Guernsey,Western Palearctic,SUBUNIT
+IMN,Western Palearctic,ISO_A3
+Isle of Man,Western Palearctic,SUBUNIT
+ALA,Western Palearctic,ISO_A3
+Aland,Western Palearctic,SUBUNIT
+FRO,Western Palearctic,ISO_A3
+Faroe Islands,Western Palearctic,SUBUNIT
+CCI,Indomalaya,ISO_A3
+Indian Ocean Territories,Indomalaya,SUBUNIT
+IOT,Indomalaya,ISO_A3
+British Indian Ocean Territory,Indomalaya,SUBUNIT
+SGP,Indomalaya,ISO_A3
+Singapore,Indomalaya,SUBUNIT
+NFK,Australasia,ISO_A3
+Norfolk Island,Australasia,SUBUNIT
+COK,Australasia,ISO_A3
+Cook Islands,Australasia,SUBUNIT
+TON,Australasia,ISO_A3
+Tonga,Australasia,SUBUNIT
+WLF,Australasia,ISO_A3
+Wallis and Futuna,Australasia,SUBUNIT
+WSM,Australasia,ISO_A3
+Samoa,Australasia,SUBUNIT
+SLB,Australasia,ISO_A3
+Solomon Islands,Australasia,SUBUNIT
+TUV,Australasia,ISO_A3
+Tuvalu,Australasia,SUBUNIT
+MDV,Indomalaya,ISO_A3
+Maldives,Indomalaya,SUBUNIT
+NRU,Australasia,ISO_A3
+Nauru,Australasia,SUBUNIT
+FSM,Australasia,ISO_A3
+Federated States of Micronesia,Australasia,SUBUNIT
+FLK,Neotropics,ISO_A3
+Falkland Islands,Neotropics,SUBUNIT
+VUT,Australasia,ISO_A3
+Vanuatu,Australasia,SUBUNIT
+NIU,Australasia,ISO_A3
+Niue,Australasia,SUBUNIT
+ASM,Australasia,ISO_A3
+American Samoa,Australasia,SUBUNIT
+PLW,Australasia,ISO_A3
+Palau,Australasia,SUBUNIT
+GUM,Australasia,ISO_A3
+Guam,Australasia,SUBUNIT
+MNP,Australasia,ISO_A3
+Northern Mariana Islands,Australasia,SUBUNIT
+BHR,Western Palearctic,ISO_A3
+Bahrain,Western Palearctic,SUBUNIT
+CSI,Australasia,ISO_A3
+Coral Sea Islands,Australasia,SUBUNIT
+SPI,Indomalaya,ISO_A3
+Spratly Islands,Indomalaya,SUBUNIT
+CPT,Neotropics,ISO_A3
+Clipperton Island,Neotropics,SUBUNIT
+MAC,Indomalaya,ISO_A3
+Macao S.A.R,Indomalaya,SUBUNIT
+ATC,Australasia,ISO_A3
+Ashmore and Cartier Islands,Australasia,SUBUNIT
+BNB,Neotropics,ISO_A3
+Bajo Nuevo Bank (Petrel Is.),Neotropics,SUBUNIT
+SNB,Neotropics,ISO_A3
+Serranilla Bank,Neotropics,SUBUNIT
+SCB,Indomalaya,ISO_A3
+Scarborough Reef,Indomalaya,SUBUNIT

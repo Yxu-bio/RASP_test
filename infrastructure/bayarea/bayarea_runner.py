@@ -1,5 +1,7 @@
+import re
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +19,10 @@ class BayAreaRunOutput:
     area_states_path: Path
     area_probs_path: Path
     nhx_path: Path
+
+
+class BayAreaRunCancelled(RuntimeError):
+    pass
 
 
 class BayAreaRunner:
@@ -41,7 +47,7 @@ class BayAreaRunner:
 
         raise FileNotFoundError("BayArea executable was not found. Expected engines/bayarea/bin/bayarea.exe.")
 
-    def run(self, run_files: BayAreaRunFiles) -> BayAreaRunOutput:
+    def run(self, run_files: BayAreaRunFiles, progress_callback=None, cancel_callback=None) -> BayAreaRunOutput:
         exe = self.resolve_executable_path()
         config = run_files.config
         if config is None:
@@ -87,30 +93,61 @@ class BayAreaRunner:
         cmd.extend(self._parse_other_options(kwargs.get("other_options", "")))
 
         timeout_seconds = self._timeout_seconds(kwargs)
-        try:
-            proc = subprocess.run(
+        proc = None
+        started = time.monotonic()
+        read_offset = 0
+        partial_line = ""
+        last_cycle = -1
+        mcmc_started = False
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if progress_callback is not None:
+            progress_callback(0, "Starting BayArea")
+
+        with run_files.stdout_log_path.open("w", encoding="utf-8", errors="replace") as stdout_handle, \
+                run_files.stderr_log_path.open("w", encoding="utf-8", errors="replace") as stderr_handle:
+            proc = subprocess.Popen(
                 cmd,
                 cwd=str(run_files.workdir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_handle,
+                stderr=stderr_handle,
                 universal_newlines=True,
-                timeout=timeout_seconds,
+                creationflags=creationflags,
             )
-        except subprocess.TimeoutExpired as exc:
-            stdout_text = self._timeout_text(exc.stdout)
-            stderr_text = self._timeout_text(exc.stderr)
-            run_files.stdout_log_path.write_text(stdout_text, encoding="utf-8", errors="replace")
-            run_files.stderr_log_path.write_text(stderr_text, encoding="utf-8", errors="replace")
-            raise TimeoutError(
-                "BayArea did not exit within %s seconds.\n"
-                "workdir: %s\n"
-                "This usually indicates a degenerate model/data combination or an unusually long MCMC run."
-                % (timeout_seconds, run_files.workdir)
-            )
-        stdout_text = proc.stdout if proc.stdout is not None else ""
-        stderr_text = proc.stderr if proc.stderr is not None else ""
-        run_files.stdout_log_path.write_text(stdout_text, encoding="utf-8", errors="replace")
-        run_files.stderr_log_path.write_text(stderr_text, encoding="utf-8", errors="replace")
+            try:
+                while proc.poll() is None:
+                    if cancel_callback is not None and bool(cancel_callback()):
+                        self._stop_process(proc)
+                        raise BayAreaRunCancelled(
+                            "BayArea run cancelled. Partial logs were kept in: %s" % run_files.workdir
+                        )
+                    if time.monotonic() - started > timeout_seconds:
+                        self._stop_process(proc)
+                        raise TimeoutError(
+                            "BayArea did not exit within %s seconds.\n"
+                            "workdir: %s\n"
+                            "This usually indicates a degenerate model/data combination or an unusually long MCMC run."
+                            % (timeout_seconds, run_files.workdir)
+                        )
+                    if progress_callback is not None:
+                        read_offset, partial_line, last_cycle, mcmc_started = self._report_progress(
+                            log_path=run_files.stdout_log_path,
+                            read_offset=read_offset,
+                            partial_line=partial_line,
+                            last_cycle=last_cycle,
+                            mcmc_started=mcmc_started,
+                            chain_length=int(kwargs["chain_length"]),
+                            callback=progress_callback,
+                        )
+                    time.sleep(0.1)
+            except Exception:
+                if proc.poll() is None:
+                    self._stop_process(proc)
+                raise
+
+        stdout_text = run_files.stdout_log_path.read_text(encoding="utf-8", errors="replace")
+        stderr_text = run_files.stderr_log_path.read_text(encoding="utf-8", errors="replace")
+        if progress_callback is not None:
+            progress_callback(100, "BayArea MCMC complete")
 
         if proc.returncode != 0:
             detail = stderr_text.strip() or stdout_text.strip() or "BayArea run failed"
@@ -135,6 +172,62 @@ class BayAreaRunner:
             area_probs_path=run_files.area_probs_path,
             nhx_path=run_files.nhx_path,
         )
+
+    def _report_progress(
+        self,
+        *,
+        log_path,
+        read_offset,
+        partial_line,
+        last_cycle,
+        mcmc_started,
+        chain_length,
+        callback
+    ):
+        try:
+            with Path(log_path).open("r", encoding="utf-8", errors="replace") as handle:
+                handle.seek(int(read_offset))
+                chunk = handle.read()
+                read_offset = handle.tell()
+        except Exception:
+            return read_offset, partial_line, last_cycle, mcmc_started
+        if not chunk:
+            return read_offset, partial_line, last_cycle, mcmc_started
+
+        text = partial_line + chunk
+        lines = text.splitlines(True)
+        partial_line = ""
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            partial_line = lines.pop()
+        for line in lines:
+            if "MCMC initated" in line or "MCMC initiated" in line:
+                mcmc_started = True
+                continue
+            if not mcmc_started:
+                continue
+            match = re.match(r"^\s*(\d+)\s+(?:--|~p)", line)
+            if not match:
+                continue
+            cycle = int(match.group(1))
+            if cycle <= last_cycle:
+                continue
+            last_cycle = cycle
+            percent = int(round(100.0 * float(cycle) / float(max(1, chain_length))))
+            callback(max(0, min(99, percent)), "BayArea MCMC: %d / %d" % (cycle, chain_length))
+        return read_offset, partial_line, last_cycle, mcmc_started
+
+    def _stop_process(self, proc) -> None:
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+        except Exception:
+            try:
+                proc.kill()
+                proc.wait(timeout=3)
+            except Exception:
+                pass
 
     def _path_arg(self, path: Path) -> str:
         text = str(Path(path).resolve()).replace("\\", "/")

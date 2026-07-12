@@ -21,6 +21,32 @@ Files:
   - Direct input for Spatial Data Manager -> Load Area GeoJSON.
   - Simplified country polygons from https://github.com/johan/world.geo.json.
   - Area codes will be country names because the GeoJSON exposes `properties.name`.
+- `Dore_2025_Ponerinae/Ponerinae_7_bioregions.geojson`
+  - Direct input for Spatial Data Manager -> Load Area GeoJSON when testing the
+    seven Dore et al. Ponerinae bioregions.
+  - This is an approximate rule-based reference asset, not an official
+    author-provided polygon boundary dataset.
+  - Area codes match the reconstruction matrix columns: Afrotropics,
+    Australasia, Indomalaya, Nearctic, Neotropics, Eastern Palearctic, and
+    Western Palearctic.
+  - Built from Dore's `Countries_NE_sf_metadata.xlsx` and Natural Earth map
+    subunits/admin1 polygons. Cross-region cases follow the Dore curation
+    script where possible: Indonesia longitude 125.5, Mexico latitude 22,
+    China latitude 33, Russia/India/Pakistan admin1 splits, and selected
+    overseas subunits.
+  - Use it for RASP spatial workflow testing and study-specific approximate
+    coding. Do not present it as the paper's true bioregion boundary map.
+  - Build notes are written to
+    `Dore_2025_Ponerinae/Ponerinae_7_bioregions_build_notes.csv`.
+- `tools/build_ponerinae_bioregions_geojson.py`
+  - Rebuilds `Ponerinae_7_bioregions.geojson` from online source data.
+  - This is a reference-data builder; it is not required at application runtime.
+- `tools/build_region_geojson.py`
+  - Generic config-driven builder for study-specific region GeoJSON files.
+  - Combines a base GeoJSON, a mapping CSV, and optional split/override rules
+    into one `MultiPolygon` feature per analysis area.
+  - See `region_builder_examples/` for a minimal demo plus Dore and Kawahara
+    literature-derived rule templates.
 - `Dore_2025_Ponerinae/taxa_bioregions_7areas_matrix.csv`
   - Direct input for RASP matrix import, not Spatial Data Manager occurrence encoding.
   - Useful to test tree/matrix taxon matching and downstream reconstruction methods.
@@ -48,6 +74,13 @@ Files:
 - `Kawahara_2023_figshare/kawahara_butterfly_country_records_S5.csv`
   - Extracted from Table S5: TipName, Species, Country_ISO3.
   - This is country-level range evidence, not lat/lon occurrence input. Use it as a reference for later country-to-area mapping logic.
+- `region_builder_examples/kawahara_7_bioregion_mapping.csv`
+  - Extracted from Table S27: ISO to 7-bioregion area assignment.
+- `region_builder_examples/kawahara_7_bioregion_rules.json`
+  - Example config for building an approximate Kawahara 7-bioregion GeoJSON
+    from country/subunit polygons.
+  - Multi-region entries in Table S27 are handled with coarse split/admin1
+    rules; this is not an official author-provided polygon boundary dataset.
 
 Not downloaded by default:
 - `Data_S1-S28.zip` is about 1.4 GB. Download from Figshare only if needed.

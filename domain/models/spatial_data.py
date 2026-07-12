@@ -33,6 +33,7 @@ class AreaSpatialRecord:
     geometry_id: str
     display_name: str = ""
     color: str = ""
+    group: str = ""
     centroid_lon: Optional[float] = None
     centroid_lat: Optional[float] = None
     source: str = ""

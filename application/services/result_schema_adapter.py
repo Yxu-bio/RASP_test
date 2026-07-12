@@ -365,6 +365,9 @@ class DECResultSchemaAdapter(BaseResultSchemaAdapter):
                 parts.append("%s(%.1f%%)" % (event_name, float(value)))
             event_summary = " ".join(parts)
 
+        state_supports = self._state_supports_from_node_result(node_result)
+        support_summary = self._format_state_supports(state_supports)
+
         return NodePayloadSchema(
             method_name=self.method_name,
             clade_key=clade_key,
@@ -375,17 +378,41 @@ class DECResultSchemaAdapter(BaseResultSchemaAdapter):
             state_labels=state_labels,
             state_text=state_text,
             state_summary=state_text,
-            support_summary=event_summary or "无事件摘要",
+            support_summary=support_summary or event_summary or "无状态支持",
             ambiguity_count=len(state_labels),
             supporting_tree_count=1,
             total_tree_count=1,
             state_counts={},
-            state_supports={},
+            state_supports=state_supports,
             event_summary=event_summary or "当前节点无事件摘要。",
             time_summary=str(getattr(node_result, "time_summary", "") or "Time summary is available on the result Information/Time tabs."),
             interpretation_note="DEC 窄版结果：统一展示分布状态与事件摘要。",
             raw_method_payload=self._to_raw_payload(node_result),
         )
+
+    def _state_supports_from_node_result(self, node_result):
+        supports = {
+            str(k).strip(): float(v)
+            for k, v in dict(getattr(node_result, "state_supports", {}) or {}).items()
+            if str(k).strip()
+        }
+        if supports:
+            return supports
+        labels = [str(x).strip() for x in list(getattr(node_result, "pie_labels", []) or []) if str(x).strip()]
+        percents = list(getattr(node_result, "pie_percents", []) or [])
+        if labels and percents and len(labels) == len(percents):
+            out = {}
+            for label, percent in zip(labels, percents):
+                try:
+                    out[label] = float(percent)
+                except Exception:
+                    pass
+            if out:
+                return out
+        if labels:
+            share = 100.0 / float(len(labels))
+            return {label: share for label in labels}
+        return {}
 
 class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
     method_name = "S-DEC"

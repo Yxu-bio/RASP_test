@@ -1,0 +1,222 @@
+match_value,area_code,source_field,country_name
+ABW,Neotropics,ISO,Aruba
+AFG,East Palearctic,ISO,Afghanistan
+AGO,Afrotropics,ISO,Angola
+AIA,Neotropics,ISO,Anguilla
+ALB,West Palearctic,ISO,Albania
+AND,West Palearctic,ISO,Andorra
+ARE,Afrotropics,ISO,United Arab Emirates
+ARG,Neotropics,ISO,Argentina
+ARM,West Palearctic,ISO,Armenia
+ASM,Australasia,ISO,American Samoa
+ATG,Neotropics,ISO,Antigua and Barbuda
+AUS,Australasia,ISO,Australia
+AUT,West Palearctic,ISO,Austria
+AZE,East Palearctic,ISO,Azerbaijan
+BDI,Afrotropics,ISO,Burundi
+BEL,West Palearctic,ISO,Belgium
+BEN,Afrotropics,ISO,Benin
+BFA,Afrotropics,ISO,Burkina Faso
+BGD,Indomalaya,ISO,Bangladesh
+BGR,West Palearctic,ISO,Bulgaria
+BHS,Neotropics,ISO,Bahamas
+BIH,West Palearctic,ISO,Bosnia and Herzegovina
+BLM,Neotropics,ISO,Saint Barthélemy
+BLR,West Palearctic,ISO,Belarus
+BLZ,Neotropics,ISO,Belize
+BMU,Nearctic,ISO,Bermuda
+BOL,Neotropics,ISO,Bolivia (Plurinational State of)
+BRA,Neotropics,ISO,Brazil
+BRB,Neotropics,ISO,Barbados
+BRN,Indomalaya,ISO,Brunei Darussalam
+BTN,East Palearctic,ISO,Bhutan
+BWA,Afrotropics,ISO,Botswana
+CAF,Afrotropics,ISO,Central African Republic
+CAN,Nearctic,ISO,Canada
+CCK,Indomalaya,ISO,Cocos (Keeling) Islands
+CHE,West Palearctic,ISO,Switzerland
+CHL,Neotropics,ISO,Chile
+CIV,Afrotropics,ISO,Côte d'Ivoire
+CMR,Afrotropics,ISO,Cameroon
+COD,Afrotropics,ISO,"Congo, Democratic Republic of the"
+COG,Afrotropics,ISO,"Congo, Republic of the"
+COK,Australasia,ISO,Cook Islands
+COL,Neotropics,ISO,Colombia
+COM,Afrotropics,ISO,Comoros
+CPV,Afrotropics,ISO,Cabo Verde
+CRI,Neotropics,ISO,Costa Rica
+CUB,Neotropics,ISO,Cuba
+CUW,Neotropics,ISO,Curaçao
+CXR,Indomalaya,ISO,Christmas Island
+CYM,Neotropics,ISO,Cayman Islands
+CYP,West Palearctic,ISO,Cyprus
+CZE,West Palearctic,ISO,Czechia
+DEU,West Palearctic,ISO,Germany
+DJI,Afrotropics,ISO,Djibouti
+DMA,Neotropics,ISO,Dominica
+DNK,West Palearctic,ISO,Denmark
+DOM,Neotropics,ISO,Dominican Republic
+DZA,West Palearctic,ISO,Algeria
+ECU,Neotropics,ISO,Ecuador
+EGY,West Palearctic,ISO,Egypt
+ERI,Afrotropics,ISO,Eritrea
+ESP,West Palearctic,ISO,Spain
+EST,West Palearctic,ISO,Estonia
+ETH,Afrotropics,ISO,Ethiopia
+FIN,West Palearctic,ISO,Finland
+FJI,Australasia,ISO,Fiji
+FLK,Neotropics,ISO,Falkland Islands (Malvinas)
+FRA,West Palearctic,ISO,France
+GAB,Afrotropics,ISO,Gabon
+GBR,West Palearctic,ISO,United Kingdom of Great Britain and Northern Ireland
+GEO,West Palearctic,ISO,Georgia
+GHA,Afrotropics,ISO,Ghana
+GIB,West Palearctic,ISO,Gibraltar
+GIN,Afrotropics,ISO,Guinea
+GLP,Neotropics,ISO,Guadeloupe
+GMB,Afrotropics,ISO,Gambia
+GNB,Afrotropics,ISO,Guinea-Bissau
+GNQ,Afrotropics,ISO,Equatorial Guinea
+GRC,West Palearctic,ISO,Greece
+GRD,Neotropics,ISO,Grenada
+GRL,Nearctic,ISO,Greenland
+GTM,Neotropics,ISO,Guatemala
+GUF,Neotropics,ISO,French Guiana
+GUM,Australasia,ISO,Guam
+GUY,Neotropics,ISO,Guyana
+HKG,Indomalaya,ISO,Hong Kong
+HND,Neotropics,ISO,Honduras
+HRV,West Palearctic,ISO,Croatia
+HTI,Neotropics,ISO,Haiti
+HUN,West Palearctic,ISO,Hungary
+IMN,West Palearctic,ISO,Isle of Man
+IND,Indomalaya,ISO,India
+IRL,West Palearctic,ISO,Ireland
+IRN,East Palearctic,ISO,Iran (Islamic Republic of)
+IRQ,East Palearctic,ISO,Iraq
+ISL,West Palearctic,ISO,Iceland
+ISR,West Palearctic,ISO,Israel
+ITA,West Palearctic,ISO,Italy
+JAM,Neotropics,ISO,Jamaica
+JEY,West Palearctic,ISO,Jersey
+JOR,West Palearctic,ISO,Jordan
+JPN,East Palearctic,ISO,Japan
+KAZ,East Palearctic,ISO,Kazakhstan
+KEN,Afrotropics,ISO,Kenya
+KGZ,East Palearctic,ISO,Kyrgyzstan
+KHM,Indomalaya,ISO,Cambodia
+KIR,Australasia,ISO,Kiribati
+KNA,Neotropics,ISO,Saint Kitts and Nevis
+KOR,East Palearctic,ISO,"Korea, Republic of"
+KWT,East Palearctic,ISO,Kuwait
+LAO,Indomalaya,ISO,Lao People's Democratic Republic
+LBN,West Palearctic,ISO,Lebanon
+LBR,Afrotropics,ISO,Liberia
+LBY,West Palearctic,ISO,Libya
+LCA,Neotropics,ISO,Saint Lucia
+LKA,Indomalaya,ISO,Sri Lanka
+LSO,Afrotropics,ISO,Lesotho
+LTU,West Palearctic,ISO,Lithuania
+LUX,West Palearctic,ISO,Luxembourg
+LVA,West Palearctic,ISO,Latvia
+MAC,Indomalaya,ISO,Macao
+MAR,West Palearctic,ISO,Morocco
+MDA,West Palearctic,ISO,"Moldova, Republic of"
+MDG,Afrotropics,ISO,Madagascar
+MDV,Indomalaya,ISO,Maldives
+MHL,Australasia,ISO,Marshall Islands
+MKD,West Palearctic,ISO,North Macedonia
+MLI,Afrotropics,ISO,Mali
+MLT,West Palearctic,ISO,Malta
+MMR,Indomalaya,ISO,Myanmar
+MNE,West Palearctic,ISO,Montenegro
+MNG,East Palearctic,ISO,Mongolia
+MNP,Australasia,ISO,Northern Mariana Islands
+MOZ,Afrotropics,ISO,Mozambique
+MRT,Afrotropics,ISO,Mauritania
+MSR,Neotropics,ISO,Montserrat
+MTQ,Neotropics,ISO,Martinique
+MUS,Afrotropics,ISO,Mauritius
+MWI,Afrotropics,ISO,Malawi
+MYS,Indomalaya,ISO,Malaysia
+MYT,Afrotropics,ISO,Mayotte
+NAM,Afrotropics,ISO,Namibia
+NCL,Australasia,ISO,New Caledonia
+NER,Afrotropics,ISO,Niger
+NFK,Australasia,ISO,Norfolk Island
+NGA,Afrotropics,ISO,Nigeria
+NIC,Neotropics,ISO,Nicaragua
+NIU,Australasia,ISO,Niue
+NLD,West Palearctic,ISO,Netherlands
+NOR,West Palearctic,ISO,Norway
+NPL,Indomalaya,ISO,Nepal
+NZL,Australasia,ISO,New Zealand
+OMN,Afrotropics,ISO,Oman
+PAK,Indomalaya,ISO,Pakistan
+PAN,Neotropics,ISO,Panama
+PER,Neotropics,ISO,Peru
+PHL,Indomalaya,ISO,Philippines
+PLW,Australasia,ISO,Palau
+PNG,Australasia,ISO,Papua New Guinea
+POL,West Palearctic,ISO,Poland
+PRI,Neotropics,ISO,Puerto Rico
+PRK,East Palearctic,ISO,Korea (Democratic People's Republic of)
+PRT,West Palearctic,ISO,Portugal
+PRY,Neotropics,ISO,Paraguay
+PSE,West Palearctic,ISO,"Palestine, State of"
+PYF,Australasia,ISO,French Polynesia
+QAT,Afrotropics,ISO,Qatar
+REU,Afrotropics,ISO,Réunion
+ROU,West Palearctic,ISO,Romania
+RWA,Afrotropics,ISO,Rwanda
+SAU,Afrotropics,ISO,Saudi Arabia
+SDN,Afrotropics,ISO,Sudan
+SEN,Afrotropics,ISO,Senegal
+SGP,Indomalaya,ISO,Singapore
+SHN,Afrotropics,ISO,"Saint Helena, Ascension and Tristan da Cunha"
+SLB,Australasia,ISO,Solomon Islands
+SLE,Afrotropics,ISO,Sierra Leone
+SLV,Neotropics,ISO,El Salvador
+SOM,Afrotropics,ISO,Somalia
+SRB,West Palearctic,ISO,Serbia
+SSD,Afrotropics,ISO,South Sudan
+STP,Afrotropics,ISO,Sao Tome and Principe
+SUR,Neotropics,ISO,Suriname
+SVK,West Palearctic,ISO,Slovakia
+SVN,West Palearctic,ISO,Slovenia
+SWE,West Palearctic,ISO,Sweden
+SWZ,Afrotropics,ISO,Eswatini
+SYC,Afrotropics,ISO,Seychelles
+SYR,West Palearctic,ISO,Syrian Arab Republic
+TCA,Neotropics,ISO,Turks and Caicos Islands
+TCD,Afrotropics,ISO,Chad
+TGO,Afrotropics,ISO,Togo
+THA,Indomalaya,ISO,Thailand
+TJK,East Palearctic,ISO,Tajikistan
+TKL,Australasia,ISO,Tokelau
+TKM,East Palearctic,ISO,Turkmenistan
+TLS,Indomalaya,ISO,Timor-Leste
+TON,Australasia,ISO,Tonga
+TTO,Neotropics,ISO,Trinidad and Tobago
+TUN,West Palearctic,ISO,Tunisia
+TUR,West Palearctic,ISO,Turkey
+TUV,Australasia,ISO,Tuvalu
+TWN,Indomalaya,ISO,"Taiwan, Province of China"
+TZA,Afrotropics,ISO,"Tanzania, United Republic of"
+UGA,Afrotropics,ISO,Uganda
+UKR,West Palearctic,ISO,Ukraine
+URY,Neotropics,ISO,Uruguay
+USA,Nearctic,ISO,United States of America
+UZB,East Palearctic,ISO,Uzbekistan
+VCT,Neotropics,ISO,Saint Vincent and the Grenadines
+VEN,Neotropics,ISO,Venezuela (Bolivarian Republic of)
+VGB,Neotropics,ISO,Virgin Islands (British)
+VIR,Neotropics,ISO,Virgin Islands (U.S.)
+VNM,Indomalaya,ISO,Viet Nam
+VUT,Australasia,ISO,Vanuatu
+WLF,Australasia,ISO,Wallis and Futuna
+WSM,Australasia,ISO,Samoa
+YEM,Afrotropics,ISO,Yemen
+ZAF,Afrotropics,ISO,South Africa
+ZMB,Afrotropics,ISO,Zambia
+ZWE,Afrotropics,ISO,Zimbabwe

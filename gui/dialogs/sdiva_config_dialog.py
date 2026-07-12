@@ -39,6 +39,9 @@ class SDivaConfigDialog(QDialog):
         title="S-DIVA 配置",
         show_final_tree=True,
         show_threads=True,
+        show_fossils=True,
+        lazy_fossils=False,
+        fossil_loader=None,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -46,10 +49,19 @@ class SDivaConfigDialog(QDialog):
 
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
         self.fossil_nodes = list(fossil_nodes or [])
-        self.fossil_count = len(self.fossil_nodes) if self.fossil_nodes else max(0, int(fossil_count or 0))
+        self.fossil_total_count = max(len(self.fossil_nodes), max(0, int(fossil_count or 0)))
+        self.fossil_loader = fossil_loader
+        self.lazy_fossils = bool(lazy_fossils and fossil_loader is not None and not self.fossil_nodes)
+        self.fossil_count = 0 if self.lazy_fossils else self.fossil_total_count
         self.final_tree_available = bool(final_tree_available)
         self.show_final_tree = bool(show_final_tree)
         self.show_threads = bool(show_threads)
+        self.show_fossils = bool(show_fossils)
+        self.fossil_table = None
+        self.fossil_status_label = None
+        self.load_fossil_button = None
+        self._pending_fossil_values = []
+        self._pending_fossil_signature = []
         if config is not None and list(getattr(config, "area_names", []) or []) == self.area_names:
             self._config = config
         else:
@@ -83,7 +95,8 @@ class SDivaConfigDialog(QDialog):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_range_tab(), "Range constraints")
         self.tabs.addTab(self._build_optimize_tab(), "Optimize")
-        self.tabs.addTab(self._build_fossil_tab(), "Fossils")
+        if self.show_fossils:
+            self.tabs.addTab(self._build_fossil_tab(), "Fossils")
 
         self.spin_threads = QSpinBox()
         self.spin_threads.setMinimum(1)
@@ -232,13 +245,30 @@ class SDivaConfigDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout()
 
+        self.fossil_status_label = QLabel("")
+        layout.addWidget(self.fossil_status_label)
+
+        if self.lazy_fossils:
+            self.load_fossil_button = QPushButton("Load Fossil Nodes")
+            self.load_fossil_button.clicked.connect(self._load_fossil_nodes_on_demand)
+            layout.addWidget(self.load_fossil_button)
+
         self.fossil_table = QTableWidget()
         self.fossil_table.setColumnCount(3)
         self.fossil_table.setHorizontalHeaderLabels(["Node ID", "Member", "Fossil"])
-        self.fossil_table.setRowCount(self.fossil_count)
         self.fossil_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.fossil_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self._populate_fossil_table()
 
+        layout.addWidget(QLabel("Fossil values are written to the final-tree DIVA run in legacy node order; blanks are exported as 0."))
+        layout.addWidget(self.fossil_table)
+        page.setLayout(layout)
+        return page
+
+    def _populate_fossil_table(self):
+        if self.fossil_table is None:
+            return
+        self.fossil_table.setRowCount(self.fossil_count)
         for row in range(self.fossil_count):
             node_info = self.fossil_nodes[row] if row < len(self.fossil_nodes) else {}
             if isinstance(node_info, dict):
@@ -250,14 +280,46 @@ class SDivaConfigDialog(QDialog):
             self.fossil_table.setVerticalHeaderItem(row, QTableWidgetItem(str(row + 1)))
             self.fossil_table.setItem(row, 0, QTableWidgetItem(node_id))
             self.fossil_table.setItem(row, 1, QTableWidgetItem(member))
-            self.fossil_table.setItem(row, 2, QTableWidgetItem(""))
+            fossil_text = self._pending_fossil_values[row] if row < len(self._pending_fossil_values) else ""
+            self.fossil_table.setItem(row, 2, QTableWidgetItem(str(fossil_text)))
             self.fossil_table.item(row, 0).setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.fossil_table.item(row, 1).setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+        self._update_fossil_status()
 
-        layout.addWidget(QLabel("Fossil values are written to the final-tree DIVA run in legacy node order; blanks are exported as 0."))
-        layout.addWidget(self.fossil_table)
-        page.setLayout(layout)
-        return page
+    def _update_fossil_status(self):
+        if self.fossil_status_label is None:
+            return
+        if self.lazy_fossils:
+            self.fossil_status_label.setText(
+                "Large tree mode: %d fossil node rows are not loaded yet. Click Load Fossil Nodes only if you need Fossil constraints."
+                % int(self.fossil_total_count or 0)
+            )
+        else:
+            self.fossil_status_label.setText("Fossil node rows loaded: %d" % int(self.fossil_count or 0))
+
+    def _load_fossil_nodes_on_demand(self):
+        if self.fossil_loader is None:
+            return
+        if self.load_fossil_button is not None:
+            self.load_fossil_button.setEnabled(False)
+            self.load_fossil_button.setText("Loading...")
+        self.setCursor(Qt.WaitCursor)
+        try:
+            nodes = list(self.fossil_loader() or [])
+            self.fossil_nodes = nodes
+            self.fossil_total_count = len(nodes)
+            self.fossil_count = len(nodes)
+            self.lazy_fossils = False
+            self._populate_fossil_table()
+        except Exception as exc:
+            QMessageBox.warning(self, "Load Fossil Nodes failed", str(exc))
+            if self.load_fossil_button is not None:
+                self.load_fossil_button.setEnabled(True)
+                self.load_fossil_button.setText("Load Fossil Nodes")
+        finally:
+            self.unsetCursor()
+        if self.load_fossil_button is not None and not self.lazy_fossils:
+            self.load_fossil_button.setVisible(False)
 
     def _load_config(self, config):
         self._building = True
@@ -285,9 +347,12 @@ class SDivaConfigDialog(QDialog):
         self.spin_threads.setValue(max(1, min(1024, int(getattr(config, "threads", 1) or 1))))
 
         fossil_values = list(config.fossil_values or [])
-        for row in range(self.fossil_table.rowCount()):
-            text = fossil_values[row] if row < len(fossil_values) else ""
-            self.fossil_table.setItem(row, 2, QTableWidgetItem(str(text)))
+        self._pending_fossil_values = fossil_values
+        self._pending_fossil_signature = list(getattr(config, "fossil_node_signature", []) or [])
+        if self.fossil_table is not None:
+            for row in range(self.fossil_table.rowCount()):
+                text = fossil_values[row] if row < len(fossil_values) else ""
+                self.fossil_table.setItem(row, 2, QTableWidgetItem(str(text)))
 
         self._building = False
         self._sync_reconstruction_controls()
@@ -411,6 +476,10 @@ class SDivaConfigDialog(QDialog):
         ]
 
     def _fossil_values(self):
+        if self.fossil_table is None:
+            return list(self._pending_fossil_values or [])
+        if self.fossil_table.rowCount() == 0 and self._pending_fossil_values:
+            return list(self._pending_fossil_values or [])
         values = []
         for row in range(self.fossil_table.rowCount()):
             item = self.fossil_table.item(row, 2)
@@ -418,6 +487,10 @@ class SDivaConfigDialog(QDialog):
         return values
 
     def _fossil_node_signature(self):
+        if self.fossil_table is None:
+            return list(self._pending_fossil_signature or [])
+        if self.fossil_table.rowCount() == 0 and self._pending_fossil_signature:
+            return list(self._pending_fossil_signature or [])
         signature = []
         for row in range(self.fossil_table.rowCount()):
             node_item = self.fossil_table.item(row, 0)
@@ -447,7 +520,8 @@ class SDivaConfigDialog(QDialog):
         try:
             config = self._collect_config()
             with open(file_path, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(config.to_legacy_config_text(fossil_count=self.fossil_table.rowCount()))
+                fossil_count = self.fossil_table.rowCount() if self.fossil_table is not None else 0
+                handle.write(config.to_legacy_config_text(fossil_count=fossil_count))
         except Exception as exc:
             QMessageBox.warning(self, "Save failed", str(exc))
 

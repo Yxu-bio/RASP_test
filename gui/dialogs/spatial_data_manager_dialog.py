@@ -21,7 +21,10 @@ from PyQt5.QtWidgets import (
 )
 
 from domain.models.spatial_data import SpatialDataProject
+from gui.workers.spatial_area_import_worker import SpatialAreaImportWorker
 from gui.workers.spatial_encoding_worker import SpatialEncodingWorker
+from gui.workers.spatial_occurrence_import_worker import SpatialOccurrenceImportWorker
+from gui.widgets.spatial_map_view import SpatialMapView
 
 
 class SpatialDataManagerDialog(QDialog):
@@ -49,6 +52,9 @@ class SpatialDataManagerDialog(QDialog):
         self.apply_matrix_callback = apply_matrix_callback
         self._show_all_occurrences = False
         self._show_all_audit = False
+        self._syncing_spatial_selection = False
+        self.area_import_worker = None
+        self.occurrence_import_worker = None
         self.encoding_worker = None
 
         self._build_ui()
@@ -58,6 +64,42 @@ class SpatialDataManagerDialog(QDialog):
         return self._project
 
     def reject(self):
+        if self.occurrence_import_worker is not None and self.occurrence_import_worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "Cancel occurrence import",
+                "Occurrence import is still running. Cancel it and close this dialog?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+            self.occurrence_import_worker.cancel()
+            if not self.occurrence_import_worker.wait(3000):
+                QMessageBox.information(
+                    self,
+                    "Cancelling",
+                    "Occurrence import is still stopping. Please wait for the cancel operation to finish before closing.",
+                )
+                return
+        if self.area_import_worker is not None and self.area_import_worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "Cancel area import",
+                "Area GeoJSON import is still running. Cancel it and close this dialog?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+            self.area_import_worker.cancel()
+            if not self.area_import_worker.wait(3000):
+                QMessageBox.information(
+                    self,
+                    "Cancelling",
+                    "Area import is still stopping. Please wait for the cancel operation to finish before closing.",
+                )
+                return
         if self.encoding_worker is not None and self.encoding_worker.isRunning():
             reply = QMessageBox.question(
                 self,
@@ -123,13 +165,19 @@ class SpatialDataManagerDialog(QDialog):
         layout.addWidget(toolbar)
 
         project_toolbar = QGroupBox("Project and exports", self)
-        project_toolbar_layout = QHBoxLayout(project_toolbar)
+        project_toolbar_layout = QVBoxLayout(project_toolbar)
+        project_toolbar_project_row = QHBoxLayout()
+        project_toolbar_export_row = QHBoxLayout()
         self.load_project_button = QPushButton("Load Spatial Project", project_toolbar)
         self.load_project_button.clicked.connect(self._load_project)
         self.save_project_button = QPushButton("Save Spatial Project", project_toolbar)
         self.save_project_button.clicked.connect(self._save_project)
+        self.load_area_mapping_button = QPushButton("Load Area Mapping", project_toolbar)
+        self.load_area_mapping_button.clicked.connect(self._load_area_mapping)
         self.export_area_mapping_button = QPushButton("Export Area Mapping", project_toolbar)
         self.export_area_mapping_button.clicked.connect(self._export_area_mapping)
+        self.auto_area_colors_button = QPushButton("Auto Area Colors", project_toolbar)
+        self.auto_area_colors_button.clicked.connect(self._auto_area_colors)
         self.export_taxon_matching_button = QPushButton("Export Taxon Mapping", project_toolbar)
         self.export_taxon_matching_button.clicked.connect(self._export_taxon_matching)
         self.export_audit_button = QPushButton("Export Encoding Audit", project_toolbar)
@@ -142,31 +190,43 @@ class SpatialDataManagerDialog(QDialog):
         self.match_mode_combo.addItem("Normalized + unique prefix", "normalized_prefix")
         self.match_mode_combo.addItem("Exact only", "exact")
         self.match_mode_combo.currentIndexChanged.connect(self._refresh_summary)
-        project_toolbar_layout.addWidget(self.load_project_button)
-        project_toolbar_layout.addWidget(self.save_project_button)
-        project_toolbar_layout.addSpacing(12)
-        project_toolbar_layout.addWidget(QLabel("Taxon-name mapping", project_toolbar))
-        project_toolbar_layout.addWidget(self.match_mode_combo)
-        project_toolbar_layout.addSpacing(12)
-        project_toolbar_layout.addWidget(self.export_area_mapping_button)
-        project_toolbar_layout.addWidget(self.export_taxon_matching_button)
-        project_toolbar_layout.addWidget(self.export_audit_button)
-        project_toolbar_layout.addSpacing(12)
-        project_toolbar_layout.addWidget(self.show_all_occurrences_button)
-        project_toolbar_layout.addWidget(self.show_all_audit_button)
-        project_toolbar_layout.addStretch(1)
+        project_toolbar_project_row.addWidget(self.load_project_button)
+        project_toolbar_project_row.addWidget(self.save_project_button)
+        project_toolbar_project_row.addSpacing(12)
+        project_toolbar_project_row.addWidget(self.load_area_mapping_button)
+        project_toolbar_project_row.addWidget(self.export_area_mapping_button)
+        project_toolbar_project_row.addWidget(self.auto_area_colors_button)
+        project_toolbar_project_row.addStretch(1)
+        project_toolbar_export_row.addWidget(QLabel("Taxon-name mapping", project_toolbar))
+        project_toolbar_export_row.addWidget(self.match_mode_combo)
+        project_toolbar_export_row.addSpacing(12)
+        project_toolbar_export_row.addWidget(self.export_taxon_matching_button)
+        project_toolbar_export_row.addWidget(self.export_audit_button)
+        project_toolbar_export_row.addSpacing(12)
+        project_toolbar_export_row.addWidget(self.show_all_occurrences_button)
+        project_toolbar_export_row.addWidget(self.show_all_audit_button)
+        project_toolbar_export_row.addStretch(1)
+        project_toolbar_layout.addLayout(project_toolbar_project_row)
+        project_toolbar_layout.addLayout(project_toolbar_export_row)
         layout.addWidget(project_toolbar)
 
         self.tabs = QTabWidget(self)
         self.occurrence_table = self._new_table()
         self.area_table = self._new_table(editable=True)
         self.audit_table = self._new_table()
+        self.map_widget = SpatialMapView(self)
+        self.occurrence_table.itemSelectionChanged.connect(self._on_occurrence_table_selection_changed)
+        self.area_table.itemSelectionChanged.connect(self._on_area_table_selection_changed)
+        self.audit_table.itemSelectionChanged.connect(self._on_audit_table_selection_changed)
+        self.map_widget.occurrence_selected.connect(self._on_map_occurrence_selected)
+        self.map_widget.area_selected.connect(self._on_map_area_selected)
         self.summary_text = QTextEdit(self)
         self.summary_text.setReadOnly(True)
         self.summary_text.setLineWrapMode(QTextEdit.NoWrap)
 
         self.tabs.addTab(self.occurrence_table, "Occurrences")
         self.tabs.addTab(self.area_table, "Areas")
+        self.tabs.addTab(self.map_widget, "Map Preview")
         self.tabs.addTab(self.audit_table, "Coordinate encoding audit")
         self.tabs.addTab(self.summary_text, "Spatial Project QA")
         layout.addWidget(self.tabs, 1)
@@ -187,20 +247,55 @@ class SpatialDataManagerDialog(QDialog):
         table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         return table
 
+    def _open_file_name(self, title, name_filter):
+        return self._file_name_dialog(title, name_filter, QFileDialog.AcceptOpen, QFileDialog.ExistingFile)
+
+    def _save_file_name(self, title, name_filter):
+        return self._file_name_dialog(title, name_filter, QFileDialog.AcceptSave, QFileDialog.AnyFile)
+
+    def _file_name_dialog(self, title, name_filter, accept_mode, file_mode):
+        dialog = QFileDialog(self, title, "")
+        dialog.setOption(QFileDialog.DontUseNativeDialog, True)
+        dialog.setAcceptMode(accept_mode)
+        dialog.setFileMode(file_mode)
+        dialog.setNameFilter(name_filter)
+        dialog.setMinimumSize(640, 420)
+        dialog.resize(860, 560)
+        if dialog.exec_() != QDialog.Accepted:
+            return "", ""
+        selected_files = dialog.selectedFiles()
+        return (selected_files[0] if selected_files else ""), dialog.selectedNameFilter()
+
     def _load_occurrences(self):
-        path, _selected = QFileDialog.getOpenFileName(
-            self,
+        if self.occurrence_import_worker is not None and self.occurrence_import_worker.isRunning():
+            QMessageBox.information(self, "Import in progress", "An occurrence import task is already running.")
+            return
+        if self.area_import_worker is not None and self.area_import_worker.isRunning():
+            QMessageBox.information(self, "Import in progress", "An area import task is already running.")
+            return
+        if self.encoding_worker is not None and self.encoding_worker.isRunning():
+            QMessageBox.information(self, "Encoding in progress", "Wait for the current spatial encoding task to finish first.")
+            return
+        path, _selected = self._open_file_name(
             "Load occurrences",
-            "",
             "CSV/TSV files (*.csv *.tsv *.txt);;All files (*)",
         )
         if not path:
             return
-        try:
-            records, issues = self.service.import_occurrences_csv(path)
-        except Exception as exc:
-            QMessageBox.critical(self, "Occurrence import failed", str(exc))
-            return
+        self.occurrence_import_worker = SpatialOccurrenceImportWorker(
+            service=self.service,
+            file_path=path,
+        )
+        self.occurrence_import_worker.progress.connect(self._on_task_progress)
+        self.occurrence_import_worker.succeeded.connect(self._on_occurrence_import_succeeded)
+        self.occurrence_import_worker.failed.connect(self._on_occurrence_import_failed)
+        self.occurrence_import_worker.finished.connect(self._on_occurrence_import_finished)
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(0)
+        self._set_encoding_running(True, label_text="Loading occurrences ...", cancel_text="Cancel Import")
+        self.occurrence_import_worker.start()
+
+    def _on_occurrence_import_succeeded(self, path, records, issues):
         self._project.occurrences = records
         self._project.occurrence_source_path = path
         self._project.qa_issues.extend(issues)
@@ -209,26 +304,60 @@ class SpatialDataManagerDialog(QDialog):
         self._show_all_occurrences = False
         self._show_all_audit = False
         self._refresh_all()
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(100)
+        self.encode_progress_label.setText("Occurrence import completed")
         QMessageBox.information(
             self,
             "Occurrences loaded",
             "Loaded %d occurrence records. QA issues: %d." % (len(records), len(issues)),
         )
 
+    def _on_occurrence_import_failed(self, message):
+        text = str(message or "Occurrence import failed.")
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(0)
+        if "cancelled" in text.lower():
+            self.encode_progress_label.setText("Occurrence import cancelled")
+            QMessageBox.information(self, "Occurrence import cancelled", text)
+        else:
+            self.encode_progress_label.setText("Occurrence import failed")
+            QMessageBox.critical(self, "Occurrence import failed", text)
+
+    def _on_occurrence_import_finished(self):
+        self._set_encoding_running(False)
+        self.occurrence_import_worker = None
+
     def _load_areas(self):
-        path, _selected = QFileDialog.getOpenFileName(
-            self,
+        if self.area_import_worker is not None and self.area_import_worker.isRunning():
+            QMessageBox.information(self, "Import in progress", "An area import task is already running.")
+            return
+        if self.occurrence_import_worker is not None and self.occurrence_import_worker.isRunning():
+            QMessageBox.information(self, "Import in progress", "Wait for the current occurrence import task to finish first.")
+            return
+        if self.encoding_worker is not None and self.encoding_worker.isRunning():
+            QMessageBox.information(self, "Encoding in progress", "Wait for the current spatial encoding task to finish first.")
+            return
+        path, _selected = self._open_file_name(
             "Load area polygons",
-            "",
             "GeoJSON files (*.geojson *.json);;All files (*)",
         )
         if not path:
             return
-        try:
-            areas, issues = self.service.import_area_geojson(path)
-        except Exception as exc:
-            QMessageBox.critical(self, "Area import failed", str(exc))
-            return
+        self.area_import_worker = SpatialAreaImportWorker(
+            service=self.service,
+            file_path=path,
+        )
+        self.area_import_worker.progress.connect(self._on_task_progress)
+        self.area_import_worker.succeeded.connect(self._on_area_import_succeeded)
+        self.area_import_worker.failed.connect(self._on_area_import_failed)
+        self.area_import_worker.finished.connect(self._on_area_import_finished)
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(0)
+        self._set_encoding_running(True, label_text="Loading area polygons ...", cancel_text="Cancel Import")
+        self.area_import_worker.start()
+
+    def _on_area_import_succeeded(self, path, areas, issues):
         self._project.areas = areas
         self._project.area_source_path = path
         self._project.qa_issues.extend(issues)
@@ -236,11 +365,29 @@ class SpatialDataManagerDialog(QDialog):
         self._project.encoded_audit_rows = []
         self._show_all_audit = False
         self._refresh_all()
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(100)
+        self.encode_progress_label.setText("Area import completed")
         QMessageBox.information(
             self,
             "Areas loaded",
             "Loaded %d polygon areas. QA issues: %d." % (len(areas), len(issues)),
         )
+
+    def _on_area_import_failed(self, message):
+        text = str(message or "Area import failed.")
+        self.encode_progress_bar.setRange(0, 100)
+        self.encode_progress_bar.setValue(0)
+        if "cancelled" in text.lower():
+            self.encode_progress_label.setText("Area import cancelled")
+            QMessageBox.information(self, "Area import cancelled", text)
+        else:
+            self.encode_progress_label.setText("Area import failed")
+            QMessageBox.critical(self, "Area import failed", text)
+
+    def _on_area_import_finished(self):
+        self._set_encoding_running(False)
+        self.area_import_worker = None
 
     def _apply_area_edits(self):
         if not self._project.areas:
@@ -258,6 +405,7 @@ class SpatialDataManagerDialog(QDialog):
             code = self._table_text(self.area_table, row_index, 0)
             display_name = self._table_text(self.area_table, row_index, 2)
             color = self._table_text(self.area_table, row_index, 3)
+            group = self._table_text(self.area_table, row_index, 4)
             if not code:
                 QMessageBox.warning(self, "Invalid area code", "Area code cannot be empty at row %d." % (row_index + 1))
                 return
@@ -268,6 +416,7 @@ class SpatialDataManagerDialog(QDialog):
             area.area_code = code
             area.display_name = display_name
             area.color = color
+            area.group = group
         issues = self.service.validate_area_mapping(self._project.areas)
         if any(issue.level == "error" for issue in issues):
             QMessageBox.warning(self, "Invalid area mapping", "\n".join(issue.message for issue in issues[:10]))
@@ -300,18 +449,31 @@ class SpatialDataManagerDialog(QDialog):
         self.encoding_worker.start()
 
     def _cancel_encoding(self):
+        if self.occurrence_import_worker is not None and self.occurrence_import_worker.isRunning():
+            self.occurrence_import_worker.cancel()
+            self.cancel_encode_button.setEnabled(False)
+            self.encode_progress_label.setText("Cancelling occurrence import ...")
+            return
+        if self.area_import_worker is not None and self.area_import_worker.isRunning():
+            self.area_import_worker.cancel()
+            self.cancel_encode_button.setEnabled(False)
+            self.encode_progress_label.setText("Cancelling area import ...")
+            return
         if self.encoding_worker is not None and self.encoding_worker.isRunning():
             self.encoding_worker.cancel()
             self.cancel_encode_button.setEnabled(False)
             self.encode_progress_label.setText("Cancelling encoding ...")
 
-    def _on_encoding_progress(self, done, total, message):
+    def _on_task_progress(self, done, total, message):
         total = int(total or 0)
         done = int(done or 0)
         percent = int(round(done * 100.0 / total)) if total else 0
         self.encode_progress_bar.setRange(0, 100)
         self.encode_progress_bar.setValue(max(0, min(100, percent)))
         self.encode_progress_label.setText(str(message or "Encoding ..."))
+
+    def _on_encoding_progress(self, done, total, message):
+        self._on_task_progress(done, total, message)
 
     def _on_encoding_succeeded(self, matrix, audit_rows, _diagnostics):
         self._project.encoded_matrix = matrix
@@ -353,10 +515,8 @@ class SpatialDataManagerDialog(QDialog):
         if matrix is None:
             QMessageBox.warning(self, "Nothing to export", "Encode a matrix first.")
             return
-        path, _selected = QFileDialog.getSaveFileName(
-            self,
+        path, _selected = self._save_file_name(
             "Export encoded matrix",
-            "",
             "CSV files (*.csv);;All files (*)",
         )
         if not path:
@@ -369,10 +529,8 @@ class SpatialDataManagerDialog(QDialog):
         QMessageBox.information(self, "Export completed", "Saved encoded matrix to:\n%s" % path)
 
     def _save_project(self):
-        path, _selected = QFileDialog.getSaveFileName(
-            self,
+        path, _selected = self._save_file_name(
             "Save spatial project",
-            "",
             "RASP spatial project (*.rasp-spatial.json);;JSON files (*.json);;All files (*)",
         )
         if not path:
@@ -387,10 +545,8 @@ class SpatialDataManagerDialog(QDialog):
         QMessageBox.information(self, "Project saved", "Saved spatial project to:\n%s" % path)
 
     def _load_project(self):
-        path, _selected = QFileDialog.getOpenFileName(
-            self,
+        path, _selected = self._open_file_name(
             "Load spatial project",
-            "",
             "RASP spatial project (*.rasp-spatial.json);;JSON files (*.json);;All files (*)",
         )
         if not path:
@@ -405,14 +561,38 @@ class SpatialDataManagerDialog(QDialog):
         self._refresh_all()
         QMessageBox.information(self, "Project loaded", "Loaded spatial project:\n%s" % path)
 
+    def _load_area_mapping(self):
+        if not self._project.areas:
+            QMessageBox.warning(self, "No areas loaded", "Load area polygons before applying an area mapping file.")
+            return
+        path, _selected = self._open_file_name(
+            "Load area mapping",
+            "CSV/TSV files (*.csv *.tsv *.txt);;All files (*)",
+        )
+        if not path:
+            return
+        try:
+            rows, issues = self.service.read_area_mapping_csv(path)
+            report = self.service.apply_area_metadata(self._project.areas, rows)
+        except Exception as exc:
+            QMessageBox.critical(self, "Load area mapping failed", str(exc))
+            return
+        self._project.qa_issues.extend(issues)
+        self._refresh_all()
+        details = [
+            "Updated areas: %d" % report.get("updated", 0),
+            "Metadata rows without loaded area: %d" % len(report.get("metadata_without_area", []) or []),
+            "Loaded areas without metadata: %d" % len(report.get("areas_without_metadata", []) or []),
+            "QA issues: %d" % len(issues),
+        ]
+        QMessageBox.information(self, "Area mapping loaded", "\n".join(details))
+
     def _export_area_mapping(self):
         if not self._project.areas:
             QMessageBox.warning(self, "Nothing to export", "Load area polygons first.")
             return
-        path, _selected = QFileDialog.getSaveFileName(
-            self,
+        path, _selected = self._save_file_name(
             "Export area mapping",
-            "",
             "CSV files (*.csv);;All files (*)",
         )
         if not path:
@@ -424,15 +604,31 @@ class SpatialDataManagerDialog(QDialog):
             return
         QMessageBox.information(self, "Export completed", "Saved area mapping to:\n%s" % path)
 
+    def _auto_area_colors(self):
+        if not self._project.areas:
+            QMessageBox.warning(self, "No areas loaded", "Load area polygons first.")
+            return
+        reply = QMessageBox.question(
+            self,
+            "Auto area colors",
+            "Assign the default color palette to all loaded areas?\n\n"
+            "This overwrites existing area colors in the current spatial project.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        count = self.service.assign_default_area_colors(self._project.areas, overwrite=True)
+        self._refresh_all()
+        QMessageBox.information(self, "Area colors assigned", "Assigned colors to %d areas." % count)
+
     def _export_taxon_matching(self):
         occurrence_taxa = sorted(set(rec.taxon for rec in list(self._project.occurrences or [])))
         if not (self.tree_taxa or self.matrix_taxa or occurrence_taxa):
             QMessageBox.warning(self, "Nothing to export", "Load a tree, an active matrix, or occurrences first.")
             return
-        path, _selected = QFileDialog.getSaveFileName(
-            self,
+        path, _selected = self._save_file_name(
             "Export taxon matching",
-            "",
             "CSV files (*.csv);;All files (*)",
         )
         if not path:
@@ -454,10 +650,8 @@ class SpatialDataManagerDialog(QDialog):
         if not self._project.encoded_audit_rows:
             QMessageBox.warning(self, "Nothing to export", "Encode a matrix first.")
             return
-        path, _selected = QFileDialog.getSaveFileName(
-            self,
+        path, _selected = self._save_file_name(
             "Export encoding audit",
-            "",
             "CSV files (*.csv);;All files (*)",
         )
         if not path:
@@ -487,13 +681,16 @@ class SpatialDataManagerDialog(QDialog):
     def _refresh_all(self):
         self._refresh_occurrences()
         self._refresh_areas()
+        self._refresh_map()
         self._refresh_audit()
         self._refresh_summary()
         self.export_button.setEnabled(self._project.encoded_matrix is not None)
         self.apply_button.setEnabled(self._project.encoded_matrix is not None)
         self.save_project_button.setEnabled(bool(self._project.occurrences or self._project.areas or self._project.encoded_matrix))
         self.apply_area_edits_button.setEnabled(bool(self._project.areas))
+        self.load_area_mapping_button.setEnabled(bool(self._project.areas))
         self.export_area_mapping_button.setEnabled(bool(self._project.areas))
+        self.auto_area_colors_button.setEnabled(bool(self._project.areas))
         self.export_taxon_matching_button.setEnabled(bool(self.tree_taxa or self.matrix_taxa or self._project.occurrences))
         self.export_audit_button.setEnabled(bool(self._project.encoded_audit_rows))
         occurrence_count = len(self._project.occurrences or [])
@@ -506,10 +703,14 @@ class SpatialDataManagerDialog(QDialog):
         self.show_all_audit_button.setText(
             "Preview Audit" if self._show_all_audit else "Show All Audit"
         )
-        if self.encoding_worker is not None and self.encoding_worker.isRunning():
+        if self.occurrence_import_worker is not None and self.occurrence_import_worker.isRunning():
+            self._set_encoding_running(True, label_text="Loading occurrences ...", cancel_text="Cancel Import")
+        elif self.area_import_worker is not None and self.area_import_worker.isRunning():
+            self._set_encoding_running(True, label_text="Loading area polygons ...", cancel_text="Cancel Import")
+        elif self.encoding_worker is not None and self.encoding_worker.isRunning():
             self._set_encoding_running(True)
 
-    def _set_encoding_running(self, running):
+    def _set_encoding_running(self, running, label_text=None, cancel_text=None):
         running = bool(running)
         self.load_occurrences_button.setEnabled(not running)
         self.load_areas_button.setEnabled(not running)
@@ -519,7 +720,9 @@ class SpatialDataManagerDialog(QDialog):
         self.cancel_encode_button.setEnabled(running)
         self.load_project_button.setEnabled(not running)
         self.save_project_button.setEnabled(not running)
+        self.load_area_mapping_button.setEnabled((not running) and bool(self._project.areas))
         self.export_area_mapping_button.setEnabled((not running) and bool(self._project.areas))
+        self.auto_area_colors_button.setEnabled((not running) and bool(self._project.areas))
         self.export_taxon_matching_button.setEnabled((not running) and bool(self.tree_taxa or self.matrix_taxa or self._project.occurrences))
         self.export_audit_button.setEnabled((not running) and bool(self._project.encoded_audit_rows))
         self.export_button.setEnabled((not running) and self._project.encoded_matrix is not None)
@@ -527,10 +730,13 @@ class SpatialDataManagerDialog(QDialog):
         self.show_all_occurrences_button.setEnabled((not running) and len(self._project.occurrences or []) > self.OCCURRENCE_PREVIEW_LIMIT)
         self.show_all_audit_button.setEnabled((not running) and len(self._project.encoded_audit_rows or []) > self.AUDIT_PREVIEW_LIMIT)
         if running:
+            self.cancel_encode_button.setText(cancel_text or "Cancel Encoding")
             self.encode_progress_bar.setRange(0, 100)
             if self.encode_progress_bar.value() <= 0:
                 self.encode_progress_bar.setValue(0)
-            self.encode_progress_label.setText("Encoding ...")
+            self.encode_progress_label.setText(label_text or "Encoding ...")
+        else:
+            self.cancel_encode_button.setText("Cancel Encoding")
 
     def _refresh_occurrences(self):
         rows = []
@@ -561,6 +767,7 @@ class SpatialDataManagerDialog(QDialog):
                 area.geometry_id,
                 area.display_name,
                 area.color,
+                getattr(area, "group", ""),
                 area.centroid_lon if area.centroid_lon is not None else "",
                 area.centroid_lat if area.centroid_lat is not None else "",
                 area.crs,
@@ -568,9 +775,9 @@ class SpatialDataManagerDialog(QDialog):
             ])
         self._set_table(
             self.area_table,
-            ["Area code", "Geometry ID", "Display name", "Color", "Centroid lon", "Centroid lat", "CRS", "Source"],
+            ["Area code", "Geometry ID", "Display name", "Color", "Group", "Centroid lon", "Centroid lat", "CRS", "Source"],
             rows,
-            editable_columns={0, 2, 3},
+            editable_columns={0, 2, 3, 4},
         )
 
     def _refresh_audit(self):
@@ -583,7 +790,7 @@ class SpatialDataManagerDialog(QDialog):
                 audit.taxon,
                 audit.longitude,
                 audit.latitude,
-                ",".join(audit.matched_areas),
+                ",".join(audit.matched_areas) if audit.matched_areas else "unmatched",
                 self._audit_status_label(audit.status),
             ])
         self._set_table(
@@ -591,6 +798,69 @@ class SpatialDataManagerDialog(QDialog):
             ["Row", "Taxon", "Longitude", "Latitude", "Matched areas", "Coordinate status"],
             rows,
         )
+
+    def _refresh_map(self):
+        self.map_widget.set_project(self._project)
+
+    def _on_occurrence_table_selection_changed(self):
+        if self._syncing_spatial_selection:
+            return
+        row_index = self._selected_table_int(self.occurrence_table, 0)
+        if row_index is None:
+            return
+        self._syncing_spatial_selection = True
+        try:
+            if self.map_widget.select_point_by_row_index(row_index):
+                self.tabs.setCurrentWidget(self.map_widget)
+        finally:
+            self._syncing_spatial_selection = False
+
+    def _on_audit_table_selection_changed(self):
+        if self._syncing_spatial_selection:
+            return
+        row_index = self._selected_table_int(self.audit_table, 0)
+        if row_index is None:
+            return
+        self._syncing_spatial_selection = True
+        try:
+            if self.map_widget.select_point_by_row_index(row_index):
+                self.tabs.setCurrentWidget(self.map_widget)
+        finally:
+            self._syncing_spatial_selection = False
+
+    def _on_area_table_selection_changed(self):
+        if self._syncing_spatial_selection:
+            return
+        area_code = self._selected_table_text(self.area_table, 0)
+        if not area_code:
+            return
+        self._syncing_spatial_selection = True
+        try:
+            if self.map_widget.select_area_by_code(area_code):
+                self.tabs.setCurrentWidget(self.map_widget)
+        finally:
+            self._syncing_spatial_selection = False
+
+    def _on_map_occurrence_selected(self, row_index):
+        if self._syncing_spatial_selection:
+            return
+        self._syncing_spatial_selection = True
+        try:
+            if self._project.encoded_audit_rows:
+                if self._select_table_row_by_text(self.audit_table, 0, row_index):
+                    return
+            self._select_table_row_by_text(self.occurrence_table, 0, row_index)
+        finally:
+            self._syncing_spatial_selection = False
+
+    def _on_map_area_selected(self, area_code):
+        if self._syncing_spatial_selection:
+            return
+        self._syncing_spatial_selection = True
+        try:
+            self._select_table_row_by_text(self.area_table, 0, area_code)
+        finally:
+            self._syncing_spatial_selection = False
 
     def _refresh_summary(self):
         lines = [
@@ -673,6 +943,18 @@ class SpatialDataManagerDialog(QDialog):
             self._append_simple_examples(lines, "encoded taxa with empty range", diagnostics.get("matrix_empty_range_taxa") or [])
             self._append_simple_examples(lines, "taxa filtered to empty by min-record threshold", diagnostics.get("threshold_filtered_empty_taxa") or [])
 
+        area_groups = {}
+        for area in list(self._project.areas or []):
+            group = str(getattr(area, "group", "") or "").strip()
+            if group:
+                area_groups[group] = area_groups.get(group, 0) + 1
+        if area_groups:
+            lines.extend([
+                "",
+                "Area metadata:",
+                "  area groups: %s" % ", ".join("%s=%d" % (key, area_groups[key]) for key in sorted(area_groups)),
+            ])
+
         issues = list(self._project.qa_issues or [])
         lines.extend(["", "QA issues: %d" % len(issues)])
         for issue in issues[-200:]:
@@ -754,6 +1036,38 @@ class SpatialDataManagerDialog(QDialog):
     def _table_text(self, table, row, column):
         item = table.item(row, column)
         return str(item.text() if item is not None else "").strip()
+
+    def _selected_table_text(self, table, column):
+        row = table.currentRow()
+        if row < 0:
+            selected = table.selectedItems()
+            if not selected:
+                return ""
+            row = selected[0].row()
+        return self._table_text(table, row, column)
+
+    def _selected_table_int(self, table, column):
+        text = self._selected_table_text(table, column)
+        if not text:
+            return None
+        try:
+            return int(float(text))
+        except Exception:
+            return None
+
+    def _select_table_row_by_text(self, table, column, value):
+        needle = str(value or "").strip()
+        if not needle:
+            return False
+        for row in range(table.rowCount()):
+            item = table.item(row, column)
+            if item is None:
+                continue
+            if str(item.text()).strip() == needle:
+                table.selectRow(row)
+                table.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+                return True
+        return False
 
     def _append_taxon_match_examples(self, lines, label, rows):
         row_list = list(rows or [])

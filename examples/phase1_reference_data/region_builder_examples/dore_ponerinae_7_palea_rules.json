@@ -1,0 +1,242 @@
+{
+  "name": "dore_ponerinae_7_palea_rule_based",
+  "group": "Dore_2025_Ponerinae_7_bioregions",
+  "source": "Dore_2025_Ponerinae + Natural Earth",
+  "boundary_kind": "approximate_rule_based_reference",
+  "official_author_boundary": false,
+  "build_notes": "Approximate rule-based spatialization of the Dore et al. Ponerinae 7-region PaleA scoring scheme. This is a RASP reference asset, not an official author-provided polygon boundary file.",
+  "base_geojson": "../../../resources/spatial_base_layers/natural_earth/ne_50m_admin_0_map_subunits.geojson",
+  "sources": {
+    "admin1": {
+      "path": "../../../resources/spatial_base_layers/natural_earth/ne_10m_admin_1_states_provinces.geojson"
+    }
+  },
+  "base_mapping": {
+    "mapping_file": "dore_ponerinae_7_palea_mapping.csv",
+    "value_field": "match_value",
+    "area_field": "area_code",
+    "feature_fields": ["ISO_A3", "ADM0_A3", "GU_A3", "SU_A3", "SUBUNIT", "NAME", "NAME_LONG"]
+  },
+  "area_order": [
+    "Afrotropics",
+    "Australasia",
+    "Indomalaya",
+    "Nearctic",
+    "Neotropics",
+    "Eastern Palearctic",
+    "Western Palearctic"
+  ],
+  "area_metadata": {
+    "Afrotropics": {"display_name": "Afrotropics", "color": "#8dd3c7"},
+    "Australasia": {"display_name": "Australasia", "color": "#ffffb3"},
+    "Indomalaya": {"display_name": "Indomalaya", "color": "#bebada"},
+    "Nearctic": {"display_name": "Nearctic", "color": "#fb8072"},
+    "Neotropics": {"display_name": "Neotropics", "color": "#80b1d3"},
+    "Eastern Palearctic": {"display_name": "Eastern Palearctic", "color": "#fdb462"},
+    "Western Palearctic": {"display_name": "Western Palearctic", "color": "#b3de69"}
+  },
+  "rules": [
+    {
+      "name": "Ignore Antarctica and non-target Southern Ocean subunits",
+      "type": "ignore",
+      "selector": {
+        "fields": ["ISO_A3", "ADM0_A3", "GU_A3", "SU_A3"],
+        "in": ["ATA", "HMD", "SGS"]
+      }
+    },
+    {
+      "name": "Use admin1 split for Russia, India, and Pakistan",
+      "type": "ignore",
+      "selector": {
+        "field": "ADM0_A3",
+        "in": ["RUS", "IND", "PAK"]
+      }
+    },
+    {
+      "name": "Dore TAAF/Europa Island special case",
+      "type": "assign",
+      "selector": {
+        "fields": ["SUBUNIT", "NAME", "NAME_LONG"],
+        "in": ["French Southern and Antarctic Lands", "Fr. S. Antarctic Lands"]
+      },
+      "area": "Afrotropics"
+    },
+    {
+      "name": "Dore Palestine subunit special case",
+      "type": "assign",
+      "selector": {
+        "fields": ["SUBUNIT", "NAME", "NAME_LONG", "GU_A3", "SU_A3"],
+        "in": ["Gaza", "West Bank", "GAZ", "WEB"]
+      },
+      "area": "Western Palearctic"
+    },
+    {
+      "name": "Dore Indian Ocean Territories special cases",
+      "type": "assign_by_values",
+      "selector": {"field": "ADM0_A3", "equals": "IOA"},
+      "value_fields": ["SUBUNIT", "NAME", "NAME_LONG", "GU_A3", "SU_A3", "ISO_A3"],
+      "areas": {
+        "Australasia": ["Christmas Island", "Christmas I.", "CXR"],
+        "Indomalaya": ["Cocos (Keeling) Islands", "Cocos Islands", "Cocos Is.", "CCK"]
+      }
+    },
+    {
+      "name": "Indonesia split at 125.5E",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "IDN"},
+      "axis": "lon",
+      "threshold": 125.5,
+      "less_area": "Indomalaya",
+      "greater_equal_area": "Australasia"
+    },
+    {
+      "name": "Mexico split at 22N",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "MEX"},
+      "axis": "lat",
+      "threshold": 22,
+      "less_area": "Neotropics",
+      "greater_equal_area": "Nearctic"
+    },
+    {
+      "name": "China split at 33N",
+      "type": "split",
+      "selector": {"field": "ADM0_A3", "equals": "CHN"},
+      "axis": "lat",
+      "threshold": 33,
+      "less_area": "Indomalaya",
+      "greater_equal_area": "Eastern Palearctic"
+    },
+    {
+      "name": "United States subunit override",
+      "type": "assign_by_values",
+      "selector": {"field": "ADM0_A3", "equals": "USA"},
+      "value_fields": ["SUBUNIT", "NAME", "NAME_LONG"],
+      "areas": {
+        "Australasia": ["Hawaii", "Guam", "Northern Mariana Islands", "American Samoa"],
+        "Neotropics": ["Puerto Rico", "United States Virgin Islands"]
+      },
+      "default_area": "Nearctic"
+    },
+    {
+      "name": "France overseas override",
+      "type": "assign_by_values",
+      "selector": {"field": "ADM0_A3", "equals": "FRA"},
+      "value_fields": ["SUBUNIT", "NAME", "NAME_LONG"],
+      "areas": {
+        "Neotropics": ["French Guiana", "Guadeloupe", "Martinique", "Saint Martin", "Saint Barthelemy", "St-Martin", "St-Barthélemy"],
+        "Afrotropics": ["Mayotte", "Réunion", "Reunion", "French Southern and Antarctic Lands", "Fr. S. Antarctic Lands"]
+      },
+      "default_area": "Western Palearctic"
+    },
+    {
+      "name": "Netherlands overseas override",
+      "type": "assign_by_values",
+      "selector": {"field": "ADM0_A3", "equals": "NLD"},
+      "value_fields": ["SUBUNIT", "NAME", "NAME_LONG"],
+      "areas": {
+        "Neotropics": ["Aruba", "Caribbean Netherlands"]
+      },
+      "default_area": "Western Palearctic"
+    },
+    {
+      "name": "Japan Nanseishoto approximation",
+      "type": "assign_by_values",
+      "selector": {"field": "ADM0_A3", "equals": "JPN"},
+      "value_fields": ["SUBUNIT", "NAME", "NAME_LONG"],
+      "areas": {
+        "Indomalaya": ["Nanseishoto", "Nansei-shoto"]
+      },
+      "default_area": "Eastern Palearctic"
+    },
+    {
+      "name": "Russia admin1 split",
+      "source": "admin1",
+      "type": "assign_by_values",
+      "selector": {"field": "adm0_a3", "equals": "RUS"},
+      "value_fields": ["name_en", "name", "gn_name"],
+      "areas": {
+        "Eastern Palearctic": [
+          "Altai Krai",
+          "Altay",
+          "Altai Republic",
+          "Gorno-Altay",
+          "Amur Oblast",
+          "Amur",
+          "Buryatia",
+          "Republic of Buryatia",
+          "Buryat",
+          "Chelyabinsk Oblast",
+          "Chelyabinsk",
+          "Chukotka Autonomous Okrug",
+          "Chukchi Autonomous Okrug",
+          "Irkutsk Oblast",
+          "Irkutsk",
+          "Jewish Autonomous Oblast",
+          "Kamchatka Krai",
+          "Kamchatka",
+          "Kemerovo Oblast",
+          "Kemerovo",
+          "Khabarovsk Krai",
+          "Khabarovsk",
+          "Khakassia",
+          "Republic of Khakassia",
+          "Khakass",
+          "Khanty-Mansiysk Autonomous Okrug ? Ugra",
+          "Khanty-Mansiy",
+          "Krasnoyarsk Krai",
+          "Krasnoyarsk",
+          "Kurgan Oblast",
+          "Kurgan",
+          "Magadan Oblast",
+          "Magadan",
+          "Novosibirsk Oblast",
+          "Novosibirsk",
+          "Omsk Oblast",
+          "Omsk",
+          "Primorsky Krai",
+          "Primorskiy Kray",
+          "Primorsky",
+          "Sakha Republic",
+          "Sakha",
+          "Sakhalin Oblast",
+          "Sakhalin",
+          "Sverdlovsk Oblast",
+          "Sverdlovsk",
+          "Tomsk Oblast",
+          "Tomsk",
+          "Tuva",
+          "Tyumen Oblast",
+          "Tyumen",
+          "Yamalo-Nenets Autonomous Okrug",
+          "Yamal-Nenets",
+          "Zabaykalsky Krai",
+          "Transbaikal"
+        ]
+      },
+      "default_area": "Western Palearctic"
+    },
+    {
+      "name": "India admin1 split",
+      "source": "admin1",
+      "type": "assign_by_values",
+      "selector": {"field": "adm0_a3", "equals": "IND"},
+      "value_fields": ["name_en", "name", "gn_name"],
+      "areas": {
+        "Eastern Palearctic": ["Himachal Pradesh", "Jammu and Kashmir", "Ladakh"]
+      },
+      "default_area": "Indomalaya"
+    },
+    {
+      "name": "Pakistan admin1 split",
+      "source": "admin1",
+      "type": "assign_by_values",
+      "selector": {"field": "adm0_a3", "equals": "PAK"},
+      "value_fields": ["name_en", "name", "gn_name"],
+      "areas": {
+        "Eastern Palearctic": ["Azad Kashmir", "Gilgit-Baltistan", "Northern Areas"]
+      },
+      "default_area": "Indomalaya"
+    }
+  ]
+}

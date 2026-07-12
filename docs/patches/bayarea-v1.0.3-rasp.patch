@@ -1,0 +1,115 @@
+diff --git a/code/BranchHistory.cpp b/code/BranchHistory.cpp
+index e54bda4..903ec91 100644
+--- a/code/BranchHistory.cpp
++++ b/code/BranchHistory.cpp
+@@ -103,15 +103,12 @@ void BranchHistory::removeChanges(std::set<int>& areaSet) {
+     std::set<AreaChange*,comp_history>::iterator it = branchChanges.begin();
+     while (it != branchChanges.end())
+         {
+-        //std::set<AreaChange*,comp_history>::iterator tmp = it++;
+-        
+         std::set<int>::iterator p = areaSet.find( (*it)->getArea() );
+         if (p != areaSet.end())
+             {
+-            //std::cout << "removing area change in area " << (*it)->getArea() << " from branch " << nodePtr->getIndex() << std::endl;
+-            delete (*it);
+-            branchChanges.erase(it);
+-            it = branchChanges.begin();
++            AreaChange* oldChange = *it;
++            branchChanges.erase(it++);
++            delete oldChange;
+             }
+         else
+             it++;
+diff --git a/code/Model.cpp b/code/Model.cpp
+index 5e2f9c9..c5df263 100644
+--- a/code/Model.cpp
++++ b/code/Model.cpp
+@@ -10,6 +10,7 @@
+ #include "Settings.h"
+ #include "TransitionProbability.h"
+ #include "Tree.h"
++#include <cmath>
+ #include <iomanip>
+ #include <iostream>
+ #include <string>
+@@ -38,6 +39,25 @@
+ #define DEBUG_LIKELIHOOD2 0
+ #define DEBUG_DISTANCE_SUM_RATE 0
+ 
++namespace {
++
++double drawHalfCauchyRate(MbRandom* rng, double scale) {
++    const double pi = 3.14159265358979323846;
++    const double maxRate = 1000.0;
++
++    // Rate proposals reject values above 1000, so initialize from the same
++    // effective support instead of allowing an unrecoverable starting value.
++    for (int attempt = 0; attempt < 100000; attempt++) {
++        double u = rng->uniformRv();
++        double value = std::fabs(scale * std::tan(pi * (u - 0.5)));
++        if (std::isfinite(value) && value > 0.0 && value < maxRate)
++            return value;
++    }
++    return (scale < maxRate ? scale : maxRate * 0.5);
++}
++
++}
++
+ Model::Model(Areas* a, GeoCoords* g, Tree* t, MbRandom* r, Settings* s) {
+     
+     // remember the address of important objects
+@@ -53,8 +73,8 @@ Model::Model(Areas* a, GeoCoords* g, Tree* t, MbRandom* r, Settings* s) {
+     areaRateParm[0] = settingsPtr->getAreaLossPrior();
+     areaRateParm[1] = settingsPtr->getAreaGainPrior();
+     areaRates.resize(2);
+-    areaRates[0] = ranPtr->exponentialRv(areaRateParm[0]);
+-    areaRates[1] = ranPtr->exponentialRv(areaRateParm[1]);
++    areaRates[0] = drawHalfCauchyRate(ranPtr, areaRateParm[0]);
++    areaRates[1] = drawHalfCauchyRate(ranPtr, areaRateParm[1]);
+     //areaRates[0] = 0.05;
+     //areaRates[1] = 0.5;
+ 	//areaRates[0] = settingsPtr->getAreaLossRate(); //0.1;	// rate of change 1->0
+@@ -65,8 +85,8 @@ Model::Model(Areas* a, GeoCoords* g, Tree* t, MbRandom* r, Settings* s) {
+     pathRateParm[0] = settingsPtr->getAreaLossPrior();
+     pathRateParm[1] = settingsPtr->getAreaGainPrior();
+     pathRates.resize(2);
+-    pathRates[0] = ranPtr->exponentialRv(pathRateParm[0]);
+-    pathRates[1] = ranPtr->exponentialRv(pathRateParm[1]);
++    pathRates[0] = drawHalfCauchyRate(ranPtr, pathRateParm[0]);
++    pathRates[1] = drawHalfCauchyRate(ranPtr, pathRateParm[1]);
+     //pathRates[0] = 0.05;
+     //pathRates[1] = 0.5;
+     //pathRates[0] = areaRates[0];
+@@ -84,7 +104,7 @@ Model::Model(Areas* a, GeoCoords* g, Tree* t, MbRandom* r, Settings* s) {
+ 
+ 
+     // initialize distance power parameter
+-    distancePowerParm = 1.0;
++    distancePowerParm = settingsPtr->getGeoDistancePowerPrior();
+     distancePower = fabs(ranPtr->normalRv(0.0, distancePowerParm)) / 10.0;
+     //distancePower = 0.0;
+     //distancePower = settingsPtr->getGeoDistancePower();
+diff --git a/code/Util.cpp b/code/Util.cpp
+index 9973bda..4df1ffa 100644
+--- a/code/Util.cpp
++++ b/code/Util.cpp
+@@ -1,4 +1,5 @@
+ #include "Util.h"
++#include <ctime>
+ 
+ std::vector<std::string>& Util::split(const std::string &s, char delim, std::vector<std::string> &elems)
+ {
+diff --git a/code/main.cpp b/code/main.cpp
+index 4d79aa8..16a3147 100644
+--- a/code/main.cpp
++++ b/code/main.cpp
+@@ -18,7 +18,7 @@ class Tree;
+ 
+ int main(int argc, char* argv[]) {
+ 
+-    std::cout << "\nBayArea v1.0.3\n";
++    std::cout << "\nBayArea v1.0.3 (RASP patched)\n";
+     
+     // read the user settings
+     Settings mySettings(argc, argv);

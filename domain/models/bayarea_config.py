@@ -1,10 +1,11 @@
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 
 BAYAREA_MODEL_DISPLAY = {
-    "INDEPENDENCE": "INDEPENDENCE",
+    "INDEPENDENCE": "INDEPENDENCE (not recommended)",
     "DISTANCE_NORM": "DISTANCE NORM",
 }
 
@@ -26,6 +27,8 @@ def bayarea_recommended_parameters(model_type: str) -> Dict[str, object]:
             "distance_proposal_tuner": 0.5,
             "geo_distance_power_positive": False,
             "geo_distance_truncate": False,
+            "independent_chains": 2,
+            "parallel_chains": 2,
         }
     return {
         "gain_prior": 0.1,
@@ -36,6 +39,8 @@ def bayarea_recommended_parameters(model_type: str) -> Dict[str, object]:
         "distance_proposal_tuner": 0.5,
         "geo_distance_power_positive": True,
         "geo_distance_truncate": False,
+        "independent_chains": 1,
+        "parallel_chains": 1,
     }
 
 
@@ -53,6 +58,8 @@ class BayAreaConfig:
     geo_distance_power_positive: bool = True
     geo_distance_truncate: bool = False
     seed: Optional[int] = None
+    independent_chains: int = 1
+    parallel_chains: int = 1
     gain_prior: float = 0.1
     loss_prior: float = 0.1
     distance_power_prior: float = 0.1
@@ -78,6 +85,8 @@ class BayAreaConfig:
             area_proposal_tuner=float(defaults["area_proposal_tuner"]),
             rate_proposal_tuner=float(defaults["rate_proposal_tuner"]),
             distance_proposal_tuner=float(defaults["distance_proposal_tuner"]),
+            independent_chains=int(defaults["independent_chains"]),
+            parallel_chains=int(defaults["parallel_chains"]),
         )
 
     def validate(self) -> None:
@@ -109,10 +118,20 @@ class BayAreaConfig:
             self.seed = int(self.seed)
             if self.seed <= 0:
                 self.seed = None
+            elif self.seed > 2147483646:
+                raise ValueError("Seed must be between 1 and 2147483646, or blank for an engine-random seed.")
+        self.independent_chains = int(1 if self.independent_chains is None else self.independent_chains)
+        self.parallel_chains = int(1 if self.parallel_chains is None else self.parallel_chains)
+        if self.independent_chains < 1 or self.independent_chains > 8:
+            raise ValueError("Independent chains must be between 1 and 8.")
+        if self.parallel_chains < 1 or self.parallel_chains > self.independent_chains:
+            raise ValueError("Parallel chains must be between 1 and the independent-chain count.")
         self.gain_prior = _positive_float(self.gain_prior, "Gain prior")
         self.loss_prior = _positive_float(self.loss_prior, "Loss prior")
         self.distance_power_prior = _positive_float(self.distance_power_prior, "Distance power prior")
         self.area_proposal_tuner = float(self.area_proposal_tuner)
+        if not math.isfinite(self.area_proposal_tuner):
+            raise ValueError("Area proposal tuner must be finite.")
         if self.area_proposal_tuner < 0.0 or self.area_proposal_tuner > 1.0:
             raise ValueError("Area proposal tuner must be between 0 and 1.")
         self.rate_proposal_tuner = _positive_float(self.rate_proposal_tuner, "Rate proposal tuner")
@@ -121,7 +140,15 @@ class BayAreaConfig:
         normalized_coords = {}
         for area in names:
             lat, lon = self.coordinates.get(area, (0.0, 0.0))
-            normalized_coords[area] = (float(lat), float(lon))
+            lat = float(lat)
+            lon = float(lon)
+            if not math.isfinite(lat) or not math.isfinite(lon):
+                raise ValueError("Coordinates for area '%s' must be finite." % area)
+            if lat < -90.0 or lat > 90.0:
+                raise ValueError("Latitude for area '%s' must be between -90 and 90." % area)
+            if lon < -180.0 or lon > 180.0:
+                raise ValueError("Longitude for area '%s' must be between -180 and 180." % area)
+            normalized_coords[area] = (lat, lon)
         self.coordinates = normalized_coords
 
         distinct_coords = {
@@ -148,6 +175,8 @@ class BayAreaConfig:
             "geo_distance_power_positive": bool(self.geo_distance_power_positive),
             "geo_distance_truncate": bool(self.geo_distance_truncate),
             "seed": self.seed,
+            "independent_chains": int(self.independent_chains),
+            "parallel_chains": int(self.parallel_chains),
             "gain_prior": float(self.gain_prior),
             "loss_prior": float(self.loss_prior),
             "distance_power_prior": float(self.distance_power_prior),
@@ -175,6 +204,8 @@ class BayAreaConfig:
             "geo_distance_power_positive": bool(self.geo_distance_power_positive),
             "geo_distance_truncate": bool(self.geo_distance_truncate),
             "seed": self.seed,
+            "independent_chains": int(self.independent_chains),
+            "parallel_chains": int(self.parallel_chains),
             "gain_prior": float(self.gain_prior),
             "loss_prior": float(self.loss_prior),
             "distance_power_prior": float(self.distance_power_prior),
@@ -261,6 +292,8 @@ class BayAreaConfig:
             geo_distance_power_positive=bool(value("geo_distance_power_positive", getattr(base, "geo_distance_power_positive", False))),
             geo_distance_truncate=bool(value("geo_distance_truncate", getattr(base, "geo_distance_truncate", False))),
             seed=seed_value,
+            independent_chains=int(value("independent_chains", model_defaults.get("independent_chains", 1)) or 1),
+            parallel_chains=int(value("parallel_chains", model_defaults.get("parallel_chains", 1)) or 1),
             gain_prior=numeric_option("gain_prior", 0.1),
             loss_prior=numeric_option("loss_prior", 0.1),
             distance_power_prior=numeric_option("distance_power_prior", 0.1),
@@ -295,6 +328,8 @@ def _positive_float(value, label: str) -> float:
         number = float(value)
     except Exception as exc:
         raise ValueError("%s must be numeric." % label) from exc
+    if not math.isfinite(number):
+        raise ValueError("%s must be finite." % label)
     if number <= 0:
         raise ValueError("%s must be greater than 0." % label)
     return number
