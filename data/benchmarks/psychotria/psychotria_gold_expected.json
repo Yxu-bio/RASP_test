@@ -1,21 +1,19 @@
 {
   "_baseline_metadata": {
-    "generated_at": "2026-08-27T21:37:34",
-    "git_commit": "15a633e41ef34f68041f95d70a0da3af0d87478e",
+    "generated_at": "2026-08-27T23:59:36",
+    "git_commit": "086a1c6ed51949003ebafbf49f9f4f1883286215",
     "git_status_porcelain": [
-      "M docs/phase0_smoke_latest.md",
       "?? AGENTS.md",
-      "?? data/benchmarks/psychotria/psychotria_gold_expected.json",
-      "?? docs/psychotria_gold_latest.md"
+      "?? docs/s_series_accounting_latest.md"
     ],
     "reviewed_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "reviewed_source_sha256": {
-      "application/services/result_schema_adapter.py": "cfbc8dc2543e01da4a09e057d4a39e34c7124ede83d37a740eeceb5010c18036",
-      "application/services/sbgb_analysis_service.py": "26024a9b744882f398ee01eac1223ac25da67b51c33598200226c19807811561",
-      "application/services/sdec_analysis_service.py": "14ecfb5b06db476cb3c8534f435310af07f9a2be618b040f6a467afdd16fc7c3",
-      "application/services/sdiva_analysis_service.py": "6806d55fbcd181872d3542ae2ace856483fbd388afce85ed191134ad6b633a03",
+      "application/services/result_schema_adapter.py": "7ea99e92118492c27303217bdba805b068156dfe0da625b8eb9a6caf5d0b389c",
+      "application/services/sbgb_analysis_service.py": "8c19301d1d7fe1c7953d9926f9d463ce4024c9df2c4446b8f5639ee4698c4335",
+      "application/services/sdec_analysis_service.py": "775dbaacd7cb74d76f2978eadacf79344e07b79368b1f3d018ce56352830ed46",
+      "application/services/sdiva_analysis_service.py": "4492665481497c190d91a65eba413838b1460ecd79a72710f98a839c9b79348f",
       "infrastructure/dec/dec_output_parser.py": "54f3fa924821be9626b972b4fb4659cf326cf751ecc3468711c1d379b200b140",
-      "tools/run_psychotria_gold_checks.py": "d8d3bf0584667e73696df1717727231c776af5a9042aa36864a71eb4ba501c17"
+      "tools/run_psychotria_gold_checks.py": "70582e856d528dc056cba1e2849aa0631ba253134d9d210c0abb9706dcf015aa"
     },
     "runtime": {
       "platform": "Windows-10-10.0.19041-SP0",
@@ -26,6 +24,7 @@
   "methods": {
     "bgb_dec": {
       "effective_tree_count": 1,
+      "failed_tree_count": 0,
       "input_tree_count": 1,
       "model_name": "BioGeoBEARS-DEC",
       "nodes": [
@@ -68,7 +67,8 @@
             "D": 1.1560868298113e-06
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -109,7 +109,8 @@
             "D": 5.6707612326096e-06
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -150,7 +151,8 @@
             "D": 5.73648777820581e-06
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -191,7 +193,8 @@
             "D": 1.53412056115831e-05
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -232,7 +235,8 @@
             "D": 3.00104057921946e-08
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -273,7 +277,8 @@
             "D": 0.0001373216532666
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -314,7 +319,8 @@
             "D": 6.65995663027289e-06
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -355,7 +361,8 @@
             "D": 0.000103788883747002
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -396,7 +403,8 @@
             "D": 6.72530079039791
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -437,7 +445,8 @@
             "D": 5.2867728016375
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -478,7 +487,8 @@
             "D": 0.0610605139618774
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -519,7 +529,8 @@
             "D": 0.00581835760467258
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -560,7 +571,8 @@
             "D": 0.00106140107300199
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -601,7 +613,8 @@
             "D": 0.00011419930729011
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -642,7 +655,8 @@
             "D": 0.0040233148512305
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -683,7 +697,8 @@
             "D": 0.000356011770789213
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -724,7 +739,8 @@
             "D": 0.00121142557357477
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -765,7 +781,8 @@
             "D": 0.000685505778432855
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "BioGeoBEARSResult",
@@ -786,6 +803,8 @@
         "CD",
         "D"
       ],
+      "unmatched_clade_count": 0,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     },
@@ -853,6 +872,7 @@
     },
     "dec": {
       "effective_tree_count": 1,
+      "failed_tree_count": 0,
       "input_tree_count": 1,
       "model_name": "DEC",
       "nodes": [
@@ -875,7 +895,8 @@
             "CD": 0.021109628773847554
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -896,7 +917,8 @@
             "C": 0.0012363382548877216
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -921,7 +943,8 @@
             "CD": 0.0013534686236003283
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -942,7 +965,8 @@
             "CD": 0.0008456841890304808
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -965,7 +989,8 @@
             "CD": 0.0007062680429415075
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -994,7 +1019,8 @@
             "D": 0.00015912753048245333
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -1013,7 +1039,8 @@
             "AD": 0.05063722993835883
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1042,7 +1069,8 @@
             "CD": 0.0006141675680332578
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -1073,7 +1101,8 @@
             "D": 7.816127382801764
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -1104,7 +1133,8 @@
             "D": 11.835102105800113
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -1135,7 +1165,8 @@
             "D": 0.16674061202701
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -1166,7 +1197,8 @@
             "D": 0.0028058831193423003
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1197,7 +1229,8 @@
             "D": 0.0002201195126371796
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -1218,7 +1251,8 @@
             "B": 0.00023903643133823854
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1247,7 +1281,8 @@
             "D": 0.0007110354267665668
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -1272,7 +1307,8 @@
             "D": 0.00022560512703932628
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -1301,7 +1337,8 @@
             "D": 0.0007418426201950467
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1332,7 +1369,8 @@
             "D": 0.00015606520700471417
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "DECResult",
@@ -1348,11 +1386,14 @@
         "D",
         "CD"
       ],
+      "unmatched_clade_count": 0,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     },
     "diva": {
       "effective_tree_count": 1,
+      "failed_tree_count": 0,
       "input_tree_count": 1,
       "model_name": "DIVA",
       "nodes": [
@@ -1369,7 +1410,8 @@
             "C": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -1384,7 +1426,8 @@
             "B": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -1399,7 +1442,8 @@
             "BC": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -1414,7 +1458,8 @@
             "C": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1432,7 +1477,8 @@
             "C": 50.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1450,7 +1496,8 @@
             "BC": 50.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -1465,7 +1512,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1486,7 +1534,8 @@
             "AC": 33.333333333333336
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -1501,7 +1550,8 @@
             "CD": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -1522,7 +1572,8 @@
             "BD": 33.333333333333336
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -1555,7 +1606,8 @@
             "AD": 14.285714285714286
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -1570,7 +1622,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1585,7 +1638,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -1600,7 +1654,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1615,7 +1670,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -1630,7 +1686,8 @@
             "A": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -1645,7 +1702,8 @@
             "AB": 100.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -1663,7 +1721,8 @@
             "AB": 50.0
           },
           "supporting_tree_count": 1,
-          "total_tree_count": 1
+          "total_tree_count": 1,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "DivaResult",
@@ -1684,11 +1743,14 @@
         "BCD",
         "ABCD"
       ],
+      "unmatched_clade_count": 0,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     },
     "sbgb_dec_25": {
       "effective_tree_count": 25,
+      "failed_tree_count": 0,
       "input_tree_count": 25,
       "model_name": "S-BioGeoBEARS-DEC",
       "nodes": [
@@ -1731,7 +1793,8 @@
             "D": 1.0503938315208602e-05
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -1772,7 +1835,8 @@
             "D": 1.8423379757344129e-06
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -1813,7 +1877,8 @@
             "D": 3.5853239065322155e-05
           },
           "supporting_tree_count": 17,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 8
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -1854,7 +1919,8 @@
             "D": 3.1720865842397516e-08
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1895,7 +1961,8 @@
             "D": 3.2839723591373564e-09
           },
           "supporting_tree_count": 10,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 15
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -1936,7 +2003,8 @@
             "D": 1.2287184254544935e-06
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -1977,7 +2045,8 @@
             "D": 4.188556383646272e-08
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -2018,7 +2087,8 @@
             "D": 1.8681685312959494e-05
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -2059,7 +2129,8 @@
             "D": 0.22479583557555363
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -2100,7 +2171,8 @@
             "D": 0.002383302237687946
           },
           "supporting_tree_count": 12,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 13
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -2141,7 +2213,8 @@
             "D": 0.002882639807744485
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -2182,7 +2255,8 @@
             "D": 0.001189258873928175
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2223,7 +2297,8 @@
             "D": 0.0004273545911175044
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -2264,7 +2339,8 @@
             "D": 0.00013830133671605043
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2305,7 +2381,8 @@
             "D": 0.03656375771189215
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -2346,7 +2423,8 @@
             "D": 0.00011430282062271734
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -2387,7 +2465,8 @@
             "D": 0.036099124521457776
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2428,7 +2507,8 @@
             "D": 0.011603842509649649
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "BioGeoBEARSResult",
@@ -2449,11 +2529,14 @@
         "BD",
         "D"
       ],
+      "unmatched_clade_count": 65,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     },
     "sdec_25": {
       "effective_tree_count": 25,
+      "failed_tree_count": 0,
       "input_tree_count": 25,
       "model_name": "S-DEC",
       "nodes": [
@@ -2484,7 +2567,8 @@
             "D": 3.053030177986179e-05
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -2513,7 +2597,8 @@
             "D": 5.084860946934228e-06
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -2542,7 +2627,8 @@
             "D": 1.9841990129689638e-05
           },
           "supporting_tree_count": 17,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 8
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -2563,7 +2649,8 @@
             "CD": 0.00803191196490617
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -2590,7 +2677,8 @@
             "CD": 0.00035526049403983626
           },
           "supporting_tree_count": 10,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 15
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -2619,7 +2707,8 @@
             "D": 1.394416169809009e-05
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -2638,7 +2727,8 @@
             "AD": 0.0029079951469179618
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -2669,7 +2759,8 @@
             "D": 2.4696622634687266e-05
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -2700,7 +2791,8 @@
             "D": 1.2356762085011268
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -2731,7 +2823,8 @@
             "D": 2.8151835743742453
           },
           "supporting_tree_count": 12,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 13
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -2762,7 +2855,8 @@
             "D": 0.05023740503339176
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -2793,7 +2887,8 @@
             "D": 0.003921415268847808
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2824,7 +2919,8 @@
             "D": 0.0004981158245984914
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -2855,7 +2951,8 @@
             "D": 0.000228536123078037
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2886,7 +2983,8 @@
             "D": 0.0729710908259534
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -2917,7 +3015,8 @@
             "D": 0.0005030579999741199
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -2948,7 +3047,8 @@
             "D": 0.09264533282973163
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -2979,7 +3079,8 @@
             "D": 0.037838374716052316
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "SDECResult",
@@ -2995,11 +3096,14 @@
         "BD",
         "D"
       ],
+      "unmatched_clade_count": 65,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     },
     "sdiva_25": {
       "effective_tree_count": 25,
+      "failed_tree_count": 0,
       "input_tree_count": 25,
       "model_name": "S-DIVA",
       "nodes": [
@@ -3058,7 +3162,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2",
@@ -3115,7 +3220,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._mauiensis_MauiW1",
@@ -3172,7 +3278,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 17,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 8
         },
         {
           "clade_key": "P._kaduana_MauiW2|P._mauiensis_Molokai1",
@@ -3229,7 +3336,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -3286,7 +3394,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 10,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 15
         },
         {
           "clade_key": "P._fauriei_OahuW|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -3343,7 +3452,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 19,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 6
         },
         {
           "clade_key": "P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1",
@@ -3400,7 +3510,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mauiensis_MauiW1|P._mauiensis_Molokai1",
@@ -3457,7 +3568,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1",
@@ -3514,7 +3626,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 24,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 1
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -3571,7 +3684,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 12,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 13
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2",
@@ -3628,7 +3742,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 22,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 3
         },
         {
           "clade_key": "P._hawaiiensis_HawaiiV1|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._wawrae_Kauai2",
@@ -3685,7 +3800,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -3742,7 +3858,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._grandiflora_Kauai1|P._hobdyi_Kauai1",
@@ -3799,7 +3916,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 23,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 2
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -3856,7 +3974,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2",
@@ -3913,7 +4032,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu",
@@ -3970,7 +4090,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         },
         {
           "clade_key": "P._fauriei_OahuW|P._grandiflora_Kauai1|P._greenwelliae_07_Kauai1|P._greenwelliae_907_Kauai1|P._hathewayi_OahuK2|P._hawaiiensis_HawaiiV1|P._hawaiiensis_MauiE2|P._hexandra_Kauai1|P._hexandra_Kauai2|P._hexandra_Oahu|P._hobdyi_Kauai1|P._kaduana_MauiW2|P._kaduana_OahuK3|P._mariniana_Kauai1|P._mariniana_MauiE1|P._mariniana_OahuK2|P._mauiensis_MauiW1|P._mauiensis_Molokai1|P._wawrae_Kauai2",
@@ -4027,7 +4148,8 @@
             "D": 0.0
           },
           "supporting_tree_count": 25,
-          "total_tree_count": 25
+          "total_tree_count": 25,
+          "unmatched_tree_count": 0
         }
       ],
       "result_class": "SDivaResult",
@@ -4048,6 +4170,8 @@
         "BCD",
         "ABCD"
       ],
+      "unmatched_clade_count": 65,
+      "unmatched_tree_count": 0,
       "warning_count": 0,
       "warnings": []
     }
@@ -4453,12 +4577,12 @@
   },
   "schema_version": 1,
   "timings_seconds": {
-    "bgb_dec": 7.280277,
-    "bgb_model_test": 19.48759,
-    "dec": 0.158915,
-    "diva": 0.051823,
-    "sbgb_dec_25": 54.01997,
-    "sdec_25": 2.691196,
-    "sdiva_25": 0.548548
+    "bgb_dec": 7.077558,
+    "bgb_model_test": 19.014138,
+    "dec": 0.167902,
+    "diva": 0.039432,
+    "sbgb_dec_25": 52.374776,
+    "sdec_25": 2.553173,
+    "sdiva_25": 0.549214
   }
 }
