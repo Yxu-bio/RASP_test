@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from ete3 import Tree
 
 from domain.models.dec_result import DECResult, DECNodeResult
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 class DECOutputParser:
@@ -135,18 +136,7 @@ class DECOutputParser:
         return result
 
     def _build_reference_node_id_map(self, reference_tree) -> Dict[str, str]:
-        mapping = {}
-        if reference_tree is None or not hasattr(reference_tree, "traverse"):
-            return mapping
-        taxon_count = len(reference_tree.get_leaf_names())
-        counter = 0
-        for node in reference_tree.traverse("postorder"):
-            if node.is_leaf():
-                continue
-            counter += 1
-            clade_key = "|".join(sorted(node.get_leaf_names()))
-            mapping[clade_key] = str(taxon_count + counter)
-        return mapping
+        return CladeNodeIdentityService.build_reference_node_id_map(reference_tree)
 
     def _build_node_id_to_clade_key_from_file(self, nodes_tree_path) -> Dict[str, str]:
         raw_text = Path(nodes_tree_path).read_text(encoding="utf-8").strip()
@@ -165,8 +155,7 @@ class DECOutputParser:
             if not node_id:
                 continue
 
-            leaf_names = sorted(node.get_leaf_names())
-            clade_key = "|".join(leaf_names)
+            clade_key = CladeNodeIdentityService.node_clade_key(node)
             mapping[node_id] = clade_key
 
         return mapping

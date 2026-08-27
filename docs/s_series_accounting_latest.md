@@ -1,7 +1,7 @@
 # S-series Accounting Latest
 
 - Status: **PASSED**
-- Run root: `E:\RASP\runs\s_series_accounting\20260828_000423_860369`
+- Run root: `E:\RASP\runs\s_series_accounting\20260828_003922_401509`
 
 | Method | Input | Effective | Failed | Zero contribution | Unmatched clade observations |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -9,4 +9,4 @@
 | S-DEC | 3 | 2 | 1 | 0 | 25 |
 | S-BioGeoBEARS-DEC | 3 | 2 | 1 | 0 | 25 |
 
-Machine-readable report: `E:\RASP\runs\s_series_accounting\20260828_000423_860369\report.json`
+Machine-readable report: `E:\RASP\runs\s_series_accounting\20260828_003922_401509\report.json`

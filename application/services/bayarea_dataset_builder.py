@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from application.services.dec_dataset_builder import DECDatasetBuilder
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 @dataclass
@@ -246,32 +247,10 @@ class BayAreaDatasetBuilder:
         return mapping
 
     def _build_reference_node_id_map(self, tree) -> Dict[str, str]:
-        mapping = {}
-        if tree is None or not hasattr(tree, "traverse"):
-            return mapping
-        try:
-            taxon_count = len(tree.get_leaf_names())
-        except Exception:
-            taxon_count = 0
-
-        counter = 0
-        for node in tree.traverse("postorder"):
-            if self._is_leaf(node):
-                continue
-            counter += 1
-            mapping[self._clade_key(node)] = str(taxon_count + counter)
-        return mapping
+        return CladeNodeIdentityService.build_reference_node_id_map(tree)
 
     def _clade_key(self, node) -> str:
-        try:
-            return "|".join(sorted(node.get_leaf_names()))
-        except Exception:
-            names = []
-            for leaf in self._iter_leaves(node):
-                name = str(getattr(leaf, "name", "") or "").strip()
-                if name:
-                    names.append(name)
-            return "|".join(sorted(names))
+        return CladeNodeIdentityService.node_clade_key(node)
 
     def _iter_leaves(self, node):
         if hasattr(node, "iter_leaves"):

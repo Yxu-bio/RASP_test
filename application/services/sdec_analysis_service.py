@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from domain.models.sdec_result import SDECResult, SDECNodeResult
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 class SDECAnalysisService:
@@ -458,19 +459,13 @@ class SDECAnalysisService:
 
     def _build_reference_nodes(self, tree, name_to_index: Dict[str, int], index_to_name: Dict[int, str]) -> List[dict]:
         nodes = []
-        taxon_count = len(name_to_index)
-        counter = 0
-        for node in tree.traverse("postorder"):
-            if node.is_leaf():
-                continue
-            counter += 1
-            indices = [str(name_to_index[str(leaf.name).strip()]) for leaf in node.iter_leaves()]
-            names = [index_to_name[int(x)] for x in indices]
+        for record in CladeNodeIdentityService.build_reference_node_records(tree):
+            indices = [str(name_to_index[name]) for name in record["tip_names"]]
             nodes.append(
                 {
                     "legacy_clade": self._legacy_clade(indices),
-                    "node_key": "|".join(sorted(names)),
-                    "display_id": taxon_count + counter,
+                    "node_key": record["clade_key"],
+                    "display_id": int(record["display_node_id"]),
                 }
             )
         return nodes

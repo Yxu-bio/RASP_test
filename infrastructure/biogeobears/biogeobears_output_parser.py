@@ -6,6 +6,7 @@ from domain.models.biogeobears_result import (
     BioGeoBEARSResult,
     BioGeoBEARSNodeResult,
 )
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 class BioGeoBEARSOutputParser:
@@ -168,23 +169,7 @@ class BioGeoBEARSOutputParser:
         return pretty
 
     def _build_reference_node_id_map(self, reference_tree):
-        mapping = {}
-        if reference_tree is None or not hasattr(reference_tree, "traverse"):
-            return mapping
-
-        try:
-            taxon_count = len(reference_tree.get_leaf_names())
-        except Exception:
-            taxon_count = 0
-
-        counter = 0
-        for node in reference_tree.traverse("postorder"):
-            if node.is_leaf():
-                continue
-            counter += 1
-            clade_key = "|".join(sorted(node.get_leaf_names()))
-            mapping[clade_key] = str(taxon_count + counter)
-        return mapping
+        return CladeNodeIdentityService.build_reference_node_id_map(reference_tree)
 
     def _safe_float(self, value):
         if value is None:

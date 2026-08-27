@@ -10,6 +10,7 @@ from domain.models.bbm_config import (
     BBM_STATE_FREQUENCY_MODELS,
     BBMConfig,
 )
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 @dataclass
@@ -107,11 +108,7 @@ class BBMDatasetBuilder:
         return run_files
 
     def build_node_records(self, tree, taxon_id_map: Dict[str, str]) -> List[Dict[str, object]]:
-        try:
-            taxon_count = len(tree.get_leaf_names())
-        except Exception:
-            taxon_count = len(taxon_id_map)
-
+        identity_records = CladeNodeIdentityService.build_reference_node_records(tree)
         records = []
         counter = 0
         try:
@@ -127,11 +124,15 @@ class BBMDatasetBuilder:
             leaf_names = [str(getattr(leaf, "name", "") or "").strip() for leaf in leaves]
             leaf_ids = [str(taxon_id_map.get(name, name)) for name in leaf_names]
             label_ids = ["TID%s" % taxon_id for taxon_id in leaf_ids]
-            display_id = str(taxon_count + counter)
+            clade_key = CladeNodeIdentityService.canonical_clade_key(leaf_names)
+            identity_record = identity_records[counter - 1]
+            if identity_record["clade_key"] != clade_key:
+                raise ValueError("BBM internal node order differs from the identity map.")
+            display_id = str(identity_record["display_node_id"])
             records.append({
                 "display_node_id": display_id,
                 "node_index": counter,
-                "clade_key": "|".join(sorted(leaf_names)),
+                "clade_key": clade_key,
                 "leaf_names": leaf_names,
                 "leaf_ids": leaf_ids,
                 "constraint_taxa": label_ids,

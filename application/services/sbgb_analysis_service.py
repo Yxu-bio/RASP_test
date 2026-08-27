@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from domain.models.sbgb_config import normalize_sbgb_null_range_mode
 from domain.models.biogeobears_result import BioGeoBEARSResult, BioGeoBEARSNodeResult
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 class SBGBAnalysisService:
@@ -559,23 +560,14 @@ class SBGBAnalysisService:
         raise ValueError("Tree entry does not contain a usable tree object.")
 
     def _build_reference_nodes(self, tree, name_to_index: Dict[str, int], index_to_name: Dict[int, str]) -> List[dict]:
-        nodes = []
-        taxon_count = len(name_to_index)
-        counter = 0
-        for node in tree.traverse("postorder"):
-            if node.is_leaf():
-                continue
-            counter += 1
-            indices = [str(name_to_index[str(leaf.name).strip()]) for leaf in node.iter_leaves()]
-            names = [index_to_name[int(x)] for x in indices]
-            nodes.append(
-                {
-                    "node_key": "|".join(sorted(names)),
-                    "display_id": taxon_count + counter,
-                    "tip_names": sorted(names),
-                }
-            )
-        return nodes
+        return [
+            {
+                "node_key": record["clade_key"],
+                "display_id": int(record["display_node_id"]),
+                "tip_names": list(record["tip_names"]),
+            }
+            for record in CladeNodeIdentityService.build_reference_node_records(tree)
+        ]
 
     def _find_source_mrca_clade_key(self, tree, tip_names) -> str:
         names = [str(name).strip() for name in list(tip_names or []) if str(name).strip()]
@@ -588,7 +580,7 @@ class SBGBAnalysisService:
             return ""
 
         try:
-            return "|".join(sorted(str(leaf.name).strip() for leaf in node.iter_leaves()))
+            return CladeNodeIdentityService.node_clade_key(node)
         except Exception:
             return ""
 

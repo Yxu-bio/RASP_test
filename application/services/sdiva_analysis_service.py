@@ -6,6 +6,7 @@ import time
 
 from domain.models.sdiva_config import EMPTY_STATE_TOKENS
 from domain.models.sdiva_result import SDivaResult, SDivaNodeResult
+from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
 class SDivaAnalysisService:
@@ -604,19 +605,13 @@ class SDivaAnalysisService:
 
     def _build_reference_nodes(self, reference_tree, name_to_index: dict, index_to_name: dict) -> list:
         nodes = []
-        taxon_count = len(name_to_index)
-        counter = 0
-        for node in reference_tree.traverse("postorder"):
-            if node.is_leaf():
-                continue
-            counter += 1
-            indices = [str(name_to_index[str(leaf.name).strip()]) for leaf in node.iter_leaves()]
-            names = [index_to_name[int(x)] for x in indices]
+        for record in CladeNodeIdentityService.build_reference_node_records(reference_tree):
+            indices = [str(name_to_index[name]) for name in record["tip_names"]]
             nodes.append(
                 {
                     "legacy_clade": self._legacy_clade(indices),
-                    "node_key": "|".join(sorted(names)),
-                    "display_id": taxon_count + counter,
+                    "node_key": record["clade_key"],
+                    "display_id": int(record["display_node_id"]),
                 }
             )
         return nodes
