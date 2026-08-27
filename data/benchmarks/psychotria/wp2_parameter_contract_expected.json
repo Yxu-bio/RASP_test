@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "inputs": {
+      "Psychotria.tree": "1F99969216619A28608525956A35D0F03D35061EE96ED62B612443B20189F5F3",
+      "distribution.csv": "DD7F4B19AD92E5047527AECB555D96A6E75713397A743F1F83132A6DE762AB45",
+      "coordinates.csv": "25B794FBDFC332BA56FA23AC582A0FE1B932506AED2EDC57D1AC3BA83A14C194"
+    },
+    "engines": {
+      "lagrange-ng.exe": "DD13911EED072C09D24E07FA9B8FA737B98A50C013E0EB8F1169005665BFF048",
+      "bayarea.exe": "F2BAD391D9DC828C6C87D060863F8BA69BC7D9827FBE239AE1D91547BF14EC12"
+    }
+  },
+  "lagrange_ng": {
+    "fixed_de": {
+      "dispersion": 2.0,
+      "extinction": 3.0,
+      "max_areas": 2,
+      "period_count": 1,
+      "state_count": 11,
+      "llh": -111.4978,
+      "llh_tolerance": 0.0002
+    },
+    "period_rules": {
+      "max_areas": 3,
+      "period_count": 3,
+      "state_count": 15,
+      "llh": -100.1437,
+      "llh_tolerance": 0.0002,
+      "variant_llh_tolerance": 0.0002,
+      "variant_llh": {
+        "baseline": -86.5078,
+        "matrix_only": -86.50876,
+        "exclude_only": -100.143,
+        "combined": -100.1437
+      },
+      "parameters": [
+        {
+          "dispersion": 0.5,
+          "extinction": 0.8
+        },
+        {
+          "dispersion": 0.001,
+          "extinction": 0.002
+        },
+        {
+          "dispersion": 2.0,
+          "extinction": 3.0
+        }
+      ]
+    }
+  },
+  "bayarea": {
+    "single_chain_seed": 24680,
+    "prior_low": {
+      "scale": 0.1,
+      "gain": 0.0499235,
+      "loss": 0.144053,
+      "distance_power": 0.00395023,
+      "value_tolerance": 1e-08
+    },
+    "prior_high": {
+      "scale": 1.0,
+      "expected_multiplier": 10.0,
+      "multiplier_tolerance": 1e-07
+    },
+    "heuristic_initial_rates": {
+      "gain": 0.0174525,
+      "loss": 0.0523575,
+      "distance_power": 0.0100976,
+      "value_tolerance": 1e-08
+    },
+    "multi_chain": {
+      "base_seed": 13579,
+      "expected_seeds": [
+        13579,
+        1013582
+      ],
+      "expected_node_count": 18
+    }
+  }
+}

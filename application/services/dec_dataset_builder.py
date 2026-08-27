@@ -562,7 +562,7 @@ class DECDatasetBuilder:
                 for _idx in range(period_count - len(matrices))
             ]
 
-        has_active_period_content = any(
+        has_active_period_content = len(times) >= 2 or any(
             not self._is_default_dispersal_matrix(matrix, n)
             for matrix in matrices
         ) or any(include_bits_by_period) or any(exclude_bits_by_period)
