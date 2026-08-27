@@ -97,6 +97,21 @@ normal source releases unless the repository adopts Git LFS or an external
 data archive. BSM outputs remain under `runs/` until a fixed benchmark asset is
 selected.
 
+The Dore-derived RASP adjacency-path 1000-map BSM rebuild specification is
+`dore_bsm_1000_benchmark_spec.json`. Validate its fixed inputs and generated
+BioGeoBEARS files without starting the long analysis with:
+
+```powershell
+E:\Anaconda3\envs\RASP\python.exe tools\run_dore_bsm_benchmark.py --validate-only
+```
+
+Omit `--validate-only` to run the specified DEC+J fit and 1000 stochastic
+maps. Generated results and their audit manifest are written to unique,
+parameter-fingerprinted subdirectories below `runs/benchmarks/dore_bsm_1000/`
+and are not source-controlled. The paper manually supplies period-specific
+allowed-state lists, while this benchmark exercises RASP's adjacency-file
+path; numerical equivalence is a separate WP5 requirement.
+
 ### Kawahara butterflies
 
 Path: `data/benchmarks/kawahara_butterflies/`
