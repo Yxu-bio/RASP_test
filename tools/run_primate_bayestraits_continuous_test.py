@@ -94,7 +94,7 @@ def _make_ultrametric_time_tree(tree, target_root_age):
 def _build_inputs(tree_count, trait_column, target_root_age):
     from domain.models.state_matrix import StateMatrix
 
-    data_dir = PROJECT_ROOT / "examples" / "Primate" / "Trees_States"
+    data_dir = PROJECT_ROOT / "data" / "benchmarks" / "primate" / "Trees_States"
     tree_path = data_dir / "Primates.tree"
     trees_path = data_dir / "100Trees.trees"
     characters_path = data_dir / "characters.csv"

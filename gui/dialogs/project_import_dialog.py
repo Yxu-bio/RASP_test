@@ -6,14 +6,16 @@ from PyQt5.QtWidgets import (
     QLabel,
     QVBoxLayout,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class ProjectImportDialog(QDialog):
     def __init__(self, plan, parent=None):
         super().__init__(parent)
         self._plan = plan
-        self.setWindowTitle("一键导入项目")
+        self.setWindowTitle("Quick Import Project")
         self.resize(620, 220)
+        configure_resizable_window(self)
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("请选择要导入的项目文件。", self))

@@ -1,5 +1,7 @@
-from PyQt5.QtCore import QPointF, Qt
-from PyQt5.QtGui import QColor, QBrush, QPainter, QPainterPath, QPen, QPolygonF
+import math
+
+from PyQt5.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QBrush, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt5.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsPathItem,
@@ -35,7 +37,36 @@ class _TemporalMapGraphicsView(QGraphicsView):
             self.fitInView(rect.adjusted(-16, -16, 16, 16), Qt.KeepAspectRatio)
 
 
+class _PieSliceItem(QGraphicsPathItem):
+    def __init__(self, owner, area_code, group_id, path):
+        super().__init__(path)
+        self.owner = owner
+        self.area_code = str(area_code or "")
+        self.group_id = str(group_id or "")
+        self.setAcceptHoverEvents(True)
+
+    def hoverEnterEvent(self, event):
+        self.setPen(QPen(QColor(255, 255, 255, 235), 2.0))
+        self.setZValue(24)
+        self.owner.group_hovered.emit(self.group_id)
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.setPen(QPen(QColor(255, 255, 255, 205), 0.8))
+        self.setZValue(20)
+        self.owner.group_hover_cleared.emit()
+        super().hoverLeaveEvent(event)
+
+    def mousePressEvent(self, event):
+        self.owner.area_selected.emit(self.area_code)
+        super().mousePressEvent(event)
+
+
 class TemporalRangeMapView(QWidget):
+    group_hovered = pyqtSignal(str)
+    group_hover_cleared = pyqtSignal()
+    area_selected = pyqtSignal(str)
+
     MAX_RING_POINTS = 2500
 
     def __init__(self, parent=None):
@@ -43,6 +74,10 @@ class TemporalRangeMapView(QWidget):
         self._areas = []
         self._area_items = {}
         self._area_labels = {}
+        self._area_centers = {}
+        self._glyph_items = []
+        self._glyph_text_items = []
+        self._highlighted_group_id = ""
         self.scene = QGraphicsScene(self)
         self.view = _TemporalMapGraphicsView(self)
         self.view.setScene(self.scene)
@@ -57,33 +92,174 @@ class TemporalRangeMapView(QWidget):
         self._areas = list(areas or [])
         self._build_scene()
 
-    def set_probabilities(self, probabilities, scope_label=""):
-        probabilities = dict(probabilities or {})
-        for code, item in self._area_items.items():
-            value = max(0.0, min(1.0, float(probabilities.get(code, 0.0) or 0.0)))
-            fill = self._heat_color(value)
-            item.setBrush(QBrush(fill))
-            item.setPen(QPen(QColor(66, 75, 84, 190 if value > 0.0 else 100), 0.75))
-            item.setToolTip("%s: %.2f%%" % (code, value * 100.0))
-            label = self._area_labels.get(code)
-            if label is not None:
-                label.setText("%s\n%.1f%%" % (code, value * 100.0))
-        shown = sum(1 for value in probabilities.values() if float(value or 0.0) > 0.0)
-        self.summary_label.setText(
-            "%s%s%d area marginal probabilities above zero. Color scale: 0%% (light) to 100%% (dark)."
-            % ((scope_label + ". ") if scope_label else "", "", shown)
+    def set_lineage_glyphs(
+        self,
+        glyphs,
+        group_colors=None,
+        group_labels=None,
+        focused_active_count=0,
+        scope_label="",
+    ):
+        self._clear_glyphs()
+        for area_code, label in self._area_labels.items():
+            center = self._area_centers.get(area_code)
+            if center is not None:
+                label.setPos(center.x() + 5.0, center.y() + 5.0)
+        glyphs = dict(glyphs or {})
+        group_colors = dict(group_colors or {})
+        group_labels = dict(group_labels or {})
+        focused_active_count = int(focused_active_count or 0)
+        maximum = max(
+            [0.0] + [float(dict(values or {}).get("expected_count", 0.0) or 0.0) for values in glyphs.values()]
         )
+        shown = 0
+        for area_code, values in glyphs.items():
+            center = self._area_centers.get(str(area_code))
+            if center is None:
+                continue
+            expected = float(dict(values or {}).get("expected_count", 0.0) or 0.0)
+            if expected <= 0.0:
+                continue
+            shown += 1
+            radius = max(7.0, 31.0 * math.sqrt(expected / maximum)) if maximum > 0.0 else 7.0
+            group_values = dict(dict(values or {}).get("group_values", {}) or {})
+            total = sum(max(0.0, float(value or 0.0)) for value in group_values.values())
+            if total <= 0.0:
+                continue
+            start_angle = 90.0
+            tooltip_rows = []
+            for group_id, value in sorted(
+                group_values.items(),
+                key=lambda item: (-float(item[1] or 0.0), str(item[0])),
+            ):
+                value = max(0.0, float(value or 0.0))
+                if value <= 0.0:
+                    continue
+                span = -360.0 * value / total
+                path = QPainterPath()
+                path.moveTo(center)
+                path.arcTo(
+                    QRectF(center.x() - radius, center.y() - radius, radius * 2.0, radius * 2.0),
+                    start_angle,
+                    span,
+                )
+                path.closeSubpath()
+                item = _PieSliceItem(self, area_code, group_id, path)
+                color = QColor(group_colors.get(group_id, "#76848d"))
+                if not color.isValid():
+                    color = QColor("#76848d")
+                color.setAlpha(225)
+                item.setBrush(QBrush(color))
+                item.setPen(QPen(QColor(255, 255, 255, 205), 0.8))
+                item.setZValue(20)
+                self.scene.addItem(item)
+                self._glyph_items.append(item)
+                tooltip_rows.append(
+                    "%s: %.3f" % (group_labels.get(group_id, group_id), value)
+                )
+                start_angle += span
+
+            outline = QGraphicsEllipseItem(
+                center.x() - radius,
+                center.y() - radius,
+                radius * 2.0,
+                radius * 2.0,
+            )
+            outline.setBrush(QBrush(Qt.NoBrush))
+            outline.setPen(QPen(QColor(48, 58, 65, 190), 1.15))
+            outline.setZValue(21)
+            outline.setAcceptedMouseButtons(Qt.NoButton)
+            self.scene.addItem(outline)
+            self._glyph_text_items.append(outline)
+
+            value_label = QGraphicsSimpleTextItem(self._format_count(expected))
+            value_label.setFont(QFont("Segoe UI", 8, QFont.DemiBold))
+            value_label.setBrush(QBrush(QColor(25, 31, 36)))
+            value_label.setPos(
+                center.x() - value_label.boundingRect().width() / 2.0,
+                center.y() - value_label.boundingRect().height() / 2.0,
+            )
+            value_label.setZValue(25)
+            value_label.setAcceptedMouseButtons(Qt.NoButton)
+            self.scene.addItem(value_label)
+            self._glyph_text_items.append(value_label)
+
+            area_label = self._area_labels.get(str(area_code))
+            if area_label is not None:
+                area_label.setPos(center.x() + radius + 4.0, center.y() - radius)
+            occupancy = expected / float(focused_active_count) if focused_active_count else 0.0
+            tooltip = (
+                "%s\nExpected active-lineage occupancy: %.3f\n"
+                "Occupied-lineage fraction: %.1f%%\n%s"
+            ) % (
+                area_code,
+                expected,
+                occupancy * 100.0,
+                "\n".join(tooltip_rows),
+            )
+            for item in self._glyph_items[-len(tooltip_rows):]:
+                item.setToolTip(tooltip)
+
+        self.highlight_group(self._highlighted_group_id)
+        if not self._areas:
+            self.summary_label.setText("No spatial areas are loaded. Tree dynamics remain available.")
+        elif focused_active_count <= 0:
+            self.summary_label.setText(
+                "%s. No focused lineage crosses this time slice." % (scope_label or "Current focus")
+            )
+        else:
+            self.summary_label.setText(
+                "%s. %d active focused lineages; %d occupied areas. "
+                "Bubble area represents expected active-lineage occupancy; slices show clade contributions."
+                % (scope_label or "Current focus", focused_active_count, shown)
+            )
+
+    def set_probabilities(self, probabilities, scope_label=""):
+        glyphs = {}
+        for area, probability in dict(probabilities or {}).items():
+            value = max(0.0, float(probability or 0.0))
+            if value > 0.0:
+                glyphs[area] = {
+                    "expected_count": value,
+                    "group_values": {"aggregate": value},
+                    "contributors": [],
+                }
+        self.set_lineage_glyphs(
+            glyphs,
+            group_colors={"aggregate": "#2f6f8f"},
+            group_labels={"aggregate": "Aggregate"},
+            focused_active_count=1,
+            scope_label=scope_label,
+        )
+
+    def highlight_group(self, group_id):
+        self._highlighted_group_id = str(group_id or "")
+        for item in self._glyph_items:
+            if not self._highlighted_group_id or item.group_id == self._highlighted_group_id:
+                item.setOpacity(1.0)
+            else:
+                item.setOpacity(0.16)
 
     def fit_to_map(self):
         self.view.fit_to_map()
+
+    def _clear_glyphs(self):
+        for item in self._glyph_items + self._glyph_text_items:
+            if item.scene() is self.scene:
+                self.scene.removeItem(item)
+        self._glyph_items = []
+        self._glyph_text_items = []
 
     def _build_scene(self):
         self.scene.clear()
         self._area_items = {}
         self._area_labels = {}
+        self._area_centers = {}
+        self._glyph_items = []
+        self._glyph_text_items = []
         if not self._areas:
             self.scene.setSceneRect(0, 0, 900, 520)
-            self.summary_label.setText("No spatial area polygons are loaded. Tree playback remains available.")
+            self.summary_label.setText("No spatial area polygons are loaded. Tree dynamics remain available.")
             return
         bounds = self._data_bounds(self._areas)
         transform = self._build_transform(bounds)
@@ -92,42 +268,43 @@ class TemporalRangeMapView(QWidget):
             path = self._path_from_geometry(getattr(area, "geometry", {}) or {}, transform)
             if not code:
                 continue
+            lon = getattr(area, "centroid_lon", None)
+            lat = getattr(area, "centroid_lat", None)
             if path.isEmpty():
-                lon = getattr(area, "centroid_lon", None)
-                lat = getattr(area, "centroid_lat", None)
                 if lon is None or lat is None:
                     continue
                 x, y = transform(float(lon), float(lat))
-                item = QGraphicsEllipseItem(x - 9.0, y - 9.0, 18.0, 18.0)
+                item = QGraphicsEllipseItem(x - 4.0, y - 4.0, 8.0, 8.0)
             else:
                 item = QGraphicsPathItem(path)
-            item.setBrush(QBrush(self._heat_color(0.0)))
-            item.setPen(QPen(QColor(66, 75, 84, 100), 0.75))
+            item.setBrush(QBrush(QColor(244, 246, 244)))
+            item.setPen(QPen(QColor(128, 139, 145, 155), 0.75))
             item.setZValue(1)
             self.scene.addItem(item)
             self._area_items[code] = item
-            lon = getattr(area, "centroid_lon", None)
-            lat = getattr(area, "centroid_lat", None)
             if lon is not None and lat is not None:
                 x, y = transform(float(lon), float(lat))
+                center = QPointF(x, y)
+                self._area_centers[code] = center
                 label = QGraphicsSimpleTextItem(code)
-                label.setBrush(QBrush(QColor(27, 35, 42)))
-                label.setPos(x + 3.0, y + 3.0)
-                label.setZValue(5)
+                label.setFont(QFont("Segoe UI", 8))
+                label.setBrush(QBrush(QColor(48, 57, 63)))
+                label.setPos(x + 5.0, y + 5.0)
+                label.setZValue(26)
+                label.setAcceptedMouseButtons(Qt.NoButton)
                 self.scene.addItem(label)
                 self._area_labels[code] = label
-        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
+        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-40, -40, 40, 40))
         self.summary_label.setText("Loaded %d spatial areas." % len(self._area_items))
         self.fit_to_map()
 
-    def _heat_color(self, probability):
-        value = max(0.0, min(1.0, float(probability)))
-        low = QColor(236, 244, 242)
-        high = QColor(16, 105, 116)
-        red = int(round(low.red() + (high.red() - low.red()) * value))
-        green = int(round(low.green() + (high.green() - low.green()) * value))
-        blue = int(round(low.blue() + (high.blue() - low.blue()) * value))
-        return QColor(red, green, blue, 225)
+    def _format_count(self, value):
+        value = float(value or 0.0)
+        if value >= 100.0:
+            return "%.0f" % value
+        if value >= 10.0:
+            return "%.1f" % value
+        return "%.2f" % value
 
     def _data_bounds(self, areas):
         bounds = None

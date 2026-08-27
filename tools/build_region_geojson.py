@@ -7,7 +7,7 @@ GeoJSON where each output feature is one analysis area.
 Typical usage:
 
     python tools/build_region_geojson.py ^
-      --config examples/phase1_reference_data/region_builder_examples/demo_rules.json ^
+      --config data/fixtures/region_builder/simple_region_rules.json ^
       --output runs/region_builder/demo_regions.geojson
 
 The builder intentionally avoids GIS-heavy dependencies.  It groups polygons as

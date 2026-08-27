@@ -27,15 +27,19 @@ from PyQt5.QtWidgets import (
 
 from application.services.export_service import ExportService
 from application.services.result_schema_adapter import ResultSchemaAdapterFactory
-from gui.dialogs.temporal_range_playback_dialog import TemporalRangePlaybackDialog
 from gui.widgets.node_info_panel import NodeInfoPanel
 from gui.widgets.tree_graph_panel import TreeGraphPanel
+from gui.window_behavior import configure_resizable_window
+
+
+LINEAGE_RANGE_DYNAMICS_ENABLED = False
 
 
 class ContinuousFigureGroupDialog(QDialog):
     def __init__(self, group: dict = None, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Figure Group")
+        self.setWindowTitle("Continuous Trait Figure Group")
+        configure_resizable_window(self)
         self._group = dict(group or {})
         self._color = str(self._group.get("color", "") or "#6d6ab1")
 
@@ -111,7 +115,7 @@ class ContinuousFigureGroupDialog(QDialog):
 class ResultViewWindow(QMainWindow):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("结果视图")
+        self.setWindowTitle("Result View")
         self.resize(1200, 800)
 
         self.renderer = None
@@ -123,6 +127,8 @@ class ResultViewWindow(QMainWindow):
         self.result_adapter = None
         self.standard_node_payloads = {}
         self._updating_continuous_scale_controls = False
+        self._updating_tree_display_controls = False
+        self._large_tree_tip_count = 0
 
         self.export_service = ExportService()
         self.leaf_state_map = {}
@@ -204,6 +210,20 @@ class ResultViewWindow(QMainWindow):
         self.circular_tree_action.triggered.connect(self._toggle_circular_tree)
         toolbar.addAction(self.circular_tree_action)
 
+        self.tree_detail_label = QLabel("Tree detail:", self)
+        self.tree_detail_combo = QComboBox(self)
+        self.tree_detail_combo.addItem("Auto", "auto")
+        self.tree_detail_combo.addItem("Overview", "overview")
+        self.tree_detail_combo.addItem("Detailed", "detailed")
+        self.tree_detail_combo.setToolTip(
+            "Overview uses compact dominant-state markers; Detailed draws full probability pies."
+        )
+        self.tree_detail_combo.currentIndexChanged.connect(self._on_tree_detail_changed)
+        self.tree_detail_label_action = toolbar.addWidget(self.tree_detail_label)
+        self.tree_detail_combo_action = toolbar.addWidget(self.tree_detail_combo)
+        self.tree_detail_label_action.setVisible(False)
+        self.tree_detail_combo_action.setVisible(False)
+
         toolbar.addSeparator()
 
         self.continuous_display_label = QLabel("Display:", self)
@@ -255,14 +275,15 @@ class ResultViewWindow(QMainWindow):
         toolbar.addAction(self.export_continuous_figure_action)
         self.export_continuous_figure_action.setVisible(False)
 
-        toolbar.addSeparator()
-        self.temporal_playback_action = QAction("Spatiotemporal Playback", self)
-        self.temporal_playback_action.setToolTip(
-            "Animate discrete ancestral range probabilities through tree time and linked spatial areas."
-        )
-        self.temporal_playback_action.triggered.connect(self._open_temporal_playback)
-        self.temporal_playback_action.setEnabled(False)
-        toolbar.addAction(self.temporal_playback_action)
+        if LINEAGE_RANGE_DYNAMICS_ENABLED:
+            toolbar.addSeparator()
+            self.temporal_playback_action = QAction("Lineage Range Dynamics", self)
+            self.temporal_playback_action.setToolTip(
+                "Explore active lineages through tree time and compare their range composition on a linked map."
+            )
+            self.temporal_playback_action.triggered.connect(self._open_temporal_playback)
+            self.temporal_playback_action.setEnabled(False)
+            toolbar.addAction(self.temporal_playback_action)
 
     def _build_figure_group_panel(self):
         box = QGroupBox("Figure Groups", self)
@@ -299,7 +320,35 @@ class ResultViewWindow(QMainWindow):
 
     def set_renderer(self, renderer) -> None:
         self.renderer = renderer
+        self._configure_tree_display_for_renderer()
         self.tree_panel.set_renderer(renderer)
+
+    def _configure_tree_display_for_renderer(self) -> None:
+        renderer = self.renderer
+        if renderer is None:
+            return
+
+        get_leaf_count = getattr(renderer, "get_leaf_count", None)
+        is_large_tree = getattr(renderer, "is_large_tree", None)
+        tip_count = int(get_leaf_count() if callable(get_leaf_count) else 0)
+        large_tree = bool(is_large_tree() if callable(is_large_tree) else tip_count >= 500)
+        self._large_tree_tip_count = tip_count if large_tree else 0
+
+        self._updating_tree_display_controls = True
+        try:
+            set_profile = getattr(renderer, "set_display_profile", None)
+            if callable(set_profile):
+                set_profile("auto")
+            self.tree_detail_combo.setCurrentIndex(0)
+            self.tree_detail_label_action.setVisible(large_tree)
+            self.tree_detail_combo_action.setVisible(large_tree)
+
+            self.show_leaf_name_action.setChecked(not large_tree)
+            self.circular_tree_action.setChecked(large_tree)
+            renderer.set_show_leaf_name(not large_tree)
+            renderer.set_circular_enabled(large_tree)
+        finally:
+            self._updating_tree_display_controls = False
 
     def set_result(self, result) -> None:
         if self._temporal_playback_dialog is not None:
@@ -318,7 +367,10 @@ class ResultViewWindow(QMainWindow):
 
     def set_window_title_by_method(self, method_name: str) -> None:
         self.current_method_name = method_name or ""
-        self.setWindowTitle(f"结果视图 - {self.current_method_name}")
+        title = "Result View"
+        if self.current_method_name:
+            title += " - %s" % self.current_method_name
+        self.setWindowTitle(title)
         self._rebuild_standard_context()
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
@@ -374,13 +426,17 @@ class ResultViewWindow(QMainWindow):
         self.temporal_playback_action.setEnabled(usable)
         if usable and not self.temporal_area_records:
             self.temporal_playback_action.setToolTip(
-                "Open tree-time playback. Load area polygons in Spatial Data Manager to enable the linked map."
+                "Open lineage range dynamics. Load area polygons in Spatial Data Manager to enable map glyphs."
             )
 
     def _open_temporal_playback(self) -> None:
+        if not LINEAGE_RANGE_DYNAMICS_ENABLED or not hasattr(self, "temporal_playback_action"):
+            return
         if not self.temporal_playback_action.isEnabled():
             return
         try:
+            from gui.dialogs.temporal_range_playback_dialog import TemporalRangePlaybackDialog
+
             dialog = TemporalRangePlaybackDialog(
                 result=self.current_result,
                 method_name=self.current_method_name,
@@ -392,7 +448,7 @@ class ResultViewWindow(QMainWindow):
                 parent=self,
             )
         except Exception as exc:
-            QMessageBox.warning(self, "Spatiotemporal Playback", str(exc))
+            QMessageBox.warning(self, "Lineage Range Dynamics", str(exc))
             return
         self._temporal_playback_dialog = dialog
         dialog.show()
@@ -401,10 +457,16 @@ class ResultViewWindow(QMainWindow):
 
     def _update_context_status(self) -> None:
         method_text = self.current_method_name or "no method"
-        self.statusBar().showMessage(
-            "Result View consumes reconstruction result=%s. Information/Time use heuristic event summaries, not BioGeoBEARS BSM."
-            % method_text
-        )
+        if self._large_tree_tip_count:
+            self.statusBar().showMessage(
+                "Large-tree overview: %d tips; circular layout, compact dominant-state markers, names hidden."
+                % self._large_tree_tip_count
+            )
+        else:
+            self.statusBar().showMessage(
+                "Result View consumes reconstruction result=%s. Information/Time use heuristic event summaries, not BioGeoBEARS BSM."
+                % method_text
+            )
 
     def refresh_view(self) -> None:
         self.tree_panel.refresh_tree()
@@ -573,7 +635,7 @@ class ResultViewWindow(QMainWindow):
             return
         taxa = self._selected_taxa_from_current_clade()
         if not taxa:
-            QMessageBox.warning(self, "Figure Group", "Select an internal node first.")
+            QMessageBox.warning(self, "Continuous Trait Figure Group", "Select an internal node first.")
             return
         groups = [self._normalise_figure_group(group, index) for index, group in enumerate(self._figure_groups())]
         index = len(groups)
@@ -593,7 +655,7 @@ class ResultViewWindow(QMainWindow):
             return
         group = self._normalise_figure_group(dialog.group_data(), index)
         if not group.get("name"):
-            QMessageBox.warning(self, "Figure Group", "Group name is required.")
+            QMessageBox.warning(self, "Continuous Trait Figure Group", "Group name is required.")
             return
         groups.append(group)
         self._set_figure_groups(groups)
@@ -610,7 +672,7 @@ class ResultViewWindow(QMainWindow):
             return
         group = self._normalise_figure_group(dialog.group_data(), index)
         if not group.get("name"):
-            QMessageBox.warning(self, "Figure Group", "Group name is required.")
+            QMessageBox.warning(self, "Continuous Trait Figure Group", "Group name is required.")
             return
         groups[index] = group
         self._set_figure_groups(groups)
@@ -1036,6 +1098,16 @@ class ResultViewWindow(QMainWindow):
         self.renderer.set_circular_enabled(checked)
         self.refresh_view()
 
+    def _on_tree_detail_changed(self, *args) -> None:
+        if self._updating_tree_display_controls or self.renderer is None:
+            return
+        set_profile = getattr(self.renderer, "set_display_profile", None)
+        if not callable(set_profile):
+            return
+        profile = str(self.tree_detail_combo.currentData() or "auto")
+        set_profile(profile)
+        self.refresh_view()
+
     def _on_continuous_display_scale_changed(self, *args) -> None:
         if self._updating_continuous_scale_controls or not self._is_continuous_result():
             return
@@ -1068,10 +1140,10 @@ class ResultViewWindow(QMainWindow):
 
     def _export_png(self) -> None:
         if self.renderer is None:
-            QMessageBox.warning(self, "无法导出", "当前没有可导出的树。")
+            QMessageBox.warning(self, "Cannot Export", "当前没有可导出的树。")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "导出PNG", "", "PNG Files (*.png)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export PNG", "", "PNG Files (*.png)")
         if not file_path:
             return
         if not file_path.lower().endswith(".png"):
@@ -1081,14 +1153,14 @@ class ResultViewWindow(QMainWindow):
             self.export_service.export_tree_png(self.renderer, file_path)
             self.statusBar().showMessage(f"已导出PNG: {file_path}")
         except Exception as exc:
-            QMessageBox.critical(self, "导出失败", str(exc))
+            QMessageBox.critical(self, "Export Failed", str(exc))
 
     def _export_svg(self) -> None:
         if self.renderer is None:
-            QMessageBox.warning(self, "无法导出", "当前没有可导出的树。")
+            QMessageBox.warning(self, "Cannot Export", "当前没有可导出的树。")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "导出SVG", "", "SVG Files (*.svg)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export SVG", "", "SVG Files (*.svg)")
         if not file_path:
             return
         if not file_path.lower().endswith(".svg"):
@@ -1098,14 +1170,14 @@ class ResultViewWindow(QMainWindow):
             self.export_service.export_tree_svg(self.renderer, file_path)
             self.statusBar().showMessage(f"已导出SVG: {file_path}")
         except Exception as exc:
-            QMessageBox.critical(self, "导出失败", str(exc))
+            QMessageBox.critical(self, "Export Failed", str(exc))
 
     def _export_csv(self) -> None:
         if self.current_result is None:
-            QMessageBox.warning(self, "无法导出", "当前没有可导出的结果。")
+            QMessageBox.warning(self, "Cannot Export", "当前没有可导出的结果。")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "导出CSV", "", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export CSV", "", "CSV Files (*.csv)")
         if not file_path:
             return
         if not file_path.lower().endswith(".csv"):
@@ -1119,7 +1191,7 @@ class ResultViewWindow(QMainWindow):
             )
             self.statusBar().showMessage(f"已导出CSV: {file_path}")
         except Exception as exc:
-            QMessageBox.critical(self, "导出失败", str(exc))
+            QMessageBox.critical(self, "Export Failed", str(exc))
 
     def _export_node_summary_csv(self) -> None:
         if self.current_result is None:
@@ -1149,10 +1221,10 @@ class ResultViewWindow(QMainWindow):
 
     def _export_pdf(self) -> None:
         if self.renderer is None:
-            QMessageBox.warning(self, "无法导出", "当前没有可导出的树。")
+            QMessageBox.warning(self, "Cannot Export", "当前没有可导出的树。")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "导出PDF", "", "PDF Files (*.pdf)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export PDF", "", "PDF Files (*.pdf)")
         if not file_path:
             return
         if not file_path.lower().endswith(".pdf"):
@@ -1162,7 +1234,7 @@ class ResultViewWindow(QMainWindow):
             self.export_service.export_tree_pdf(self.renderer, file_path)
             self.statusBar().showMessage(f"已导出PDF: {file_path}")
         except Exception as exc:
-            QMessageBox.critical(self, "导出失败", str(exc))
+            QMessageBox.critical(self, "Export Failed", str(exc))
 
     def _export_continuous_figure(self) -> None:
         if not self._is_continuous_result():

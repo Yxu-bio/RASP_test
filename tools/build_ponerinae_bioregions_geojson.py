@@ -42,15 +42,15 @@ NE_ADMIN1_PATH = (
 )
 
 DEFAULT_OUTPUT = (
-    Path("examples")
-    / "phase1_reference_data"
-    / "Dore_2025_Ponerinae"
+    Path("data")
+    / "benchmarks"
+    / "dore_ponerinae"
     / "Ponerinae_7_bioregions.geojson"
 )
 DEFAULT_NOTES_OUTPUT = (
-    Path("examples")
-    / "phase1_reference_data"
-    / "Dore_2025_Ponerinae"
+    Path("data")
+    / "benchmarks"
+    / "dore_ponerinae"
     / "Ponerinae_7_bioregions_build_notes.csv"
 )
 

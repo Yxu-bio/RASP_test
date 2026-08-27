@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import (
 )
 
 from domain.models.sdec_config import SDECConfig, SDECMRCAConstraint
+from gui.window_behavior import configure_resizable_window
 
 
 class CheckableAreaComboBox(QComboBox):
@@ -79,11 +80,12 @@ class SDECConfigDialog(QDialog):
         config=None,
         parent=None,
         threads_label="Threads:",
+        title="S-DEC",
     ):
         super().__init__(parent)
-        self.setWindowTitle("DEC")
+        self.setWindowTitle(str(title or "S-DEC"))
         self.resize(1120, 660)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         self.threads_label_text = str(threads_label or "Threads:").strip() or "Threads:"
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
@@ -742,9 +744,10 @@ class SDECConfigDialog(QDialog):
             raise ValueError("The timeperiods has to have just only one oldest time that is older than the root age of the tree.")
 
     def _save_settings(self):
+        method_label = str(self.windowTitle() or "S-DEC")
         path, _selected = QFileDialog.getSaveFileName(
             self,
-            "Save DEC Setting",
+            "Save %s Setting" % method_label,
             "",
             "JSON files (*.json);;Text files (*.txt);;All files (*)",
         )
@@ -761,9 +764,10 @@ class SDECConfigDialog(QDialog):
             QMessageBox.warning(self, "Save failed", str(exc))
 
     def _load_settings(self):
+        method_label = str(self.windowTitle() or "S-DEC")
         path, _selected = QFileDialog.getOpenFileName(
             self,
-            "Load DEC Setting",
+            "Load %s Setting" % method_label,
             "",
             "JSON files (*.json);;Text files (*.txt);;All files (*)",
         )

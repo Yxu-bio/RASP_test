@@ -1088,12 +1088,13 @@ class NodeInfoPanel(QWidget):
             ]
 
         payloads.sort(key=self._node_sort_key)
+        compact_summaries = len(payloads) >= 500
 
         rows = []
         for payload in payloads:
             display_id = str(getattr(payload, "display_node_id", "") or "").strip()
             display_text = f"node {display_id}"
-            summary = str(getattr(payload, "state_summary", "") or "无")
+            summary = self._list_state_summary(payload, compact=compact_summaries)
             rows.append((display_text, summary, str(getattr(payload, "clade_key", "") or "")))
 
         self.list_table.setRowCount(len(rows))
@@ -1111,6 +1112,36 @@ class NodeInfoPanel(QWidget):
         self.list_table.resizeColumnsToContents()
         self.list_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.list_table.horizontalHeader().setStretchLastSection(True)
+
+    def _list_state_summary(self, payload, compact=False) -> str:
+        summary = str(getattr(payload, "state_summary", "") or "无")
+        if not compact or self._is_continuous_result():
+            return summary
+
+        labels = [
+            str(value).strip()
+            for value in list(getattr(payload, "state_labels", []) or [])
+            if str(value).strip()
+        ]
+        supports = dict(getattr(payload, "state_supports", {}) or {})
+        if supports:
+            items = [
+                (str(state).strip(), float(probability or 0.0))
+                for state, probability in supports.items()
+                if str(state).strip()
+            ]
+            items.sort(key=lambda item: (-item[1], item[0]))
+            shown = items[:4]
+            text = ", ".join("%s %.2f%%" % (state, probability) for state, probability in shown)
+            remaining = max(0, len(items) - len(shown))
+        else:
+            shown_labels = labels[:4]
+            text = ", ".join(shown_labels)
+            remaining = max(0, len(labels) - len(shown_labels))
+
+        if remaining:
+            text += " (+%d more)" % remaining
+        return text or summary
 
     def _refresh_color_tab(self) -> None:
         if self.current_result is None:

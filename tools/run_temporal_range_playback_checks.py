@@ -146,6 +146,77 @@ def main():
     check(abs(frame.area_probabilities.get("Area Alpha", 0.0) - 0.5) < 1e-9, "Selected-lineage Area Alpha marginal is incorrect.")
     check(abs(frame.area_probabilities.get("Area Beta", 0.0) - 0.5) < 1e-9, "Selected-lineage Area Beta marginal is incorrect.")
 
+    clade_frame = service.frame(
+        timeline,
+        0.5,
+        selected_branch_id=branch.branch_id,
+        display_scope="descendant_clade",
+    )
+    descendant_ids = set(service._descendant_branch_ids(timeline, branch.branch_id))
+    check(set(clade_frame.focused_branch_ids) == descendant_ids, "Descendant-clade focus omitted branches.")
+    check(clade_frame.focused_active_branch_count == 2, "Descendant-clade focus has the wrong active-lineage count.")
+    check(
+        set(clade_frame.focused_active_branch_ids).issubset(descendant_ids),
+        "A lineage outside the selected clade entered the focused frame.",
+    )
+    check(len(set(clade_frame.branch_group_ids.values())) == 3, "Selected stem and daughter clades were not grouped stably.")
+    later_clade_frame = service.frame(
+        timeline,
+        0.75,
+        selected_branch_id=branch.branch_id,
+        display_scope="descendant_clade",
+    )
+    check(clade_frame.branch_group_ids == later_clade_frame.branch_group_ids, "Lineage groups changed between frames.")
+    check(clade_frame.group_colors == later_clade_frame.group_colors, "Lineage colors changed between frames.")
+    path_group = next(
+        group_id for group_id in clade_frame.group_colors
+        if str(group_id).startswith("path::")
+    )
+    daughter_colors = [
+        color for group_id, color in clade_frame.group_colors.items()
+        if not str(group_id).startswith(("path::", "other::"))
+    ]
+    check(
+        clade_frame.group_colors[path_group] == service.ANCESTRAL_PATH_COLOR,
+        "The ancestral path did not retain its semantic color.",
+    )
+    check(
+        len(set(daughter_colors)) == len(daughter_colors),
+        "Visible daughter clades were assigned duplicate colors.",
+    )
+    check(
+        service.ANCESTRAL_PATH_COLOR not in daughter_colors,
+        "A daughter clade reused the ancestral-path color.",
+    )
+    for area_code, glyph in clade_frame.area_glyphs.items():
+        expected = 0.0
+        for branch_id in clade_frame.focused_active_branch_ids:
+            expected += service.area_marginals(
+                clade_frame.active_branch_probabilities[branch_id],
+                timeline.state_area_members,
+            ).get(area_code, 0.0)
+        check(
+            abs(float(glyph.get("expected_count", 0.0)) - expected) < 1e-9,
+            "Area glyph expected occupancy does not equal the focused-lineage sum.",
+        )
+
+    tip_branch = next(item for item in timeline.branches if item.child_clade_key == "tip_a")
+    tip_descendant_frame = service.frame(
+        timeline,
+        1.5,
+        selected_branch_id=tip_branch.branch_id,
+        display_scope="descendant_clade",
+    )
+    continuum_frame = service.frame(
+        timeline,
+        1.5,
+        selected_branch_id=tip_branch.branch_id,
+        display_scope="full_continuum",
+    )
+    check(tip_descendant_frame.focused_active_branch_count == 0, "A tip lineage was extended before its origin.")
+    check(continuum_frame.focused_active_branch_count == 1, "The ancestral path is missing from full-continuum focus.")
+    check(branch.branch_id in continuum_frame.ancestor_branch_ids, "Full-continuum focus omitted the ancestral branch.")
+
     after_split_frame = service.frame(timeline, 1.0, node_boundary_mode="after_split")
     before_split_frame = service.frame(timeline, 1.0, node_boundary_mode="before_split")
     child_branch_ids = set(
@@ -311,13 +382,43 @@ def main():
     app.processEvents()
     check(dialog.range_table.rowCount() > 0, "The playback range table is empty.")
     check(len(dialog.map_view._area_items) == 2, "The playback map did not draw both areas.")
+    check(len(dialog.map_view._glyph_items) > 0, "The playback map did not draw lineage-composition glyphs.")
     selected_id = dialog.timeline.branches[0].branch_id
     dialog.tree_view._branch_items[selected_id].setSelected(True)
     app.processEvents()
     check(dialog._selected_branch_id == selected_id, "Tree branch selection did not reach the playback dialog.")
+    dialog.tree_view.view.scale(1.1, 1.1)
+    dialog.map_view.view.scale(1.1, 1.1)
+    tree_scale_before = dialog.tree_view.view.transform().m11()
+    map_scale_before = dialog.map_view.view.transform().m11()
     dialog.time_slider.setValue(650)
     app.processEvents()
     check(dialog._selected_branch_id == selected_id, "Time refresh cleared the selected branch.")
+    check(abs(dialog.tree_view.view.transform().m11() - tree_scale_before) < 1e-9, "Tree zoom reset during refresh.")
+    check(abs(dialog.map_view.view.transform().m11() - map_scale_before) < 1e-9, "Map zoom reset during refresh.")
+    check(
+        set(dialog.current_frame.focused_branch_ids)
+        == set(service._descendant_branch_ids(dialog.timeline, selected_id)),
+        "Dialog branch selection did not focus the complete descendant clade.",
+    )
+    connector_items = [
+        item for item in dialog.tree_view._connector_overlay_items.values()
+        if item.isVisible() and not item.path().isEmpty()
+    ]
+    connector_colors = set(item.pen().color().name().lower() for item in connector_items)
+    expected_group_colors = set(
+        str(color).lower() for color in dialog.current_frame.group_colors.values()
+    )
+    check(connector_items, "Focused lineage connectors did not receive colored overlays.")
+    check(
+        connector_colors.issubset(expected_group_colors),
+        "A vertical connector color diverged from the lineage-group palette.",
+    )
+    hovered_group = dialog.current_frame.branch_group_ids.get(dialog.current_frame.focused_active_branch_ids[0], "")
+    dialog._on_map_group_hovered(hovered_group)
+    check(dialog.tree_view._hovered_group_id == hovered_group, "Map-to-tree lineage hover did not propagate.")
+    dialog._clear_group_hover()
+    check(not dialog.tree_view._hovered_group_id, "Lineage hover did not clear cleanly.")
     dialog.scope_combo.setCurrentIndex(0)
     dialog.time_slider.setValue(500)
     app.processEvents()
@@ -329,6 +430,7 @@ def main():
         check("node_boundary_mode" in exported.splitlines()[0], "Frame CSV lacks node-boundary provenance.")
         check("branch_range_probability" in exported, "Frame CSV lacks branch probabilities.")
         check("map_area_marginal_probability" in exported, "Frame CSV lacks map marginals.")
+        check("map_area_group_expected_occupancy" in exported, "Frame CSV lacks lineage-group occupancy values.")
     screenshot_path = str(os.environ.get("RASP_TEMPORAL_SCREENSHOT", "") or "").strip()
     if screenshot_path:
         dialog.show()
@@ -353,11 +455,10 @@ def main():
     result_window.set_result(result)
     result_window.set_window_title_by_method("BioGeoBEARS-DEC")
     result_window.set_temporal_playback_context(area_records=areas, range_matrix=matrix, bsm_result=bsm_result)
-    check(result_window.temporal_playback_action.isEnabled(), "The Result View playback action is disabled.")
-    result_window._open_temporal_playback()
-    app.processEvents()
-    check(result_window._temporal_playback_dialog is not None, "Result View did not open the playback dialog.")
-    result_window._temporal_playback_dialog.close()
+    check(
+        not hasattr(result_window, "temporal_playback_action"),
+        "The sealed Lineage Range Dynamics entry is still exposed in Result View.",
+    )
     result_window.close()
     app.processEvents()
 
@@ -370,7 +471,10 @@ def main():
         range_matrix=matrix,
         reference_tree=tree,
     )
-    check(diva_window.temporal_playback_action.isEnabled(), "DIVA playback action is disabled.")
+    check(
+        not hasattr(diva_window, "temporal_playback_action"),
+        "DIVA Result View still exposes the sealed Lineage Range Dynamics entry.",
+    )
     diva_window.close()
 
     trait_named_window = ResultViewWindow()
@@ -378,8 +482,8 @@ def main():
     trait_named_window.set_window_title_by_method("BayesTraits-MultiState")
     trait_named_window.set_temporal_playback_context(reference_tree=tree)
     check(
-        not trait_named_window.temporal_playback_action.isEnabled(),
-        "A non-geographic trait result incorrectly enabled range playback.",
+        not hasattr(trait_named_window, "temporal_playback_action"),
+        "A trait Result View exposes the sealed Lineage Range Dynamics entry.",
     )
     trait_named_window.close()
 
@@ -394,6 +498,7 @@ def main():
     ])
     coordinate_map.set_probabilities({"Coordinate only": 0.75})
     check(len(coordinate_map._area_items) == 1, "Coordinate-only BayArea geography was not drawn.")
+    check(len(coordinate_map._glyph_items) == 1, "Coordinate-only map probability did not draw a glyph.")
     coordinate_map.close()
 
     with tempfile.TemporaryDirectory(prefix="rasp_bsm_json_lookup_") as lookup_tmp:

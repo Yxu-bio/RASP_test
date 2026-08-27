@@ -25,6 +25,7 @@ from gui.workers.spatial_area_import_worker import SpatialAreaImportWorker
 from gui.workers.spatial_encoding_worker import SpatialEncodingWorker
 from gui.workers.spatial_occurrence_import_worker import SpatialOccurrenceImportWorker
 from gui.widgets.spatial_map_view import SpatialMapView
+from gui.window_behavior import configure_resizable_window
 
 
 class SpatialDataManagerDialog(QDialog):
@@ -44,7 +45,7 @@ class SpatialDataManagerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Spatial Data Manager")
         self.setMinimumSize(960, 640)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
         self.service = service
         self._project = project if project is not None else SpatialDataProject()
         self.tree_taxa = list(tree_taxa or [])
@@ -261,6 +262,7 @@ class SpatialDataManagerDialog(QDialog):
         dialog.setNameFilter(name_filter)
         dialog.setMinimumSize(640, 420)
         dialog.resize(860, 560)
+        configure_resizable_window(dialog)
         if dialog.exec_() != QDialog.Accepted:
             return "", ""
         selected_files = dialog.selectedFiles()

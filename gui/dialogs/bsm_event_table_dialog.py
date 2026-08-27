@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import (
 )
 
 from application.services.bsm_dispersal_network_service import BSMDispersalNetworkService
+from gui.window_behavior import configure_resizable_window
 
 
 class _NetworkGraphicsView(QGraphicsView):
@@ -70,7 +71,7 @@ class BSMEventTableDialog(QDialog):
         self.filtered_events = list(self.all_events)
         self.setWindowTitle("BioGeoBEARS BSM Event Table")
         self.resize(1180, 720)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget(self)

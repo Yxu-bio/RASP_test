@@ -251,7 +251,8 @@ def render_circular(root_node, n2i, rot_step):
             # And moves elements
             if xoffset:
                 for i in item.movable_items:
-                    i.moveBy(xoffset, 0)
+                    if not bool(getattr(i, "_rasp_anchor_at_branch_end", False)):
+                        i.moveBy(xoffset, 0)
 
 
     n2i[root_node].max_r = max_r

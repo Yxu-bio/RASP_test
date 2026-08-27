@@ -1,4 +1,5 @@
 import csv
+from html import escape
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, QTimer
@@ -27,6 +28,7 @@ from application.services.temporal_range_playback_service import TemporalRangePl
 from application.services.bsm_branch_history_service import BSMBranchHistoryService
 from gui.widgets.temporal_range_map_view import TemporalRangeMapView
 from gui.widgets.temporal_range_tree_view import TemporalRangeTreeView
+from gui.window_behavior import configure_resizable_window
 
 
 class TemporalRangePlaybackDialog(QDialog):
@@ -45,9 +47,10 @@ class TemporalRangePlaybackDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Spatiotemporal Range Playback")
+        self.setWindowTitle("Lineage Range Dynamics")
         self.resize(1380, 820)
         self.setMinimumSize(920, 620)
+        configure_resizable_window(self)
 
         self.service = TemporalRangePlaybackService()
         self.timeline = self.service.build(
@@ -73,20 +76,30 @@ class TemporalRangePlaybackDialog(QDialog):
         self.tree_view = TemporalRangeTreeView(self)
         self.tree_view.set_timeline(self.timeline)
         self.tree_view.branch_selected.connect(self._on_branch_selected)
+        self.tree_view.branch_hovered.connect(self._on_tree_branch_hovered)
+        self.tree_view.branch_hover_cleared.connect(self._clear_group_hover)
+        self.tree_view.branch_zoom_requested.connect(self.tree_view.zoom_to_branch)
         self.map_view = TemporalRangeMapView(self)
         self.map_view.set_areas(self._area_records)
+        self.map_view.group_hovered.connect(self._on_map_group_hovered)
+        self.map_view.group_hover_cleared.connect(self._clear_group_hover)
 
         self.range_table = QTableWidget(0, 3, self)
         self.range_table.setHorizontalHeaderLabels(["Range", "Probability", "Areas"])
         self.range_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.range_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.area_table = QTableWidget(0, 2, self)
-        self.area_table.setHorizontalHeaderLabels(["Area", "Marginal probability"])
+        self.area_table = QTableWidget(0, 4, self)
+        self.area_table.setHorizontalHeaderLabels([
+            "Area",
+            "Expected occupancy",
+            "Occupied-lineage fraction",
+            "Leading clade",
+        ])
         self.area_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.area_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table_tabs = QTabWidget(self)
-        self.table_tabs.addTab(self.range_table, "Range probabilities")
-        self.table_tabs.addTab(self.area_table, "Area marginals")
+        self.table_tabs.addTab(self.range_table, "Range composition")
+        self.table_tabs.addTab(self.area_table, "Area occupancy")
 
         self.time_slider = QSlider(Qt.Horizontal, self)
         self.time_slider.setRange(0, self.SLIDER_STEPS)
@@ -109,8 +122,9 @@ class TemporalRangePlaybackDialog(QDialog):
         self.speed_combo.setCurrentIndex(2)
 
         self.scope_combo = QComboBox(self)
-        self.scope_combo.addItem("All active lineages", "all_active_lineages")
-        self.scope_combo.addItem("Selected lineage", "selected_lineage")
+        self.scope_combo.addItem("Descendant clade", "descendant_clade")
+        self.scope_combo.addItem("Full phylogenetic continuum", "full_continuum")
+        self.scope_combo.addItem("Single branch", "single_branch")
         self.scope_combo.currentIndexChanged.connect(self._refresh_frame)
 
         self.node_boundary_combo = QComboBox(self)
@@ -138,8 +152,22 @@ class TemporalRangePlaybackDialog(QDialog):
             self.sample_combo.addItem("Map %s" % sample_id, str(sample_id))
         self.sample_combo.currentIndexChanged.connect(self._refresh_frame)
 
-        self.fit_tree_button = QPushButton("Fit tree", self)
+        self.fit_tree_button = QPushButton(
+            "Fit width" if self.tree_view.is_large_tree() else "Fit tree",
+            self,
+        )
+        self.fit_tree_button.setToolTip(
+            "Fit the time axis to the panel; large trees remain vertically scrollable."
+        )
         self.fit_tree_button.clicked.connect(self.tree_view.fit_to_tree)
+        self.fit_all_tree_button = QPushButton("Overview", self)
+        self.fit_all_tree_button.setToolTip("Fit the entire large tree into the panel as a compact overview.")
+        self.fit_all_tree_button.clicked.connect(self.tree_view.fit_all)
+        self.fit_all_tree_button.setVisible(self.tree_view.is_large_tree())
+        self.zoom_focus_button = QPushButton("Zoom to focus", self)
+        self.zoom_focus_button.clicked.connect(self._zoom_to_focus)
+        self.clear_focus_button = QPushButton("Clear focus", self)
+        self.clear_focus_button.clicked.connect(self._clear_focus)
         self.fit_map_button = QPushButton("Fit map", self)
         self.fit_map_button.clicked.connect(self.map_view.fit_to_map)
         self.export_frame_button = QPushButton("Export frame", self)
@@ -150,6 +178,13 @@ class TemporalRangePlaybackDialog(QDialog):
         self.time_label = QLabel(self)
         self.branch_label = QLabel("No branch selected", self)
         self.branch_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.legend_label = QLabel(self)
+        self.legend_label.setTextFormat(Qt.RichText)
+        self.legend_label.setWordWrap(True)
+        self.legend_label.setMaximumHeight(82)
+        self.legend_label.setStyleSheet(
+            "QLabel { background: #f4f6f7; border: 1px solid #c9d0d4; padding: 6px; color: #303940; }"
+        )
         self.mode_label = QLabel(self._mode_text(), self)
         self.mode_label.setWordWrap(True)
         self.mode_label.setStyleSheet("QLabel { color: #3f4a52; }")
@@ -187,7 +222,7 @@ class TemporalRangePlaybackDialog(QDialog):
         root.addLayout(time_controls)
 
         display_controls = QHBoxLayout()
-        display_controls.addWidget(QLabel("Map scope", self))
+        display_controls.addWidget(QLabel("Focus", self))
         display_controls.addWidget(self.scope_combo)
         display_controls.addSpacing(8)
         display_controls.addWidget(QLabel("At nodes", self))
@@ -197,7 +232,10 @@ class TemporalRangePlaybackDialog(QDialog):
         display_controls.addWidget(self.playback_mode_combo)
         display_controls.addWidget(self.sample_combo)
         display_controls.addStretch(1)
+        display_controls.addWidget(self.clear_focus_button)
+        display_controls.addWidget(self.zoom_focus_button)
         display_controls.addWidget(self.fit_tree_button)
+        display_controls.addWidget(self.fit_all_tree_button)
         display_controls.addWidget(self.fit_map_button)
         display_controls.addWidget(self.export_frame_button)
         root.addLayout(display_controls)
@@ -207,18 +245,21 @@ class TemporalRangePlaybackDialog(QDialog):
         root.addWidget(self.warning_label)
 
         right = QWidget(self)
+        right.setMinimumWidth(410)
+        right.setMaximumWidth(620)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(self.map_view, 3)
+        right_layout.addWidget(self.legend_label)
         right_layout.addWidget(self.branch_label)
         right_layout.addWidget(self.table_tabs, 2)
 
         splitter = QSplitter(Qt.Horizontal, self)
         splitter.addWidget(self.tree_view)
         splitter.addWidget(right)
-        splitter.setStretchFactor(0, 6)
-        splitter.setStretchFactor(1, 5)
-        splitter.setSizes([760, 600])
+        splitter.setStretchFactor(0, 7)
+        splitter.setStretchFactor(1, 4)
+        splitter.setSizes([900, 460])
         root.addWidget(splitter, 1)
         self._sync_history_controls()
 
@@ -279,7 +320,7 @@ class TemporalRangePlaybackDialog(QDialog):
             return ""
         count = int(diagnostics.get("map_count", 0) or 0)
         half_width = diagnostics.get("worst_case_mc95_half_width")
-        error_text = "unknown" if half_width is None else "±%.1f pp" % (100.0 * float(half_width))
+        error_text = "unknown" if half_width is None else "+/- %.1f pp" % (100.0 * float(half_width))
         text = "%s BSM sampling: %d maps; conservative worst-case 95%% Monte Carlo half-width %s" % (
             diagnostics.get("sampling_label", ""),
             count,
@@ -337,7 +378,7 @@ class TemporalRangePlaybackDialog(QDialog):
         self._refresh_frame()
 
     def _refresh_frame(self, *args):
-        scope = str(self.scope_combo.currentData() or "all_active_lineages")
+        scope = str(self.scope_combo.currentData() or "descendant_clade")
         playback_mode = str(self.playback_mode_combo.currentData() or "endpoints")
         sample_id = str(self.sample_combo.currentData() or "")
         node_boundary_mode = str(self.node_boundary_combo.currentData() or "after_split")
@@ -351,23 +392,30 @@ class TemporalRangePlaybackDialog(QDialog):
             node_boundary_mode=node_boundary_mode,
         )
         self.current_frame = frame
+        self.tree_view.set_hovered_group("")
+        self.map_view.highlight_group("")
         self.tree_view.set_frame(frame)
-        scope_label = (
-            "Selected lineage" if scope == "selected_lineage" and self._selected_branch_id
-            else "Mean across %d active lineages" % frame.active_branch_count
+        self.map_view.set_lineage_glyphs(
+            frame.area_glyphs,
+            group_colors=frame.group_colors,
+            group_labels=frame.group_labels,
+            focused_active_count=frame.focused_active_branch_count,
+            scope_label=frame.scope_label,
         )
-        self.map_view.set_probabilities(frame.area_probabilities, scope_label=scope_label)
         self.time_label.setText("%.6g / %.6g" % (float(frame.time), float(self.timeline.root_age)))
+        self.legend_label.setText(self._legend_html(frame))
+        self.legend_label.setToolTip(self._legend_plain_text(frame))
+        self._update_branch_label(frame)
         self._populate_tables(frame)
 
     def _export_frame_csv(self):
         frame = self.current_frame
         if frame is None:
             return
-        default_name = "spatiotemporal_range_frame_%g.csv" % float(frame.time)
+        default_name = "lineage_range_dynamics_frame_%g.csv" % float(frame.time)
         path, _selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export Spatiotemporal Range Frame",
+            "Export Lineage Range Dynamics Frame",
             default_name,
             "CSV files (*.csv);;All files (*)",
         )
@@ -394,8 +442,11 @@ class TemporalRangePlaybackDialog(QDialog):
                     "node_boundary_mode",
                     "display_scope",
                     "branch_id",
+                    "group_id",
+                    "group_label",
                     "state_or_area",
                     "probability",
+                    "expected_lineage_occupancy",
                 ],
             )
             writer.writeheader()
@@ -408,8 +459,11 @@ class TemporalRangePlaybackDialog(QDialog):
                         "node_boundary_mode": frame.node_boundary_mode,
                         "display_scope": frame.display_scope,
                         "branch_id": branch_id,
+                        "group_id": frame.branch_group_ids.get(branch_id, ""),
+                        "group_label": frame.group_labels.get(frame.branch_group_ids.get(branch_id, ""), ""),
                         "state_or_area": state,
                         "probability": "%.12g" % float(probability),
+                        "expected_lineage_occupancy": "",
                     })
             for area, probability in sorted(frame.area_probabilities.items()):
                 writer.writerow({
@@ -419,9 +473,29 @@ class TemporalRangePlaybackDialog(QDialog):
                     "node_boundary_mode": frame.node_boundary_mode,
                     "display_scope": frame.display_scope,
                     "branch_id": frame.selected_branch_id,
+                    "group_id": "",
+                    "group_label": "",
                     "state_or_area": area,
                     "probability": "%.12g" % float(probability),
+                    "expected_lineage_occupancy": "%.12g" % float(
+                        dict(frame.area_glyphs.get(area, {}) or {}).get("expected_count", 0.0) or 0.0
+                    ),
                 })
+            for area, glyph in sorted(frame.area_glyphs.items()):
+                for group_id, value in sorted(dict(glyph.get("group_values", {}) or {}).items()):
+                    writer.writerow({
+                        "record_type": "map_area_group_expected_occupancy",
+                        "time_before_present": "%.12g" % float(frame.time),
+                        "history_mode": frame.history_mode,
+                        "node_boundary_mode": frame.node_boundary_mode,
+                        "display_scope": frame.display_scope,
+                        "branch_id": "",
+                        "group_id": group_id,
+                        "group_label": frame.group_labels.get(group_id, group_id),
+                        "state_or_area": area,
+                        "probability": "",
+                        "expected_lineage_occupancy": "%.12g" % float(value),
+                    })
 
     def _on_playback_mode_changed(self, *args):
         self._sync_history_controls()
@@ -445,30 +519,83 @@ class TemporalRangePlaybackDialog(QDialog):
 
     def _on_branch_selected(self, branch_id):
         self._selected_branch_id = str(branch_id or "")
-        branch = self.timeline.branch_by_id(self._selected_branch_id)
-        if branch is not None:
-            self.branch_label.setText(
-                "%s: node %s -> %s, time %.6g to %.6g, %s"
-                % (
-                    branch.branch_id,
-                    branch.parent_node_id or "?",
-                    branch.child_node_id or "?",
-                    float(branch.older_time),
-                    float(branch.younger_time),
-                    branch.interpolation_mode,
-                )
-            )
-        self.scope_combo.setCurrentIndex(1)
         self._refresh_frame()
+
+    def _clear_focus(self):
+        self._selected_branch_id = ""
+        self.tree_view.select_branch("")
+        self._clear_group_hover()
+        self._refresh_frame()
+
+    def _zoom_to_focus(self):
+        if self._selected_branch_id:
+            self.tree_view.zoom_to_branch(self._selected_branch_id)
+        else:
+            self.tree_view.fit_to_tree()
+
+    def _on_tree_branch_hovered(self, branch_id):
+        if self.current_frame is None:
+            return
+        group_id = str(self.current_frame.branch_group_ids.get(str(branch_id or ""), "") or "")
+        self.tree_view.set_hovered_group(group_id)
+        self.map_view.highlight_group(group_id)
+
+    def _on_map_group_hovered(self, group_id):
+        group_id = str(group_id or "")
+        self.tree_view.set_hovered_group(group_id)
+        self.map_view.highlight_group(group_id)
+
+    def _clear_group_hover(self):
+        self.tree_view.set_hovered_group("")
+        self.map_view.highlight_group("")
+
+    def _update_branch_label(self, frame):
+        branch = self.timeline.branch_by_id(self._selected_branch_id)
+        if branch is None:
+            self.branch_label.setText(
+                "Entire tree: %d of %d lineages cross the current time slice."
+                % (frame.focused_active_branch_count, frame.active_branch_count)
+            )
+            return
+        tip_count = int(dict(branch.metadata or {}).get("descendant_tip_count", 0) or 0)
+        self.branch_label.setText(
+            "%s | node %s -> %s | %.6g to %.6g | %d descendant tips | "
+            "%d active focused lineages | %s"
+            % (
+                branch.branch_id,
+                branch.parent_node_id or "?",
+                branch.child_node_id or "?",
+                float(branch.older_time),
+                float(branch.younger_time),
+                tip_count,
+                frame.focused_active_branch_count,
+                frame.scope_label,
+            )
+        )
+
+    def _legend_html(self, frame):
+        rows = [
+            "<b>Lineage groups</b> &nbsp; Bubble area = expected active-lineage occupancy; "
+            "pie slices = daughter-clade contribution."
+        ]
+        for group_id, label in frame.group_labels.items():
+            color = escape(str(frame.group_colors.get(group_id, "#76848d")))
+            rows.append(
+                "<span style='background-color:%s;'>&nbsp;&nbsp;&nbsp;</span>&nbsp;%s"
+                % (color, escape(str(label)))
+            )
+        return " &nbsp;&nbsp; ".join(rows)
+
+    def _legend_plain_text(self, frame):
+        lines = [
+            "Bubble area = expected active-lineage occupancy.",
+            "Pie slices = daughter-clade contribution.",
+        ]
+        lines.extend(str(label) for label in frame.group_labels.values())
+        return "\n".join(lines)
 
     def _populate_tables(self, frame):
         probabilities = dict(frame.selected_range_probabilities or {})
-        if (
-            not probabilities
-            and frame.display_scope != "selected_lineage"
-            and frame.active_branch_probabilities
-        ):
-            probabilities = self._mean_range_probabilities(frame.active_branch_probabilities.values())
         ordered = sorted(probabilities.items(), key=lambda item: (-float(item[1]), str(item[0])))
         self.range_table.setRowCount(len(ordered))
         for row, (state, value) in enumerate(ordered):
@@ -478,21 +605,21 @@ class TemporalRangePlaybackDialog(QDialog):
             self.range_table.setItem(row, 2, QTableWidgetItem(areas))
         self.range_table.resizeColumnsToContents()
 
-        area_rows = sorted(frame.area_probabilities.items(), key=lambda item: (-float(item[1]), str(item[0])))
+        area_rows = sorted(
+            frame.area_glyphs.items(),
+            key=lambda item: (-float(dict(item[1] or {}).get("expected_count", 0.0) or 0.0), str(item[0])),
+        )
         self.area_table.setRowCount(len(area_rows))
-        for row, (area, value) in enumerate(area_rows):
+        for row, (area, glyph) in enumerate(area_rows):
+            expected = float(dict(glyph or {}).get("expected_count", 0.0) or 0.0)
+            fraction = expected / float(frame.focused_active_branch_count) if frame.focused_active_branch_count else 0.0
+            group_values = dict(dict(glyph or {}).get("group_values", {}) or {})
+            leading_group = max(group_values.items(), key=lambda item: float(item[1]))[0] if group_values else ""
             self.area_table.setItem(row, 0, QTableWidgetItem(str(area)))
-            self.area_table.setItem(row, 1, QTableWidgetItem("%.3f%%" % (float(value) * 100.0)))
+            self.area_table.setItem(row, 1, QTableWidgetItem("%.3f" % expected))
+            self.area_table.setItem(row, 2, QTableWidgetItem("%.3f%%" % (fraction * 100.0)))
+            self.area_table.setItem(row, 3, QTableWidgetItem(frame.group_labels.get(leading_group, leading_group)))
         self.area_table.resizeColumnsToContents()
-
-    def _mean_range_probabilities(self, rows):
-        rows = [dict(row or {}) for row in rows if row]
-        if not rows:
-            return {}
-        labels = set()
-        for row in rows:
-            labels.update(row.keys())
-        return dict((label, sum(float(row.get(label, 0.0)) for row in rows) / float(len(rows))) for label in labels)
 
     def _toggle_playback(self):
         if self.timer.isActive():

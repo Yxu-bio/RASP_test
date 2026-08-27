@@ -637,6 +637,9 @@ def render_node_content(node, n2i, n2f, img):
             node_ball = _RectItem(node)
 
         node_ball.setPos(ball_start_x, center-(ball_size/2.0))
+        node_ball._rasp_anchor_at_branch_end = bool(
+            getattr(node, "_rasp_anchor_marker_at_branch_end", False)
+        )
         selection_ring = None
         if bool(getattr(node, "_rasp_selection_ring", False)):
             ring_size = float(getattr(node, "_rasp_selection_ring_size", ball_size + 14) or (ball_size + 14))
@@ -652,6 +655,9 @@ def render_node_content(node, n2i, n2f, img):
             selection_ring.setPos(
                 ball_start_x + (float(ball_size) - ring_size) / 2.0,
                 center - ring_size / 2.0,
+            )
+            selection_ring._rasp_anchor_at_branch_end = bool(
+                getattr(node, "_rasp_anchor_marker_at_branch_end", False)
             )
 
         #from qt4_gui import _BasicNodeActions

@@ -5,7 +5,7 @@ builder:
 
 ```powershell
 python tools\build_region_geojson.py `
-  --config examples\phase1_reference_data\region_builder_examples\simple_region_rules.json `
+  --config data\fixtures\region_builder\simple_region_rules.json `
   --output runs\region_builder\simple_region_demo.geojson `
   --notes-output runs\region_builder\simple_region_demo_notes.csv `
   --unassigned-output runs\region_builder\simple_region_demo_unassigned.csv
@@ -37,7 +37,7 @@ and admin1 polygons:
 
 ```powershell
 python tools\build_region_geojson.py `
-  --config examples\phase1_reference_data\region_builder_examples\dore_ponerinae_7_palea_rules.json `
+  --config data\fixtures\region_builder\dore_ponerinae_7_palea_rules.json `
   --output runs\region_builder\dore_ponerinae_7_palea_generic.geojson `
   --notes-output runs\region_builder\dore_ponerinae_7_palea_generic_notes.csv `
   --unassigned-output runs\region_builder\dore_ponerinae_7_palea_generic_unassigned.csv
@@ -54,7 +54,7 @@ This config uses Kawahara Table S27's country ISO to 7-bioregion scoring:
 
 ```powershell
 python tools\build_region_geojson.py `
-  --config examples\phase1_reference_data\region_builder_examples\kawahara_7_bioregion_rules.json `
+  --config data\fixtures\region_builder\kawahara_7_bioregion_rules.json `
   --output runs\region_builder\kawahara_7_bioregion_generic.geojson `
   --notes-output runs\region_builder\kawahara_7_bioregion_generic_notes.csv `
   --unassigned-output runs\region_builder\kawahara_7_bioregion_generic_unassigned.csv

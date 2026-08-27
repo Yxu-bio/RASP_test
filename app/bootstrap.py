@@ -71,7 +71,7 @@ class ApplicationBootstrap:
             raise ImportError(f"导入 PyQt5 失败: {exc}") from exc
 
         app = QApplication(sys.argv)
-        app.setApplicationName("RASP-Pro")
+        app.setApplicationName("RASP5")
         return app
 
     def build_main_window(self):

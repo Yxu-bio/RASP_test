@@ -1,4 +1,3 @@
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget
 
 from infrastructure.tree.ete_adapter import ETEAdapter
@@ -46,6 +45,18 @@ class ContinuousTraitResultRenderer(BaseResultRenderer):
     def set_circular_arc(self, arc_start: int, arc_span: int) -> None:
         self.adapter.set_circular_arc(arc_start, arc_span)
 
+    def set_display_profile(self, profile: str) -> None:
+        self.adapter.set_display_profile(profile)
+
+    def get_display_profile(self) -> str:
+        return self.adapter.get_display_profile()
+
+    def get_leaf_count(self) -> int:
+        return self.adapter.get_leaf_count()
+
+    def is_large_tree(self) -> bool:
+        return self.adapter.is_large_tree()
+
     def zoom_in(self) -> None:
         if self.adapter._view is not None:
             self.adapter._view.scale(1.2, 1.2)
@@ -55,12 +66,7 @@ class ContinuousTraitResultRenderer(BaseResultRenderer):
             self.adapter._view.scale(1 / 1.2, 1 / 1.2)
 
     def fit_to_view(self) -> None:
-        if self.adapter._view is not None and self.adapter._view.scene():
-            self.adapter._view.resetTransform()
-            self.adapter._view.fitInView(
-                self.adapter._view.scene().sceneRect(),
-                Qt.KeepAspectRatio,
-            )
+        self.adapter.fit_to_view()
 
     def export_tree_png(self, file_path: str) -> None:
         self.adapter.export_png(file_path)
@@ -82,7 +88,9 @@ class ContinuousTraitResultRenderer(BaseResultRenderer):
             return
 
         display_tree = self._copy_tree(self._source_tree)
-        self._insert_gradient_segments(display_tree, self._result, self._segment_count)
+        tip_count = len(self._source_tree)
+        segment_count = 2 if tip_count >= self.adapter.LARGE_TREE_THRESHOLD else self._segment_count
+        self._insert_gradient_segments(display_tree, self._result, segment_count)
         self._display_tree = display_tree
         self.adapter.set_tree(display_tree)
         self.adapter.apply_continuous_result(self._result)

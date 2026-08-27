@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 )
 
 from application.services.bsm_dispersal_network_service import BSMDispersalNetworkService
+from gui.window_behavior import configure_resizable_window
 
 
 class _NetworkEditorView(QGraphicsView):
@@ -151,7 +152,7 @@ class BSMNetworkMapEditorDialog(QDialog):
 
         self.setWindowTitle("BSM Network Map Editor")
         self.resize(1280, 760)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
         self._build_ui()
         self.refresh_network(reset_layout=True)
 

@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
 )
 
 from domain.models.sdiva_config import SDivaConfig
+from gui.window_behavior import configure_resizable_window
 
 
 class SDivaConfigDialog(QDialog):
@@ -36,7 +37,7 @@ class SDivaConfigDialog(QDialog):
         fossil_nodes=None,
         final_tree_available=True,
         parent=None,
-        title="S-DIVA 配置",
+        title="S-DIVA",
         show_final_tree=True,
         show_threads=True,
         show_fossils=True,
@@ -46,6 +47,7 @@ class SDivaConfigDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(820, 620)
+        configure_resizable_window(self)
 
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
         self.fossil_nodes = list(fossil_nodes or [])
@@ -78,7 +80,7 @@ class SDivaConfigDialog(QDialog):
         try:
             self._config = self._collect_config()
         except Exception as exc:
-            QMessageBox.warning(self, "閰嶇疆鏃犳晥", str(exc))
+            QMessageBox.warning(self, "Invalid Configuration", str(exc))
             return
         super().accept()
 
@@ -509,11 +511,12 @@ class SDivaConfigDialog(QDialog):
             self.check_extinction.setChecked(False)
 
     def _save_settings(self):
+        method_label = str(self.windowTitle() or "S-DIVA")
         file_path, _selected = QFileDialog.getSaveFileName(
             self,
-            "Save S-DIVA Setting",
+            "Save %s Setting" % method_label,
             "",
-            "S-DIVA setting (*.txt);;All files (*.*)",
+            "%s setting (*.txt);;All files (*.*)" % method_label,
         )
         if not file_path:
             return
@@ -526,11 +529,12 @@ class SDivaConfigDialog(QDialog):
             QMessageBox.warning(self, "Save failed", str(exc))
 
     def _load_settings(self):
+        method_label = str(self.windowTitle() or "S-DIVA")
         file_path, _selected = QFileDialog.getOpenFileName(
             self,
-            "Load S-DIVA Setting",
+            "Load %s Setting" % method_label,
             "",
-            "S-DIVA setting (*.txt);;All files (*.*)",
+            "%s setting (*.txt);;All files (*.*)" % method_label,
         )
         if not file_path:
             return

@@ -33,6 +33,7 @@ from domain.models.bayestraits_config import (
     normalize_bayestraits_continuous_transform,
     normalize_bayestraits_model,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class BayesTraitsConfigDialog(QDialog):
@@ -41,8 +42,7 @@ class BayesTraitsConfigDialog(QDialog):
         self.setWindowTitle("BayesTraits")
         self.resize(900, 620)
         self.setMinimumSize(760, 520)
-        self.setMaximumSize(1180, 820)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         self.trait_columns = [str(x).strip() for x in list(trait_columns or []) if str(x).strip()]
         self.node_records = list(node_records or [])

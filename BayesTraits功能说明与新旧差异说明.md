@@ -251,7 +251,7 @@ Python 版当前：
 
 ## 已做烟测
 
-使用 `Psychotria测试数据`：
+使用 `data/benchmarks/psychotria`：
 
 - `Psychotria.tree`
 - `distribution.csv`

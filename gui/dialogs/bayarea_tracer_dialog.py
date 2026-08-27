@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class BayAreaTracePlot(QWidget):
@@ -149,7 +150,7 @@ class BayAreaTracerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Tracer View")
         self.resize(820, 500)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         if isinstance(parameters_path, (list, tuple)):
             path_values = list(parameters_path)

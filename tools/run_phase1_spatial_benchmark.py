@@ -10,9 +10,9 @@ def main():
 
     from application.services.spatial_data_service import SpatialDataService
 
-    base = root / "examples" / "phase1_reference_data"
-    occurrence_path = base / "Dore_2025_Ponerinae" / "ponerinae_occurrences_full_149k.csv"
-    area_path = base / "general_world_polygons" / "world_countries_simplified.geojson"
+    data_root = root / "data"
+    occurrence_path = data_root / "benchmarks" / "dore_ponerinae" / "ponerinae_occurrences_full_149k.csv"
+    area_path = data_root / "spatial" / "base_layers" / "world_countries_simplified.geojson"
     workdir = root / "runs" / "phase1_spatial_benchmark" / "full_149k_world_countries"
     workdir.mkdir(parents=True, exist_ok=True)
     output_matrix_path = workdir / "encoded_matrix.csv"

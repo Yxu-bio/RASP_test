@@ -18,6 +18,21 @@ class TemporalRangePlaybackService:
     """
 
     NULL_STATES = set(["", "/", "_", "null", "none", "empty", "na", "nan"])
+    # Okabe-Ito-derived order: the first two colors remain distinct on binary
+    # trees, while later daughter clades retain useful color-blind contrast.
+    DAUGHTER_GROUP_COLORS = [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#CC79A7",
+        "#D55E00",
+        "#56B4E9",
+        "#9A8700",
+    ]
+    ANCESTRAL_PATH_COLOR = "#6F4C9B"
+    SINGLE_LINEAGE_COLOR = "#0072B2"
+    OTHER_GROUP_COLOR = "#8A939B"
+    MAX_DAUGHTER_GROUPS = 7
 
     def build(
         self,
@@ -37,7 +52,7 @@ class TemporalRangePlaybackService:
 
         source_name = str(method_name or getattr(result, "model_name", "") or type(result).__name__)
         if type(result).__name__ == "ContinuousTraitResult":
-            raise ValueError("Spatiotemporal Range Playback requires discrete range probabilities.")
+            raise ValueError("Lineage Range Dynamics requires discrete range probabilities.")
 
         leaf_state_map = dict(leaf_state_map or {})
         area_records = list(area_records or [])
@@ -97,6 +112,8 @@ class TemporalRangePlaybackService:
             younger_time = float(node_ages.get(child_key, 0.0))
             if younger_time > older_time:
                 older_time, younger_time = younger_time, older_time
+            child_is_tip = bool(getattr(child, "is_leaf", lambda: False)())
+            descendant_tip_preview = child_key.split("|")[:3] if child_key else []
             branches.append(TemporalRangeBranch(
                 branch_id="branch_%05d" % index,
                 parent_clade_key=parent_key,
@@ -110,9 +127,11 @@ class TemporalRangePlaybackService:
                 parent_node_probabilities=parent_probs,
                 interpolation_mode=interpolation_mode,
                 metadata={
-                    "child_is_tip": bool(getattr(child, "is_leaf", lambda: False)()),
+                    "child_is_tip": child_is_tip,
                     "branch_length": self._safe_float(getattr(child, "dist", 0.0), 0.0),
                     "engine_child_node_id": engine_child_node_id,
+                    "descendant_tip_count": 1 if child_is_tip else child_key.count("|") + 1,
+                    "descendant_tip_preview": descendant_tip_preview,
                 },
             ))
 
@@ -147,6 +166,7 @@ class TemporalRangePlaybackService:
             range_matrix=range_matrix,
             area_records=area_records,
         )
+        topology = self._branch_topology(branches)
         return TemporalRangeResult(
             reference_tree=tree,
             source_model_name=source_name,
@@ -165,18 +185,43 @@ class TemporalRangePlaybackService:
                 "bgb_endpoint_branch_count": endpoint_branch_count,
                 "branch_count": len(branches),
                 "area_metadata": area_metadata,
+                "branch_children": topology["children"],
+                "branch_parent": topology["parent"],
+                "root_branch_ids": topology["roots"],
+                "branch_descendant_cache": {},
+                "branch_ancestor_cache": {},
                 "full_state_order": list(
                     dict(getattr(result, "model_statistics", {}) or {}).get("full_state_order", []) or state_order
                 ),
             },
         )
 
+    def _branch_topology(self, branches):
+        ordered_ids = [branch.branch_id for branch in branches]
+        branch_by_child_key = dict((branch.child_clade_key, branch) for branch in branches)
+        children = dict((branch_id, []) for branch_id in ordered_ids)
+        parent = {}
+        roots = []
+        for branch in branches:
+            parent_branch = branch_by_child_key.get(branch.parent_clade_key)
+            if parent_branch is None:
+                roots.append(branch.branch_id)
+                continue
+            parent[branch.branch_id] = parent_branch.branch_id
+            children[parent_branch.branch_id].append(branch.branch_id)
+
+        return {
+            "children": children,
+            "parent": parent,
+            "roots": roots,
+        }
+
     def frame(
         self,
         timeline,
         time_value,
         selected_branch_id="",
-        display_scope="all_active_lineages",
+        display_scope="descendant_clade",
         history_mode="",
         sample_id="",
         node_boundary_mode="after_split",
@@ -202,16 +247,40 @@ class TemporalRangePlaybackService:
                     active[branch.branch_id] = self.branch_probabilities_at(branch, time_value)
 
         selected_id = str(selected_branch_id or "")
-        selected_probs = dict(active.get(selected_id, {}) or {})
-        scope = str(display_scope or "all_active_lineages")
-        if scope == "selected_lineage" and selected_id:
-            area_probabilities = self.area_marginals(selected_probs, timeline.state_area_members)
-        else:
-            area_rows = [
-                self.area_marginals(probabilities, timeline.state_area_members)
-                for probabilities in active.values()
-            ]
-            area_probabilities = self._mean_area_probabilities(area_rows)
+        scope = self._normalize_display_scope(display_scope, selected_id)
+        focused_ids, ancestor_ids, scope_label = self._focus_branch_ids(
+            timeline,
+            selected_id,
+            scope,
+        )
+        focused_id_set = set(focused_ids)
+        focused_active = OrderedDict(
+            (branch_id, probabilities)
+            for branch_id, probabilities in active.items()
+            if branch_id in focused_id_set
+        )
+        group_ids, group_labels, group_colors = self._lineage_groups(
+            timeline,
+            selected_id,
+            scope,
+            focused_ids,
+            ancestor_ids,
+        )
+        selected_probs = self._mean_probabilities(focused_active.values())
+        area_glyphs = self._area_glyphs(
+            focused_active,
+            group_ids,
+            timeline.state_area_members,
+        )
+        focused_count = len(focused_active)
+        area_probabilities = dict(
+            (
+                area,
+                float(values.get("expected_count", 0.0) or 0.0) / float(focused_count),
+            )
+            for area, values in area_glyphs.items()
+            if focused_count
+        )
 
         return TemporalRangeFrame(
             time=time_value,
@@ -220,9 +289,246 @@ class TemporalRangePlaybackService:
             selected_range_probabilities=selected_probs,
             area_probabilities=area_probabilities,
             active_branch_count=len(active),
+            focused_active_branch_count=focused_count,
+            focused_branch_ids=list(focused_ids),
+            focused_active_branch_ids=list(focused_active.keys()),
+            ancestor_branch_ids=list(ancestor_ids),
+            branch_group_ids=group_ids,
+            group_labels=group_labels,
+            group_colors=group_colors,
+            area_glyphs=area_glyphs,
             display_scope=scope,
+            scope_label=scope_label,
             history_mode=str(history_mode or "endpoints"),
             node_boundary_mode=str(node_boundary_mode or "after_split"),
+        )
+
+    def _normalize_display_scope(self, display_scope, selected_branch_id):
+        scope = str(display_scope or "descendant_clade")
+        aliases = {
+            "all_active_lineages": "entire_tree",
+            "selected_lineage": "single_branch",
+        }
+        scope = aliases.get(scope, scope)
+        if not selected_branch_id:
+            return "entire_tree"
+        if scope not in ("descendant_clade", "full_continuum", "single_branch"):
+            return "descendant_clade"
+        return scope
+
+    def _focus_branch_ids(self, timeline, selected_branch_id, scope):
+        all_ids = [branch.branch_id for branch in timeline.branches]
+        if not selected_branch_id or scope == "entire_tree":
+            return all_ids, [], "Entire tree"
+        if scope == "single_branch":
+            return [selected_branch_id], [], "Selected branch"
+        descendant_ids = self._descendant_branch_ids(timeline, selected_branch_id)
+        ancestor_ids = self._ancestor_branch_ids(timeline, selected_branch_id)
+        branch = timeline.branch_by_id(selected_branch_id)
+        tip_count = int(dict(getattr(branch, "metadata", {}) or {}).get("descendant_tip_count", 0) or 0)
+        if scope == "full_continuum":
+            focus_set = set(ancestor_ids + descendant_ids)
+            focused = [branch_id for branch_id in all_ids if branch_id in focus_set]
+            label = "Full continuum from node %s (%d tips)" % (
+                (branch.child_node_id if branch is not None else "?") or "?",
+                tip_count,
+            )
+            return focused, ancestor_ids, label
+        focus_set = set(descendant_ids)
+        focused = [branch_id for branch_id in all_ids if branch_id in focus_set]
+        label = "Descendant clade at node %s (%d tips)" % (
+            (branch.child_node_id if branch is not None else "?") or "?",
+            tip_count,
+        )
+        return focused, [], label
+
+    def _lineage_groups(self, timeline, selected_branch_id, scope, focused_ids, ancestor_ids):
+        children = dict(timeline.metadata.get("branch_children", {}) or {})
+        roots = list(timeline.metadata.get("root_branch_ids", []) or [])
+        focused_set = set(focused_ids)
+        group_ids = {}
+        group_labels = OrderedDict()
+        group_order = []
+
+        if not selected_branch_id or scope == "entire_tree":
+            anchors = [branch_id for branch_id in roots if branch_id in focused_set]
+            if not anchors and focused_ids:
+                anchors = [focused_ids[0]]
+            self._assign_anchor_groups(
+                timeline,
+                anchors,
+                focused_set,
+                group_ids,
+                group_labels,
+                group_order,
+            )
+        elif scope == "single_branch":
+            group_ids[selected_branch_id] = selected_branch_id
+            group_labels[selected_branch_id] = self._branch_group_label(timeline, selected_branch_id)
+            group_order.append(selected_branch_id)
+        else:
+            path_group = "path::%s" % selected_branch_id
+            path_ids = list(ancestor_ids) + [selected_branch_id]
+            for branch_id in path_ids:
+                if branch_id in focused_set:
+                    group_ids[branch_id] = path_group
+            group_labels[path_group] = "Ancestral path" if scope == "full_continuum" else "Selected stem"
+            group_order.append(path_group)
+            anchors = [branch_id for branch_id in list(children.get(selected_branch_id, []) or []) if branch_id in focused_set]
+            self._assign_anchor_groups(
+                timeline,
+                anchors,
+                focused_set,
+                group_ids,
+                group_labels,
+                group_order,
+            )
+
+        unassigned = [branch_id for branch_id in focused_ids if branch_id not in group_ids]
+        if unassigned:
+            fallback = "other::focused"
+            for branch_id in unassigned:
+                group_ids[branch_id] = fallback
+            group_labels[fallback] = "Other focused lineages"
+            group_order.append(fallback)
+
+        group_colors = OrderedDict()
+        daughter_index = 0
+        for group_id in group_order:
+            if str(group_id).startswith("path::"):
+                color = self.ANCESTRAL_PATH_COLOR
+            elif str(group_id).startswith("other::"):
+                color = self.OTHER_GROUP_COLOR
+            elif scope == "single_branch":
+                color = self.SINGLE_LINEAGE_COLOR
+            else:
+                color = self.DAUGHTER_GROUP_COLORS[
+                    daughter_index % len(self.DAUGHTER_GROUP_COLORS)
+                ]
+                daughter_index += 1
+            group_colors[group_id] = color
+        return group_ids, dict(group_labels), dict(group_colors)
+
+    def _assign_anchor_groups(
+        self,
+        timeline,
+        anchors,
+        focused_set,
+        group_ids,
+        group_labels,
+        group_order,
+    ):
+        anchors = list(anchors or [])
+        if len(anchors) > self.MAX_DAUGHTER_GROUPS:
+            ordered = sorted(
+                anchors,
+                key=lambda branch_id: (
+                    -int(dict(getattr(timeline.branch_by_id(branch_id), "metadata", {}) or {}).get("descendant_tip_count", 0) or 0),
+                    branch_id,
+                ),
+            )
+            visible = ordered[:self.MAX_DAUGHTER_GROUPS]
+            other = ordered[self.MAX_DAUGHTER_GROUPS:]
+        else:
+            visible = anchors
+            other = []
+        for anchor in visible:
+            members = set(self._descendant_branch_ids(timeline, anchor)) & focused_set
+            for branch_id in members:
+                group_ids[branch_id] = anchor
+            group_labels[anchor] = self._branch_group_label(timeline, anchor)
+            group_order.append(anchor)
+        if other:
+            group_id = "other::daughters"
+            for anchor in other:
+                members = set(self._descendant_branch_ids(timeline, anchor)) & focused_set
+                for branch_id in members:
+                    group_ids[branch_id] = group_id
+            group_labels[group_id] = "Other daughter clades (%d)" % len(other)
+            group_order.append(group_id)
+
+    def _descendant_branch_ids(self, timeline, branch_id):
+        branch_id = str(branch_id or "")
+        cache = timeline.metadata.setdefault("branch_descendant_cache", {})
+        if branch_id in cache:
+            return list(cache[branch_id])
+        children = dict(timeline.metadata.get("branch_children", {}) or {})
+        collected = []
+        seen = set()
+        stack = [branch_id]
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            collected.append(current)
+            stack.extend(reversed(list(children.get(current, []) or [])))
+        if len(cache) >= 32:
+            cache.clear()
+        cache[branch_id] = list(collected)
+        return collected
+
+    def _ancestor_branch_ids(self, timeline, branch_id):
+        branch_id = str(branch_id or "")
+        cache = timeline.metadata.setdefault("branch_ancestor_cache", {})
+        if branch_id in cache:
+            return list(cache[branch_id])
+        parent = dict(timeline.metadata.get("branch_parent", {}) or {})
+        lineage = []
+        current = parent.get(branch_id)
+        while current:
+            lineage.append(current)
+            current = parent.get(current)
+        lineage.reverse()
+        if len(cache) >= 32:
+            cache.clear()
+        cache[branch_id] = list(lineage)
+        return lineage
+
+    def _branch_group_label(self, timeline, branch_id):
+        branch = timeline.branch_by_id(branch_id)
+        if branch is None:
+            return str(branch_id)
+        metadata = dict(branch.metadata or {})
+        tip_count = int(metadata.get("descendant_tip_count", 0) or 0)
+        if metadata.get("child_is_tip"):
+            preview = list(metadata.get("descendant_tip_preview", []) or [])
+            return str(preview[0] if preview else branch.child_clade_key)
+        return "Node %s (%d tips)" % (branch.child_node_id or "?", tip_count)
+
+    def _area_glyphs(self, focused_active, branch_group_ids, state_area_members):
+        glyphs = OrderedDict()
+        for branch_id, probabilities in focused_active.items():
+            group_id = str(branch_group_ids.get(branch_id, "other::focused") or "other::focused")
+            marginals = self.area_marginals(probabilities, state_area_members)
+            for area, value in marginals.items():
+                value = float(value or 0.0)
+                if value <= 0.0:
+                    continue
+                glyph = glyphs.setdefault(area, {
+                    "expected_count": 0.0,
+                    "group_values": OrderedDict(),
+                    "contributors": [],
+                })
+                glyph["expected_count"] += value
+                glyph["group_values"][group_id] = float(glyph["group_values"].get(group_id, 0.0)) + value
+                glyph["contributors"].append({
+                    "branch_id": branch_id,
+                    "group_id": group_id,
+                    "value": value,
+                })
+        return dict(glyphs)
+
+    def _mean_probabilities(self, rows):
+        rows = [dict(row or {}) for row in rows if row]
+        if not rows:
+            return {}
+        labels = set()
+        for row in rows:
+            labels.update(row.keys())
+        return dict(
+            (label, sum(float(row.get(label, 0.0)) for row in rows) / float(len(rows)))
+            for label in labels
         )
 
     def _history_probabilities_at(self, timeline, time_value, sample_id="", node_boundary_mode="after_split"):
@@ -471,15 +777,6 @@ class TemporalRangePlaybackService:
             if target:
                 resolved.append(target)
         return self._unique(resolved)
-
-    def _mean_area_probabilities(self, rows):
-        rows = [dict(row or {}) for row in rows if row]
-        if not rows:
-            return {}
-        keys = set()
-        for row in rows:
-            keys.update(row.keys())
-        return dict((key, sum(float(row.get(key, 0.0)) for row in rows) / float(len(rows))) for key in keys)
 
     def _branch_contains_time(
         self,

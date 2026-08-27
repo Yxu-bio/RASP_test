@@ -153,7 +153,7 @@ BBM 是 MCMC 方法。即使参数相同，如果随机种子、MrBayes 版本�
 
 已使用项目实际 Python 环境 `E:\Anaconda3\envs\RASP\python.exe` 编译 BBM 相关模块。
 
-已使用 `Psychotria测试数据` 进行极短链真实 smoke test：
+已使用 `data/benchmarks/psychotria` 进行极短链真实 smoke test：
 
 - 输入：`Psychotria.tree` + `distribution.csv`
 - 引擎：`engines/mrbayes/mb.3.2.7-win32.exe`

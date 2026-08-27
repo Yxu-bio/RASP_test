@@ -78,12 +78,13 @@ from gui.dialogs.bbm_config_dialog import BBMConfigDialog
 from gui.dialogs.bayestraits_config_dialog import BayesTraitsConfigDialog
 from gui.dialogs.phytools_config_dialog import PhytoolsConfigDialog
 from gui.dialogs.project_import_dialog import ProjectImportDialog
-from gui.dialogs.result_view_window import ResultViewWindow
+from gui.dialogs.result_view_window import LINEAGE_RANGE_DYNAMICS_ENABLED, ResultViewWindow
 from gui.dialogs.bsm_event_table_dialog import BSMEventTableDialog
 from gui.dialogs.bsm_network_map_editor_dialog import BSMNetworkMapEditorDialog
 from gui.dialogs.bsm_run_config_dialog import BSMRunConfigDialog
 from gui.dialogs.spatial_data_manager_dialog import SpatialDataManagerDialog
 from gui.dialogs.region_geojson_builder_dialog import RegionGeoJsonBuilderDialog
+from gui.window_behavior import configure_resizable_window
 from gui.widgets.matrix_preview_table import MatrixPreviewTable
 from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
@@ -105,7 +106,7 @@ from infrastructure.io.csv_matrix_reader import CsvMatrixReader
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("RASP-Pro")
+        self.setWindowTitle("RASP5")
         self.resize(1200, 800)
         self.setDockNestingEnabled(True)
 
@@ -325,7 +326,7 @@ class MainWindow(QMainWindow):
         # ---------------- 初始界面刷新 ----------------
         self._refresh_consensus_tree_summary()
         self._recompute_tree_collection_state()
-        self.append_run_log("RASP-Pro workspace initialized.")
+        self.append_run_log("RASP5 workspace initialized.")
         QTimer.singleShot(0, lambda: self._cleanup_old_run_artifacts(retention_days=5))
 
     def _wrap_workspace_panel(self, title, widget):
@@ -947,7 +948,7 @@ class MainWindow(QMainWindow):
             self.current_result_window = ResultViewWindow(self)
 
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法打开结果窗口", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Open Result Window", "请先导入共识树。")
             return
 
         leaf_state_map, state_colors = self._build_leaf_state_payload_from_matrix()
@@ -956,39 +957,39 @@ class MainWindow(QMainWindow):
         self.current_result_window.set_renderer(renderer)
         self.current_result_window.set_leaf_state_context(leaf_state_map)
         self.current_result_window.set_analysis_context(self._build_project_context_text())
-        spatial_areas = []
-        if self.current_spatial_project is not None:
-            spatial_areas = list(getattr(self.current_spatial_project, "areas", []) or [])
-        if not spatial_areas and str(ctx["method_name"] or "").startswith("BayArea"):
-            config = self.current_bayarea_config
-            if config is not None:
-                for area_code in list(getattr(config, "area_names", []) or []):
-                    latitude, longitude = dict(getattr(config, "coordinates", {}) or {}).get(
-                        area_code,
-                        (None, None),
-                    )
-                    if latitude is None or longitude is None:
-                        continue
-                    spatial_areas.append(AreaSpatialRecord(
-                        area_code=str(area_code),
-                        geometry_id="bayarea-coordinate-%s" % area_code,
-                        display_name=str(area_code),
-                        centroid_lon=float(longitude),
-                        centroid_lat=float(latitude),
-                        source="BayArea coordinates",
-                    ))
-        range_matrix = self._current_range_matrix_view_silent()
-        if range_matrix is None:
-            range_matrix = self.current_matrix
-        self.current_result_window.set_temporal_playback_context(
-            area_records=spatial_areas,
-            range_matrix=range_matrix,
-            bsm_result=self.current_bgb_bsm_event_result,
-            reference_tree=self.current_tree,
-        )
+        if LINEAGE_RANGE_DYNAMICS_ENABLED:
+            spatial_areas = []
+            if self.current_spatial_project is not None:
+                spatial_areas = list(getattr(self.current_spatial_project, "areas", []) or [])
+            if not spatial_areas and str(ctx["method_name"] or "").startswith("BayArea"):
+                config = self.current_bayarea_config
+                if config is not None:
+                    for area_code in list(getattr(config, "area_names", []) or []):
+                        latitude, longitude = dict(getattr(config, "coordinates", {}) or {}).get(
+                            area_code,
+                            (None, None),
+                        )
+                        if latitude is None or longitude is None:
+                            continue
+                        spatial_areas.append(AreaSpatialRecord(
+                            area_code=str(area_code),
+                            geometry_id="bayarea-coordinate-%s" % area_code,
+                            display_name=str(area_code),
+                            centroid_lon=float(longitude),
+                            centroid_lat=float(latitude),
+                            source="BayArea coordinates",
+                        ))
+            range_matrix = self._current_range_matrix_view_silent()
+            if range_matrix is None:
+                range_matrix = self.current_matrix
+            self.current_result_window.set_temporal_playback_context(
+                area_records=spatial_areas,
+                range_matrix=range_matrix,
+                bsm_result=self.current_bgb_bsm_event_result,
+                reference_tree=self.current_tree,
+            )
         self.current_result_window.set_window_title_by_method(ctx["method_name"])
         self.current_result_window.set_result(ctx["result"])
-        self.current_result_window.refresh_view()
 
         self.current_result_window.show()
         self.current_result_window.raise_()
@@ -1038,6 +1039,7 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle("Project Context / Data Flow")
         dialog.resize(860, 680)
+        configure_resizable_window(dialog)
         layout = QVBoxLayout(dialog)
         text = QTextEdit(dialog)
         text.setReadOnly(True)
@@ -2160,7 +2162,7 @@ class MainWindow(QMainWindow):
     def open_project_folder(self):
         folder_path = QFileDialog.getExistingDirectory(
             self,
-            "选择项目文件夹",
+            "Select Project Folder",
             "",
         )
         if not folder_path:
@@ -2169,21 +2171,21 @@ class MainWindow(QMainWindow):
         try:
             plan = self.project_import_service.scan(folder_path)
             if not plan.has_any_candidates():
-                QMessageBox.warning(self, "未找到可导入文件", "所选文件夹中未识别到树文件、树集合或分布矩阵。")
+                QMessageBox.warning(self, "No Importable Files Found", "所选文件夹中未识别到树文件、树集合或分布矩阵。")
                 return
             selected = self._select_project_import_paths(plan)
             if selected is None:
                 return
             consensus_tree_path, tree_collection_path, matrix_path = selected
         except Exception as exc:
-            QMessageBox.critical(self, "扫描失败", str(exc))
+            QMessageBox.critical(self, "Scan Failed", str(exc))
             return
 
         self._run_ui_task(
             progress_text="正在一键导入项目",
             done_text="项目导入完成",
             error_progress_text="项目导入失败",
-            error_title="一键导入失败",
+            error_title="Quick Import Failed",
             task=lambda: self._load_project_from_paths(
                 consensus_tree_path,
                 tree_collection_path,
@@ -2193,7 +2195,7 @@ class MainWindow(QMainWindow):
 
     def open_tree_file(self):
         file_path = self._choose_file(
-            "选择树文件",
+            "Select Tree File",
             "Tree Files (*.tre *.tree *.nwk *.newick *.nex *.nexus *.txt);;All Files (*)",
         )
         if not file_path:
@@ -2203,13 +2205,13 @@ class MainWindow(QMainWindow):
             progress_text="正在读取树文件",
             done_text="树文件加载完成",
             error_progress_text="树文件加载失败",
-            error_title="打开失败",
+            error_title="Open Failed",
             task=lambda: self._load_tree_from_path(file_path),
         )
 
     def open_matrix_file(self):
         file_path = self._choose_file(
-            "选择矩阵文件",
+            "Select Matrix File",
             "Table Files (*.csv *.tsv *.txt *.xlsx);;Excel Files (*.xlsx);;All Files (*)",
         )
         if not file_path:
@@ -2219,13 +2221,13 @@ class MainWindow(QMainWindow):
             progress_text="正在读取矩阵文件",
             done_text="矩阵文件加载完成",
             error_progress_text="矩阵文件加载失败",
-            error_title="打开失败",
+            error_title="Open Failed",
             task=lambda: self._load_matrix_from_path(file_path),
         )
 
     def open_tree_collection_file(self):
         file_path = self._choose_file(
-            "导入树集合",
+            "Import Tree Set",
             "Tree Collection Files (*.nex *.nexus *.tre *.trees *.txt);;All Files (*)",
         )
         if not file_path:
@@ -2235,7 +2237,7 @@ class MainWindow(QMainWindow):
             progress_text="正在导入树集合",
             done_text="树集合导入完成",
             error_progress_text="树集合导入失败",
-            error_title="树集合导入失败",
+            error_title="Tree Set Import Failed",
             task=lambda: self._load_tree_collection_from_path(file_path),
         )
 
@@ -2587,7 +2589,7 @@ class MainWindow(QMainWindow):
             fossil_nodes=fossil_nodes,
             final_tree_available=False,
             parent=self,
-            title="DIVA 配置",
+            title="DIVA",
             show_final_tree=False,
             show_threads=False,
             lazy_fossils=lazy_fossils,
@@ -2602,10 +2604,10 @@ class MainWindow(QMainWindow):
 
     def run_diva(self):
         if not self.current_tree:
-            QMessageBox.warning(self, "无法运行", "请先导入树文件。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入树文件。")
             return
         if not self.current_matrix:
-            QMessageBox.warning(self, "无法运行", "请先导入矩阵文件。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入矩阵文件。")
             return
 
         config = self._open_diva_config_dialog()
@@ -2642,7 +2644,7 @@ class MainWindow(QMainWindow):
 
     def _on_diva_failed(self, message):
         self.progress_panel.set_error("DIVA 运行失败")
-        QMessageBox.critical(self, "DIVA 失败", message)
+        QMessageBox.critical(self, "DIVA Run Failed", message)
 
     def _on_diva_worker_finished(self):
         self._finish_analysis_worker(
@@ -2652,7 +2654,7 @@ class MainWindow(QMainWindow):
 
     def _open_sdiva_config_dialog(self):
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法配置", "请先导入状态矩阵。")
+            QMessageBox.warning(self, "Cannot Configure", "请先导入状态矩阵。")
             return None
 
         range_context = self._current_range_matrix_context("Cannot configure")
@@ -2660,7 +2662,7 @@ class MainWindow(QMainWindow):
             return None
         area_names, _taxon_ranges = range_context
         if not area_names:
-            QMessageBox.warning(self, "无法配置", "未能从状态矩阵中识别区域。")
+            QMessageBox.warning(self, "Cannot Configure", "未能从状态矩阵中识别区域。")
             return None
 
         range_matrix_for_fossils = self._current_range_matrix_view_silent() or self.current_matrix
@@ -2980,6 +2982,7 @@ class MainWindow(QMainWindow):
             config=dialog_config,
             cores_label="Threads",
             parent=self,
+            title="S-BioGeoBEARS",
         )
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -3019,6 +3022,7 @@ class MainWindow(QMainWindow):
             cores_label="Cores",
             show_cores_control=True,
             parent=self,
+            title="BioGeoBEARS",
         )
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -3059,6 +3063,7 @@ class MainWindow(QMainWindow):
             show_model_selector=False,
             show_test_j_models=True,
             parent=self,
+            title="Compare Models Using BioGeoBEARS",
         )
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -3202,15 +3207,15 @@ class MainWindow(QMainWindow):
 
     def run_sdiva(self):
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入状态矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入状态矩阵。")
             return
 
         if not self.current_prepared_tree_entries:
-            QMessageBox.warning(self, "无法运行", "当前没有可用于分析的树集合。")
+            QMessageBox.warning(self, "Cannot Run", "当前没有可用于分析的树集合。")
             return
 
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         config = self._open_sdiva_config_dialog()
@@ -3253,7 +3258,7 @@ class MainWindow(QMainWindow):
 
     def _on_sdiva_failed(self, message):
         self.progress_panel.set_error("S-DIVA 运行失败")
-        QMessageBox.critical(self, "S-DIVA 运行失败", message)
+        QMessageBox.critical(self, "S-DIVA Run Failed", message)
 
     def _on_sdiva_worker_finished(self):
         self._finish_analysis_worker(
@@ -3266,16 +3271,16 @@ class MainWindow(QMainWindow):
 
     def run_dec(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域 presence/absence 矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域 presence/absence 矩阵。")
             return
 
         engine_path = Path(self.dec_service.runner.resolve_engine_path())
         if not engine_path.exists():
-            QMessageBox.warning(self, "无法运行", "未找到 lagrange-ng.exe，请先配置 DEC 引擎。")
+            QMessageBox.warning(self, "Cannot Run", "未找到 lagrange-ng.exe，请先配置 DEC 引擎。")
             return
 
         config = self._open_dec_config_dialog()
@@ -3312,7 +3317,7 @@ class MainWindow(QMainWindow):
 
     def _on_dec_failed(self, message):
         self.progress_panel.set_error("DEC 运行失败")
-        QMessageBox.critical(self, "DEC 运行失败", message)
+        QMessageBox.critical(self, "DEC Run Failed", message)
 
     def _on_dec_worker_finished(self):
         self._finish_analysis_worker(
@@ -3323,21 +3328,21 @@ class MainWindow(QMainWindow):
 
     def run_sdec(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         tree_entries = list(getattr(self, "current_prepared_tree_entries", []) or [])
         if not tree_entries:
-            QMessageBox.warning(self, "无法运行", "请先导入树集并完成可分析树准备。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入树集并完成可分析树准备。")
             return
 
         engine_path = Path(self.dec_service.runner.resolve_engine_path())
         if not engine_path.exists():
-            QMessageBox.warning(self, "无法运行", "未找到 lagrange-ng.exe，请先配置 DEC 引擎。")
+            QMessageBox.warning(self, "Cannot Run", "未找到 lagrange-ng.exe，请先配置 DEC 引擎。")
             return
 
         config = self._open_sdec_config_dialog()
@@ -3380,7 +3385,7 @@ class MainWindow(QMainWindow):
 
     def _on_sdec_failed(self, message):
         self.progress_panel.set_error("S-DEC 运行失败")
-        QMessageBox.critical(self, "S-DEC 运行失败", message)
+        QMessageBox.critical(self, "S-DEC Run Failed", message)
 
     def _on_sdec_worker_finished(self):
         self._finish_analysis_worker(
@@ -3394,17 +3399,17 @@ class MainWindow(QMainWindow):
 
     def run_bayarea(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入带枝长的树文件。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入带枝长的树文件。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         try:
             self.bayarea_service.runner.resolve_executable_path()
         except Exception as exc:
-            QMessageBox.warning(self, "无法运行", str(exc))
+            QMessageBox.warning(self, "Cannot Run", str(exc))
             return
 
         config = self._open_bayarea_config_dialog()
@@ -3539,7 +3544,7 @@ class MainWindow(QMainWindow):
 
     def _on_bayarea_failed(self, message):
         self.progress_panel.set_error("BayArea 运行失败")
-        QMessageBox.critical(self, "BayArea 运行失败", message)
+        QMessageBox.critical(self, "BayArea Run Failed", message)
 
     def _on_bayarea_worker_finished(self):
         self.progress_panel.clear_cancel_handler()
@@ -3550,17 +3555,17 @@ class MainWindow(QMainWindow):
 
     def run_bbm(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         try:
             self.bbm_service.runner.resolve_executable_path()
         except Exception as exc:
-            QMessageBox.warning(self, "无法运行", str(exc))
+            QMessageBox.warning(self, "Cannot Run", str(exc))
             return
 
         config = self._open_bbm_config_dialog()
@@ -3597,7 +3602,7 @@ class MainWindow(QMainWindow):
 
     def _on_bbm_failed(self, message):
         self.progress_panel.set_error("BBM 运行失败")
-        QMessageBox.critical(self, "BBM 运行失败", message)
+        QMessageBox.critical(self, "BBM Run Failed", message)
 
     def _on_bbm_worker_finished(self):
         self._finish_analysis_worker(
@@ -3607,17 +3612,17 @@ class MainWindow(QMainWindow):
 
     def run_bayestraits(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入参考/共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入参考/共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入性状矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入性状矩阵。")
             return
 
         try:
             self.bayestraits_service.runner.resolve_executable_path()
         except Exception as exc:
-            QMessageBox.warning(self, "无法运行", str(exc))
+            QMessageBox.warning(self, "Cannot Run", str(exc))
             return
 
         config = self._open_bayestraits_config_dialog()
@@ -3656,7 +3661,7 @@ class MainWindow(QMainWindow):
 
     def _on_bayestraits_failed(self, message):
         self.progress_panel.set_error("BayesTraits 运行失败")
-        QMessageBox.critical(self, "BayesTraits 运行失败", message)
+        QMessageBox.critical(self, "BayesTraits Run Failed", message)
 
     def _on_bayestraits_worker_finished(self):
         self._finish_analysis_worker(
@@ -3985,16 +3990,16 @@ class MainWindow(QMainWindow):
 
     def run_sbgb(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         tree_entries = list(getattr(self, "current_prepared_tree_entries", []) or [])
         if not tree_entries:
-            QMessageBox.warning(self, "无法运行", "请先导入树集合并完成可分析树准备。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入树集合并完成可分析树准备。")
             return
 
         try:
@@ -4002,7 +4007,7 @@ class MainWindow(QMainWindow):
             self.biogeobears_service.runner.resolve_wrapper_script_path()
             self.biogeobears_service.runner.resolve_site_library_path()
         except Exception as exc:
-            QMessageBox.warning(self, "无法运行", str(exc))
+            QMessageBox.warning(self, "Cannot Run", str(exc))
             return
 
         config = self._open_sbgb_config_dialog()
@@ -4051,7 +4056,7 @@ class MainWindow(QMainWindow):
 
     def _on_sbgb_failed(self, message):
         self.progress_panel.set_error("S-BGB 运行失败")
-        QMessageBox.critical(self, "S-BGB 运行失败", message)
+        QMessageBox.critical(self, "S-BioGeoBEARS Run Failed", message)
 
     def _on_sbgb_progress(self, completed, total, _message):
         self._on_series_progress(
@@ -4099,17 +4104,17 @@ class MainWindow(QMainWindow):
             model_name = None
 
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         try:
             self.biogeobears_service.runner.resolve_wrapper_script_path()
         except Exception as exc:
-            QMessageBox.warning(self, "无法运行", str(exc))
+            QMessageBox.warning(self, "Cannot Run", str(exc))
             return
 
         config = self._open_biogeobears_config_dialog(model_name)
@@ -4144,7 +4149,7 @@ class MainWindow(QMainWindow):
             "BAYAREALIKE",
             "BAYAREALIKEJ",
         }:
-            QMessageBox.warning(self, "无法运行", f"未知 BioGeoBEARS 模型：{model_name}")
+            QMessageBox.warning(self, "Cannot Run", f"未知 BioGeoBEARS 模型：{model_name}")
             return
 
         self._start_analysis_worker(
@@ -4162,7 +4167,7 @@ class MainWindow(QMainWindow):
 
     def _on_biogeobears_failed(self, message):
         self.progress_panel.set_error("BioGeoBEARS 运行失败")
-        QMessageBox.critical(self, "BioGeoBEARS 运行失败", message)
+        QMessageBox.critical(self, "BioGeoBEARS Run Failed", message)
 
     def _on_biogeobears_worker_finished(self):
         self._finish_analysis_worker(
@@ -4349,11 +4354,11 @@ class MainWindow(QMainWindow):
 
     def run_biogeobears_model_test(self):
         if self.current_tree is None:
-            QMessageBox.warning(self, "无法运行", "请先导入共识树。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入共识树。")
             return
 
         if self.current_matrix is None:
-            QMessageBox.warning(self, "无法运行", "请先导入区域矩阵。")
+            QMessageBox.warning(self, "Cannot Run", "请先导入区域矩阵。")
             return
 
         config = self._open_biogeobears_model_test_config_dialog()
@@ -4399,7 +4404,7 @@ class MainWindow(QMainWindow):
 
     def _on_biogeobears_model_test_failed(self, message):
         self.progress_panel.set_error("BioGeoBEARS 模型检测失败")
-        QMessageBox.critical(self, "BioGeoBEARS 模型检测失败", message)
+        QMessageBox.critical(self, "BioGeoBEARS Model Test Failed", message)
 
     def _on_biogeobears_model_test_progress(self, completed, total, _message):
         total = max(1, int(total or 1))
@@ -4432,9 +4437,9 @@ class MainWindow(QMainWindow):
         )
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("BioGeoBEARS 模型检测")
+        dialog.setWindowTitle("Compare Models Using BioGeoBEARS")
         dialog.resize(1120, 700)
-        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(dialog)
 
         font = QFont("Microsoft YaHei UI", 10)
         dialog.setFont(font)

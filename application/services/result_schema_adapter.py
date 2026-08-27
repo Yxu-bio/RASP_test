@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, Dict, List, Optional
 from domain.models.dec_result import DECResult
 from domain.models.sdec_result import SDECResult
@@ -109,17 +109,35 @@ class BaseResultSchemaAdapter:
             return {}
 
         if is_dataclass(node_result):
-            return asdict(node_result)
+            return {
+                item.name: BaseResultSchemaAdapter._snapshot_raw_value(
+                    getattr(node_result, item.name)
+                )
+                for item in fields(node_result)
+            }
 
         if hasattr(node_result, "__dict__"):
             data = {}
             for key, value in vars(node_result).items():
                 if key.startswith("_"):
                     continue
-                data[key] = value
+                data[key] = BaseResultSchemaAdapter._snapshot_raw_value(value)
             return data
 
         return {"value": str(node_result)}
+
+    @staticmethod
+    def _snapshot_raw_value(value):
+        """Copy top-level containers without recursively cloning engine payloads."""
+        if isinstance(value, dict):
+            return dict(value)
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, set):
+            return set(value)
+        if isinstance(value, tuple):
+            return tuple(value)
+        return value
 
     @staticmethod
     def _safe_text(value):

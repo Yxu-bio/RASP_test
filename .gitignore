@@ -35,6 +35,16 @@ env/
 Thumbs.db
 Desktop.ini
 .DS_Store
+~$*.xlsx
+
+# Large local-only literature assets. Keep the compact trees, matrices, and
+# occurrence fixtures in source control; archive these raw inputs separately.
+data/benchmarks/dore_ponerinae/final_inputs/Ponerinae_all_posteriors_phylogeny_1534t.tree
+data/benchmarks/dore_ponerinae/final_inputs/Biogeographic_database_Ponerinae_curated_no_duplicates.csv
+data/benchmarks/dore_ponerinae/final_inputs/Biogeographic_database_Ponerinae_curated_no_duplicates.rds
 
 # Ad-hoc exported figures in the project root
 /1.png
+
+# Local literature source archive used for visual-reference research.
+/全球植物地理代码.zip

@@ -28,14 +28,15 @@ from domain.models.bbm_config import (
     normalize_bbm_root_distribution,
     normalize_bbm_state_frequency_model,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class BBMConfigDialog(QDialog):
     def __init__(self, area_names, node_records, config=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Bayesian Analysis")
+        self.setWindowTitle("BBM")
         self.resize(760, 500)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
         self.node_records = list(node_records or [])

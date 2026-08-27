@@ -29,6 +29,7 @@ from domain.models.bayarea_config import (
     bayarea_recommended_parameters,
     normalize_bayarea_model_type,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class BayAreaConfigDialog(QDialog):
@@ -37,8 +38,7 @@ class BayAreaConfigDialog(QDialog):
         self.setWindowTitle("BayArea")
         self.resize(760, 500)
         self.setMinimumSize(680, 440)
-        self.setMaximumSize(980, 720)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
         self._loading_config = False
 
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]

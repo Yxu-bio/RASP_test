@@ -29,6 +29,7 @@ from domain.models.sbgb_config import (
     normalize_sbgb_model_name,
     normalize_sbgb_null_range_mode,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class SBGBConfigDialog(QDialog):
@@ -43,11 +44,12 @@ class SBGBConfigDialog(QDialog):
         show_model_selector=True,
         show_test_j_models=False,
         parent=None,
+        title="BioGeoBEARS",
     ):
         super().__init__(parent)
-        self.setWindowTitle("BioGeoBEARS")
+        self.setWindowTitle(str(title or "BioGeoBEARS"))
         self.resize(760, 520)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
 
         self.area_names = [str(x).strip() for x in list(area_names or []) if str(x).strip()]
         self.taxon_ranges = [str(x).strip() for x in list(taxon_ranges or []) if str(x).strip()]
@@ -568,9 +570,10 @@ class SBGBConfigDialog(QDialog):
         return self.cores_spin.value()
 
     def _save_settings(self):
+        method_label = str(self.windowTitle() or "BioGeoBEARS")
         path, _selected = QFileDialog.getSaveFileName(
             self,
-            "Save BioGeoBEARS Setting",
+            "Save %s Setting" % method_label,
             "",
             "JSON files (*.json);;Text files (*.txt);;All files (*)",
         )
@@ -587,9 +590,10 @@ class SBGBConfigDialog(QDialog):
             QMessageBox.warning(self, "Save failed", str(exc))
 
     def _load_settings(self):
+        method_label = str(self.windowTitle() or "BioGeoBEARS")
         path, _selected = QFileDialog.getOpenFileName(
             self,
-            "Load BioGeoBEARS Setting",
+            "Load %s Setting" % method_label,
             "",
             "JSON files (*.json);;Text files (*.txt);;All files (*)",
         )

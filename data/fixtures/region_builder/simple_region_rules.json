@@ -5,7 +5,7 @@
   "boundary_kind": "approximate_rule_based_reference",
   "official_author_boundary": false,
   "build_notes": "Demo for the generic RASP5 Region GeoJSON builder. It is not a biological regionalization.",
-  "base_geojson": "../general_world_polygons/world_countries_simplified.geojson",
+  "base_geojson": "../../spatial/base_layers/world_countries_simplified.geojson",
   "base_mapping": {
     "mapping_file": "simple_country_mapping.csv",
     "value_field": "match_value",

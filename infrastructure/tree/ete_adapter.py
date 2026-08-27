@@ -9,6 +9,8 @@ class _DummyPropTable:
 
 
 class ETEAdapter:
+    LARGE_TREE_THRESHOLD = 500
+
     def __init__(self) -> None:
         # 当前树对象
         self.tree = None
@@ -17,6 +19,7 @@ class ETEAdapter:
         # 当前图形场景 / 视图
         self._scene = None
         self._view = None
+        self._leaf_count = 0
 
         # 最近一次载入的 Newick 文本
         self._last_newick = ""
@@ -31,6 +34,7 @@ class ETEAdapter:
         self._show_branch_length = False
         self._show_branch_support = False
         self._branch_vertical_margin = 2
+        self._display_profile = "auto"
 
         # 当前被外部选中的内部节点（用 clade_key 标识）
         self._selected_clade_key = ""
@@ -40,6 +44,7 @@ class ETEAdapter:
         self._continuous_result = None
         self._leaf_state_map = {}
         self._leaf_state_colors = {}
+        self._clade_signature_cache = {}
 
         # 点击回调
         self._click_callback = None
@@ -60,19 +65,24 @@ class ETEAdapter:
 
         self._last_newick = newick_text
         self.tree = Tree(newick_text, format=1)
+        self._leaf_count = sum(1 for _node in self.tree.iter_leaves())
         self._assign_node_ids()
         self.tree_style = self._build_tree_style()
 
     def set_tree(self, tree) -> None:
         self.tree = tree
         if self.tree is not None:
+            self._leaf_count = sum(1 for _node in self.tree.iter_leaves())
             self._assign_node_ids()
+        else:
+            self._leaf_count = 0
         self.tree_style = self._build_tree_style()
 
     def _assign_node_ids(self) -> None:
         if self.tree is None:
             return
 
+        self._clade_signature_cache = {}
         counter = 1
         for node in self.tree.traverse():
             node._rasp_id = f"N{counter:04d}"
@@ -81,8 +91,11 @@ class ETEAdapter:
     def _build_tree_style(self):
         from ete3 import TreeStyle
 
+        overview = self._use_overview_profile()
         ts = TreeStyle()
-        ts.show_leaf_name = self._show_leaf_name
+        # Leaf labels are added explicitly in the layout callback so the tip
+        # state marker always stays inside the label in both tree modes.
+        ts.show_leaf_name = False
         ts.show_branch_length = self._show_branch_length
         ts.show_branch_support = self._show_branch_support
         ts.show_scale = False
@@ -90,20 +103,45 @@ class ETEAdapter:
         ts.extra_branch_line_type = 1
         ts.extra_branch_line_color = "#b8b8b8"
         ts.draw_guiding_lines = False
-        ts.branch_vertical_margin = self._branch_vertical_margin
         ts.layout_fn = self._layout_node
 
         ts.mode = self._tree_mode
         ts.arc_start = self._arc_start
         ts.arc_span = self._arc_span
 
-        ts.min_leaf_separation = 6
+        ts.min_leaf_separation = 1 if overview else 6
+        ts.branch_vertical_margin = 0 if overview else self._branch_vertical_margin
+        ts.allow_face_overlap = bool(overview)
+        ts.root_opening_factor = 0.04 if overview else 0.25
         ts.margin_left = 10
         ts.margin_right = 10
         ts.margin_top = 10
         ts.margin_bottom = 10
 
         return ts
+
+    def get_leaf_count(self) -> int:
+        return int(self._leaf_count)
+
+    def is_large_tree(self) -> bool:
+        return self.get_leaf_count() >= self.LARGE_TREE_THRESHOLD
+
+    def set_display_profile(self, profile: str) -> None:
+        profile = str(profile or "auto").strip().lower()
+        if profile not in ("auto", "overview", "detailed"):
+            raise ValueError("Unsupported tree display profile: %s" % profile)
+        self._display_profile = profile
+        self.tree_style = self._build_tree_style()
+
+    def get_display_profile(self) -> str:
+        return self._display_profile
+
+    def _use_overview_profile(self) -> bool:
+        if self._display_profile == "overview":
+            return True
+        if self._display_profile == "detailed":
+            return False
+        return self.is_large_tree()
 
     def set_show_leaf_name(self, flag: bool) -> None:
         self._show_leaf_name = bool(flag)
@@ -153,47 +191,73 @@ class ETEAdapter:
         self.tree_style = self._build_tree_style()
 
     def _build_clade_signature(self, node) -> str:
+        cache_key = id(node)
+        cached = self._clade_signature_cache.get(cache_key)
+        if cached is not None:
+            return str(cached)
         leaf_names = sorted(
             str(leaf.name).strip()
             for leaf in node.iter_leaves()
             if str(getattr(leaf, "name", "")).strip()
         )
-        return "|".join(leaf_names)
+        signature = "|".join(leaf_names)
+        self._clade_signature_cache[cache_key] = signature
+        return signature
+
+    def _base_branch_color(self) -> str:
+        return "#87939e" if self._use_overview_profile() else "#000000"
+
+    def _add_leaf_name_face(self, node, taxon_name: str) -> None:
+        if not self._show_leaf_name or not taxon_name:
+            return
+        from ete3 import TextFace, faces
+
+        overview = self._use_overview_profile()
+        label = TextFace(taxon_name, fsize=6 if overview else 9, fgcolor="#222222")
+        label.margin_left = 3 if overview else 5
+        faces.add_face_to_node(label, node, column=1, position="branch-right")
 
     def _reset_leaf_node_style(self, node) -> None:
-        node.img_style["size"] = 3
+        overview = self._use_overview_profile()
+        node.img_style["size"] = 2 if overview else 3
         node.img_style["shape"] = "circle"
-        node.img_style["fgcolor"] = "black"
+        node.img_style["fgcolor"] = "#6f7780" if overview else "black"
+        node.img_style["hz_line_color"] = self._base_branch_color()
+        node.img_style["vt_line_color"] = self._base_branch_color()
         node.img_style["hz_line_width"] = 1
         node.img_style["vt_line_width"] = 1
 
     def _layout_leaf_node(self, node) -> None:
         self._reset_leaf_node_style(node)
+        overview = self._use_overview_profile()
+        taxon_name = str(getattr(node, "name", "")).strip()
 
         continuous_value = self._continuous_value_for_node(node)
         if continuous_value is not None:
             color = self._continuous_color(continuous_value)
-            node.img_style["size"] = self._continuous_leaf_node_size
+            node.img_style["size"] = 3 if overview else self._continuous_leaf_node_size
             node.img_style["shape"] = "circle"
             node.img_style["fgcolor"] = color
             node.img_style["hz_line_color"] = color
             node.img_style["vt_line_color"] = color
-            node.img_style["hz_line_width"] = self._continuous_branch_width
-            node.img_style["vt_line_width"] = self._continuous_branch_width
+            node.img_style["hz_line_width"] = 1 if overview else self._continuous_branch_width
+            node.img_style["vt_line_width"] = 1 if overview else self._continuous_branch_width
+            self._add_leaf_name_face(node, taxon_name)
             return
 
-        taxon_name = str(getattr(node, "name", "")).strip()
         state = self._leaf_state_map.get(taxon_name, "")
 
         if state:
             color = self._leaf_state_colors.get(state, "#808080")
-            node.img_style["size"] = self._leaf_node_size
+            node.img_style["size"] = 4 if overview else self._leaf_node_size
             node.img_style["shape"] = "circle"
             node.img_style["fgcolor"] = color
+        self._add_leaf_name_face(node, taxon_name)
 
     def _layout_continuous_node(self, node) -> None:
         from ete3 import TextFace, faces
 
+        overview = self._use_overview_profile()
         value = self._continuous_value_for_node(node)
         color = self._continuous_color(value) if value is not None else "#777777"
         is_dummy = bool(getattr(node, "_rasp_dummy", False))
@@ -207,11 +271,11 @@ class ETEAdapter:
         node.img_style["shape"] = "circle"
         node.img_style["fgcolor"] = color
         node.img_style["bgcolor"] = "transparent"
-        node.img_style["size"] = 0 if is_dummy else self._continuous_internal_node_size
+        node.img_style["size"] = 0 if is_dummy else (3 if overview else self._continuous_internal_node_size)
         node.img_style["hz_line_color"] = color
         node.img_style["vt_line_color"] = color
-        node.img_style["hz_line_width"] = self._continuous_branch_width
-        node.img_style["vt_line_width"] = self._continuous_branch_width
+        node.img_style["hz_line_width"] = 1 if overview else self._continuous_branch_width
+        node.img_style["vt_line_width"] = 1 if overview else self._continuous_branch_width
         node._rasp_selection_ring = bool(is_selected)
         node._rasp_selection_ring_size = int(self._continuous_selection_ring_size)
         node._rasp_selection_ring_width = int(self._continuous_selection_ring_width)
@@ -219,7 +283,7 @@ class ETEAdapter:
 
         if is_dummy:
             return
-        marker_groups = self._continuous_marker_groups(clade_key)
+        marker_groups = [] if overview else self._continuous_marker_groups(clade_key)
         for index, group in enumerate(marker_groups):
             label = str(group.get("short_label", "") or group.get("name", "") or "").strip()
             if not label:
@@ -345,6 +409,7 @@ class ETEAdapter:
     def _layout_internal_node(self, node, node_result) -> None:
         from ete3 import PieChartFace, faces
 
+        overview = self._use_overview_profile()
         is_selected = (
             self._selected_clade_key
             and self._build_clade_signature(node) == self._selected_clade_key
@@ -352,16 +417,27 @@ class ETEAdapter:
 
         # 内部节点不显示默认圆点；分支线始终保持普通样式
         node.img_style["size"] = 0
-        node.img_style["hz_line_color"] = "#000000"
-        node.img_style["vt_line_color"] = "#000000"
+        node.img_style["hz_line_color"] = self._base_branch_color()
+        node.img_style["vt_line_color"] = self._base_branch_color()
         node.img_style["hz_line_width"] = 1
         node.img_style["vt_line_width"] = 1
+
+        if overview and not is_selected:
+            percents = list(getattr(node_result, "pie_percents", []) or [])
+            colors = list(getattr(node_result, "pie_colors", []) or [])
+            if percents:
+                top_index = max(range(len(percents)), key=lambda index: float(percents[index] or 0.0))
+                color = colors[top_index] if top_index < len(colors) else "#808080"
+                node.img_style["size"] = 3
+                node.img_style["shape"] = "circle"
+                node.img_style["fgcolor"] = color
+            return
 
         # 高亮只作用在饼图本体：描边 + 更高透明度，不放大
         pie = PieChartFace(
             node_result.pie_percents,
-            width=self._pie_size,
-            height=self._pie_size,
+            width=16 if overview else self._pie_size,
+            height=16 if overview else self._pie_size,
             colors=node_result.pie_colors,
             line_color="#111111" if is_selected else None,
         )
@@ -371,6 +447,10 @@ class ETEAdapter:
         faces.add_face_to_node(pie, node, column=0, position="float")
 
     def _layout_node(self, node) -> None:
+        # ETE3 moves crowded circular-layout items outwards to avoid overlap.
+        # Labels may move, but a node marker must remain on the actual branch end.
+        node._rasp_anchor_marker_at_branch_end = self._tree_mode == "c"
+
         if node.is_leaf():
             self._layout_leaf_node(node)
             return
@@ -382,8 +462,8 @@ class ETEAdapter:
         node.img_style["size"] = 0
         node.img_style["shape"] = "circle"
         node.img_style["fgcolor"] = "black"
-        node.img_style["hz_line_color"] = "#000000"
-        node.img_style["vt_line_color"] = "#000000"
+        node.img_style["hz_line_color"] = self._base_branch_color()
+        node.img_style["vt_line_color"] = self._base_branch_color()
         node.img_style["hz_line_width"] = 1
         node.img_style["vt_line_width"] = 1
 
@@ -427,6 +507,29 @@ class ETEAdapter:
         self._scene = scene
         self._view = view
         return view
+
+    def fit_to_view(self) -> None:
+        if self._view is None or self._view.scene() is None:
+            return
+
+        from PyQt5.QtCore import Qt
+
+        view = self._view
+        rect = view.scene().sceneRect()
+        if rect.isEmpty():
+            return
+
+        view.resetTransform()
+        if self.is_large_tree() and self._tree_mode == "r":
+            viewport_width = max(1.0, float(view.viewport().width()) - 24.0)
+            scale = viewport_width / max(1.0, float(rect.width()))
+            scale = max(0.05, min(8.0, scale))
+            view.scale(scale, scale)
+            visible_height = max(1.0, float(view.viewport().height()) / scale)
+            center_y = float(rect.top()) + min(float(rect.height()), visible_height) / 2.0
+            view.centerOn(float(rect.center().x()), center_y)
+        else:
+            view.fitInView(rect, Qt.KeepAspectRatio)
 
     def _redraw_in_place(self) -> None:
         if self.tree is None or self._scene is None or self._view is None:

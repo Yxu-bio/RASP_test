@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QTimer, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 
 
@@ -57,6 +57,8 @@ class TreeGraphPanel(QWidget):
                 self.tree_widget.viewport().update()
             except Exception:
                 pass
+        elif not preserve_view:
+            QTimer.singleShot(0, self.fit_to_view)
 
     def zoom_in(self) -> None:
         if self.renderer is None:
@@ -74,11 +76,6 @@ class TreeGraphPanel(QWidget):
         self.renderer.fit_to_view()
 
     def reset_zoom(self) -> None:
-        if self.tree_widget is None:
+        if self.renderer is None:
             return
-
-        try:
-            self.tree_widget.resetTransform()
-            self.tree_widget.viewport().update()
-        except Exception:
-            pass
+        self.renderer.fit_to_view()

@@ -18,6 +18,7 @@ from domain.models.phytools_config import (
     phytools_is_experimental,
     normalize_phytools_method,
 )
+from gui.window_behavior import configure_resizable_window
 
 
 class PhytoolsConfigDialog(QDialog):
@@ -33,7 +34,7 @@ class PhytoolsConfigDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(420)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
         self.show_threads = bool(show_threads)
         allowed = [str(x) for x in list(method_keys or []) if str(x) in PHYTOOLS_METHODS]
         self.method_keys = allowed if allowed else list(PHYTOOLS_METHODS.keys())

@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 
 from application.services.bsm_sampling_diagnostics_service import BSMSamplingDiagnosticsService
 from domain.models.sbgb_config import SBGB_MODEL_DISPLAY
+from gui.window_behavior import configure_resizable_window
 
 
 DEFAULT_BSM_NUMMAPS = 100
@@ -20,8 +21,8 @@ DEFAULT_BSM_MAXTRIES_PER_BRANCH = 40000
 class BSMRunConfigDialog(QDialog):
     def __init__(self, config=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("BioGeoBEARS BSM Events")
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setWindowTitle("Generate BioGeoBEARS BSM Events")
+        configure_resizable_window(self)
 
         model_name = str(getattr(config, "model_name", "") or "DEC")
         model_label = SBGB_MODEL_DISPLAY.get(model_name, model_name)

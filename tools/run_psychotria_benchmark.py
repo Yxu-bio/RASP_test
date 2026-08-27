@@ -56,17 +56,14 @@ def log(message):
 
 
 def find_data_dir():
-    for child in PROJECT_ROOT.iterdir():
-        if not child.is_dir():
-            continue
-        if not child.name.startswith("Psychotria"):
-            continue
-        if (child / "Psychotria.tree").exists() and (child / "distribution.csv").exists() and (child / "dataset.trees").exists():
-            return child
-    fallback = PROJECT_ROOT / "examples" / "Psychotria" / "Trees_States"
-    if (fallback / "Psychotria.tree").exists():
-        return fallback
-    raise FileNotFoundError("Psychotria benchmark data was not found.")
+    data_dir = PROJECT_ROOT / "data" / "benchmarks" / "psychotria"
+    required = ["Psychotria.tree", "distribution.csv", "dataset.trees"]
+    missing = [name for name in required if not (data_dir / name).exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Psychotria benchmark data is incomplete: %s" % ", ".join(missing)
+        )
+    return data_dir
 
 
 def parse_tree(path):
@@ -110,14 +107,9 @@ def infer_taxon_ranges(matrix, area_names, dec_service):
 
 
 def load_coordinates(area_names):
-    candidates = [
-        PROJECT_ROOT / "Sample" / "Psychotria" / "coordinates.csv",
-        PROJECT_ROOT / "examples" / "Psychotria" / "coordinates.csv",
-    ]
+    path = PROJECT_ROOT / "data" / "benchmarks" / "psychotria" / "coordinates.csv"
     coords = {area: (0.0, 0.0) for area in area_names}
-    for path in candidates:
-        if not path.exists():
-            continue
+    if path.exists():
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.reader(handle)
             for row in reader:

@@ -36,7 +36,16 @@ class TemporalRangeFrame:
     selected_range_probabilities: Dict[str, float] = field(default_factory=dict)
     area_probabilities: Dict[str, float] = field(default_factory=dict)
     active_branch_count: int = 0
-    display_scope: str = "all_active_lineages"
+    focused_active_branch_count: int = 0
+    focused_branch_ids: List[str] = field(default_factory=list)
+    focused_active_branch_ids: List[str] = field(default_factory=list)
+    ancestor_branch_ids: List[str] = field(default_factory=list)
+    branch_group_ids: Dict[str, str] = field(default_factory=dict)
+    group_labels: Dict[str, str] = field(default_factory=dict)
+    group_colors: Dict[str, str] = field(default_factory=dict)
+    area_glyphs: Dict[str, Dict] = field(default_factory=dict)
+    display_scope: str = "entire_tree"
+    scope_label: str = "Entire tree"
     history_mode: str = "endpoints"
     node_boundary_mode: str = "after_split"
 

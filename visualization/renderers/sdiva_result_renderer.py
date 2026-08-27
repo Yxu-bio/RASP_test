@@ -1,4 +1,3 @@
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget
 
 from infrastructure.tree.ete_adapter import ETEAdapter
@@ -53,6 +52,18 @@ class SDivaResultRenderer(BaseResultRenderer):
     def set_circular_arc(self, arc_start: int, arc_span: int) -> None:
         self.adapter.set_circular_arc(arc_start, arc_span)
 
+    def set_display_profile(self, profile: str) -> None:
+        self.adapter.set_display_profile(profile)
+
+    def get_display_profile(self) -> str:
+        return self.adapter.get_display_profile()
+
+    def get_leaf_count(self) -> int:
+        return self.adapter.get_leaf_count()
+
+    def is_large_tree(self) -> bool:
+        return self.adapter.is_large_tree()
+
     def zoom_in(self):
         if self.adapter._view is not None:
             self.adapter._view.scale(1.2, 1.2)
@@ -62,12 +73,7 @@ class SDivaResultRenderer(BaseResultRenderer):
             self.adapter._view.scale(1 / 1.2, 1 / 1.2)
 
     def fit_to_view(self):
-        if self.adapter._view is not None and self.adapter._view.scene():
-            self.adapter._view.resetTransform()
-            self.adapter._view.fitInView(
-                self.adapter._view.scene().sceneRect(),
-                Qt.KeepAspectRatio,
-            )
+        self.adapter.fit_to_view()
 
     def export_tree_png(self, file_path: str):
         self.adapter.export_png(file_path)

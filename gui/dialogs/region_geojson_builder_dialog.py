@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
 from domain.models.spatial_data import SpatialDataProject
 from gui.widgets.spatial_map_view import SpatialMapView
 from gui.workers.region_geojson_builder_worker import RegionGeoJsonBuilderWorker
+from gui.window_behavior import configure_resizable_window
 
 
 class RegionGeoJsonBuilderDialog(QDialog):
@@ -33,7 +34,7 @@ class RegionGeoJsonBuilderDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Region GeoJSON Builder")
         self.setMinimumSize(980, 680)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        configure_resizable_window(self)
         self.spatial_service = spatial_service
         self.load_areas_callback = load_areas_callback
         self.worker = None
@@ -223,7 +224,7 @@ class RegionGeoJsonBuilderDialog(QDialog):
     def _load_presets(self):
         self._load_base_layer_presets()
         root = Path(__file__).resolve().parents[2]
-        examples = root / "examples" / "phase1_reference_data" / "region_builder_examples"
+        examples = root / "data" / "fixtures" / "region_builder"
         presets = [
             ("Custom config...", ""),
             ("Dore et al. Ponerinae 7 bioregions", examples / "dore_ponerinae_7_palea_rules.json"),
@@ -250,7 +251,7 @@ class RegionGeoJsonBuilderDialog(QDialog):
             },
             {
                 "label": "Simplified world countries (small/fast demo layer)",
-                "path": root / "examples" / "phase1_reference_data" / "general_world_polygons" / "world_countries_simplified.geojson",
+                "path": root / "data" / "spatial" / "base_layers" / "world_countries_simplified.geojson",
                 "fields": "name",
             },
             {
@@ -753,6 +754,7 @@ class RegionGeoJsonBuilderDialog(QDialog):
         dialog.setNameFilter(name_filter)
         dialog.setMinimumSize(640, 420)
         dialog.resize(860, 560)
+        configure_resizable_window(dialog)
         if dialog.exec_() != QDialog.Accepted:
             return "", ""
         selected_files = dialog.selectedFiles()

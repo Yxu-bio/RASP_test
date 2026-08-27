@@ -201,7 +201,7 @@ def main():
     assert area_import_progress
     area_import_worker.wait(1000)
 
-    region_config_path = root / "examples" / "phase1_reference_data" / "region_builder_examples" / "simple_region_rules.json"
+    region_config_path = root / "data" / "fixtures" / "region_builder" / "simple_region_rules.json"
     region_output_path = workdir / "simple_region_builder_output.geojson"
     region_notes_path = workdir / "simple_region_builder_notes.csv"
     region_unassigned_path = workdir / "simple_region_builder_unassigned.csv"
@@ -240,9 +240,9 @@ def main():
         "source": "RASP5 Region GeoJSON Builder custom input files",
         "boundary_kind": "custom_rule_based_reference",
         "official_author_boundary": False,
-        "base_geojson": str(root / "examples" / "phase1_reference_data" / "general_world_polygons" / "world_countries_simplified.geojson"),
+        "base_geojson": str(root / "data" / "spatial" / "base_layers" / "world_countries_simplified.geojson"),
         "base_mapping": {
-            "mapping_file": str(root / "examples" / "phase1_reference_data" / "region_builder_examples" / "simple_country_mapping.csv"),
+            "mapping_file": str(root / "data" / "fixtures" / "region_builder" / "simple_country_mapping.csv"),
             "value_field": "match_value",
             "area_field": "area_code",
             "feature_fields": ["name"],

@@ -15,7 +15,7 @@ from matplotlib.patches import Polygon
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_DIR = ROOT / "runs" / "biogeobears" / "dore_bsm_1000" / "fig2b_reproduction"
-GEOJSON = ROOT / "examples" / "phase1_reference_data" / "Dore_2025_Ponerinae" / "Ponerinae_7_bioregions.geojson"
+GEOJSON = ROOT / "data" / "benchmarks" / "dore_ponerinae" / "Ponerinae_7_bioregions.geojson"
 EDGES_CSV = RUN_DIR / "fig2b_dispersal_edges.csv"
 NODES_CSV = RUN_DIR / "fig2b_node_richness.csv"
 OUT_PNG = RUN_DIR / "current_bsm_network_map_dore_schematic_soft_nodes_v3.png"

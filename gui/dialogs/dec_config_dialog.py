@@ -6,4 +6,5 @@ class DECConfigDialog(SDECConfigDialog):
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("threads_label", "Workers:")
+        kwargs.setdefault("title", "DEC")
         super().__init__(*args, **kwargs)
