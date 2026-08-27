@@ -11,6 +11,7 @@ class SDECNodeResult:
 
     supporting_tree_count: int = 0
     total_tree_count: int = 0
+    unmatched_tree_count: int = 0
 
     # 累加后的原始权重（按每棵树内部归一化后的 state 权重求和）
     state_weights: Dict[str, float] = field(default_factory=dict)
@@ -53,6 +54,10 @@ class SDECResult:
 
     input_tree_count: int = 0
     effective_tree_count: int = 0
+    failed_tree_count: int = 0
+    unmatched_tree_count: int = 0
+    unmatched_clade_count: int = 0
+    tree_failure_reasons: List[str] = field(default_factory=list)
 
     def get_node_result(self, node_key: str) -> Optional[SDECNodeResult]:
         if not node_key:

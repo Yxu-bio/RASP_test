@@ -21,6 +21,7 @@ class BioGeoBEARSNodeResult:
 
     supporting_tree_count: int = 1
     total_tree_count: int = 1
+    unmatched_tree_count: int = 0
 
     event_summary: str = ""
     raw_method_payload: Dict = field(default_factory=dict)
@@ -42,6 +43,10 @@ class BioGeoBEARSResult:
     result_note: str = ""
     input_tree_count: int = 1
     effective_tree_count: int = 1
+    failed_tree_count: int = 0
+    unmatched_tree_count: int = 0
+    unmatched_clade_count: int = 0
+    tree_failure_reasons: List[str] = field(default_factory=list)
 
     model_statistics: Dict = field(default_factory=dict)
 

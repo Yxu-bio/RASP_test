@@ -7,6 +7,7 @@ class SDivaNodeResult:
     node_key: str
     supporting_tree_count: int
     total_tree_count: int
+    unmatched_tree_count: int = 0
 
     states: List[str] = field(default_factory=list)
     state_counts: Dict[str, float] = field(default_factory=dict)
@@ -47,6 +48,13 @@ class SDivaResult:
 
     # clade_key -> 参考树单独跑 DIVA 后得到的原生 diva_node_id
     reference_diva_node_ids: Dict[str, int] = field(default_factory=dict)
+
+    input_tree_count: int = 0
+    effective_tree_count: int = 0
+    failed_tree_count: int = 0
+    unmatched_tree_count: int = 0
+    unmatched_clade_count: int = 0
+    tree_failure_reasons: List[str] = field(default_factory=list)
 
     def get_node_result(self, node_key: str) -> Optional[SDivaNodeResult]:
         if not node_key:

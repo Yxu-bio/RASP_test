@@ -9,6 +9,12 @@ from application.services.result_schema_adapter import ResultSchemaAdapterFactor
 class ExportService:
     RESULT_CSV_FIELDNAMES = [
         "method_name",
+        "method_input_tree_count",
+        "method_effective_tree_count",
+        "method_failed_tree_count",
+        "method_zero_contribution_tree_count",
+        "method_unmatched_clade_count",
+        "tree_failure_reasons_json",
         "clade_key",
         "display_node_id",
         "display_id_source",
@@ -19,6 +25,7 @@ class ExportService:
         "ambiguity_count",
         "supporting_tree_count",
         "total_tree_count",
+        "unmatched_tree_count",
         "support_summary",
         "state_counts_json",
         "state_supports_json",
@@ -31,6 +38,12 @@ class ExportService:
     NODE_SUMMARY_CSV_FIELDNAMES = [
         "method",
         "method_name",
+        "method_input_tree_count",
+        "method_effective_tree_count",
+        "method_failed_tree_count",
+        "method_zero_contribution_tree_count",
+        "method_unmatched_clade_count",
+        "tree_failure_reasons_json",
         "node_id",
         "display_node_id",
         "display_id_source",
@@ -51,6 +64,7 @@ class ExportService:
         "state_summary",
         "supporting_tree_count",
         "total_tree_count",
+        "unmatched_tree_count",
         "support_summary",
         "event_summary",
         "time_summary",
@@ -82,6 +96,7 @@ class ExportService:
             raise ValueError("当前没有可导出的结果")
 
         standard_result = self._adapt_result(result, method_name=method_name)
+        method_summary = standard_result.method_summary
 
         with open(file_path, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.RESULT_CSV_FIELDNAMES)
@@ -93,6 +108,12 @@ class ExportService:
             for payload in payloads:
                 writer.writerow({
                     "method_name": payload.method_name,
+                    "method_input_tree_count": method_summary.input_tree_count,
+                    "method_effective_tree_count": method_summary.effective_tree_count,
+                    "method_failed_tree_count": method_summary.failed_tree_count,
+                    "method_zero_contribution_tree_count": method_summary.unmatched_tree_count,
+                    "method_unmatched_clade_count": method_summary.unmatched_clade_count,
+                    "tree_failure_reasons_json": self._json_dumps(method_summary.tree_failure_reasons),
                     "clade_key": payload.clade_key,
                     "display_node_id": payload.display_node_id,
                     "display_id_source": payload.display_id_source,
@@ -103,6 +124,7 @@ class ExportService:
                     "ambiguity_count": payload.ambiguity_count,
                     "supporting_tree_count": payload.supporting_tree_count,
                     "total_tree_count": payload.total_tree_count,
+                    "unmatched_tree_count": payload.unmatched_tree_count,
                     "support_summary": payload.support_summary,
                     "state_counts_json": self._json_dumps(payload.state_counts),
                     "state_supports_json": self._json_dumps(payload.state_supports),
@@ -117,6 +139,7 @@ class ExportService:
             raise ValueError("No result is available for export")
 
         standard_result = self._adapt_result(result, method_name=method_name)
+        method_summary = standard_result.method_summary
         payloads = list(standard_result.node_payloads.values())
         payloads.sort(key=self._node_sort_key)
 
@@ -134,6 +157,12 @@ class ExportService:
                     writer.writerow({
                         "method": payload.method_name,
                         "method_name": payload.method_name,
+                        "method_input_tree_count": method_summary.input_tree_count,
+                        "method_effective_tree_count": method_summary.effective_tree_count,
+                        "method_failed_tree_count": method_summary.failed_tree_count,
+                        "method_zero_contribution_tree_count": method_summary.unmatched_tree_count,
+                        "method_unmatched_clade_count": method_summary.unmatched_clade_count,
+                        "tree_failure_reasons_json": self._json_dumps(method_summary.tree_failure_reasons),
                         "node_id": payload.display_node_id,
                         "display_node_id": payload.display_node_id,
                         "display_id_source": payload.display_id_source,
@@ -154,6 +183,7 @@ class ExportService:
                         "state_summary": payload.state_summary,
                         "supporting_tree_count": payload.supporting_tree_count,
                         "total_tree_count": payload.total_tree_count,
+                        "unmatched_tree_count": payload.unmatched_tree_count,
                         "support_summary": payload.support_summary,
                         "event_summary": payload.event_summary,
                         "time_summary": payload.time_summary,

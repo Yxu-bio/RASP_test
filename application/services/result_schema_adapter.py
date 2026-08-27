@@ -23,6 +23,7 @@ class NodePayloadSchema:
 
     supporting_tree_count: int = 0
     total_tree_count: int = 0
+    unmatched_tree_count: int = 0
     state_counts: Dict[str, float] = field(default_factory=dict)
     state_supports: Dict[str, float] = field(default_factory=dict)
 
@@ -39,6 +40,10 @@ class MethodSummarySchema:
     method_type: str
     input_tree_count: int = 1
     effective_tree_count: int = 1
+    failed_tree_count: int = 0
+    unmatched_tree_count: int = 0
+    unmatched_clade_count: int = 0
+    tree_failure_reasons: List[str] = field(default_factory=list)
     is_tree_set: bool = False
     has_event_model: bool = False
     has_time_model: bool = False
@@ -249,13 +254,26 @@ class SDivaResultSchemaAdapter(BaseResultSchemaAdapter):
     method_type = "tree_set_ancestral_area"
 
     def build_method_summary(self):
-        total = int(getattr(self.result, "tree_count_total", 0) or 0)
+        total = int(
+            getattr(self.result, "input_tree_count", 0)
+            or getattr(self.result, "tree_count_total", 0)
+            or 0
+        )
+        effective = int(
+            getattr(self.result, "effective_tree_count", 0)
+            or getattr(self.result, "tree_count_total", 0)
+            or 0
+        )
         warnings = list(getattr(self.result, "parse_warnings", []) or [])
         return MethodSummarySchema(
             method_name=self.method_name,
             method_type=self.method_type,
             input_tree_count=total,
-            effective_tree_count=total,
+            effective_tree_count=effective,
+            failed_tree_count=int(getattr(self.result, "failed_tree_count", 0) or 0),
+            unmatched_tree_count=int(getattr(self.result, "unmatched_tree_count", 0) or 0),
+            unmatched_clade_count=int(getattr(self.result, "unmatched_clade_count", 0) or 0),
+            tree_failure_reasons=list(getattr(self.result, "tree_failure_reasons", []) or []),
             is_tree_set=True,
             has_event_model=True,
             has_time_model=True,
@@ -297,6 +315,10 @@ class SDivaResultSchemaAdapter(BaseResultSchemaAdapter):
 
         supporting_tree_count = int(getattr(node_result, "supporting_tree_count", 0) or 0)
         total_tree_count = int(getattr(node_result, "total_tree_count", 0) or 0)
+        unmatched_tree_count = int(
+            getattr(node_result, "unmatched_tree_count", max(0, total_tree_count - supporting_tree_count))
+            or 0
+        )
 
         return NodePayloadSchema(
             method_name=self.method_name,
@@ -308,10 +330,15 @@ class SDivaResultSchemaAdapter(BaseResultSchemaAdapter):
             state_labels=state_labels,
             state_text=state_text,
             state_summary=state_text,
-            support_summary="支持树数: %s / %s" % (supporting_tree_count, total_tree_count),
+            support_summary="支持树数: %s / %s；未匹配: %s" % (
+                supporting_tree_count,
+                total_tree_count,
+                unmatched_tree_count,
+            ),
             ambiguity_count=len(state_labels),
             supporting_tree_count=supporting_tree_count,
             total_tree_count=total_tree_count,
+            unmatched_tree_count=unmatched_tree_count,
             state_counts=state_counts,
             state_supports=state_supports,
             event_summary=str(getattr(node_result, "event_summary", "") or "S-DIVA heuristic event summary is not available."),
@@ -453,6 +480,10 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
             method_type=self.method_type,
             input_tree_count=int(getattr(self.result, "input_tree_count", 0) or 0),
             effective_tree_count=int(getattr(self.result, "effective_tree_count", 0) or 0),
+            failed_tree_count=int(getattr(self.result, "failed_tree_count", 0) or 0),
+            unmatched_tree_count=int(getattr(self.result, "unmatched_tree_count", 0) or 0),
+            unmatched_clade_count=int(getattr(self.result, "unmatched_clade_count", 0) or 0),
+            tree_failure_reasons=list(getattr(self.result, "tree_failure_reasons", []) or []),
             is_tree_set=True,
             has_event_model=True,
             has_time_model=True,
@@ -470,7 +501,17 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
         state_text = self._stringify_states(state_labels)
 
         state_supports = dict(getattr(node_result, "state_supports", {}) or {})
-        support_summary = self._format_state_supports(state_supports)
+        supporting_tree_count = int(getattr(node_result, "supporting_tree_count", 0) or 0)
+        total_tree_count = int(getattr(node_result, "total_tree_count", 0) or 0)
+        unmatched_tree_count = int(
+            getattr(node_result, "unmatched_tree_count", max(0, total_tree_count - supporting_tree_count))
+            or 0
+        )
+        support_summary = "支持树数: %s / %s；未匹配: %s" % (
+            supporting_tree_count,
+            total_tree_count,
+            unmatched_tree_count,
+        )
 
         return NodePayloadSchema(
             method_name=self.method_name,
@@ -484,8 +525,9 @@ class SDECResultSchemaAdapter(BaseResultSchemaAdapter):
             state_summary=state_text,
             support_summary=support_summary,
             ambiguity_count=len(state_labels),
-            supporting_tree_count=int(getattr(node_result, "supporting_tree_count", 0) or 0),
-            total_tree_count=int(getattr(node_result, "total_tree_count", 0) or 0),
+            supporting_tree_count=supporting_tree_count,
+            total_tree_count=total_tree_count,
+            unmatched_tree_count=unmatched_tree_count,
             state_counts={},
             state_supports=state_supports,
             event_summary=str(getattr(node_result, "event_summary", "") or ""),
@@ -681,6 +723,9 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
         warnings = list(getattr(self.result, "parse_warnings", []) or [])
         result_note = str(getattr(self.result, "result_note", "") or "").strip()
         actual_name = str(getattr(self.result, "model_name", "") or "BioGeoBEARS")
+        input_tree_count = int(getattr(self.result, "input_tree_count", 1) or 0)
+        effective_tree_count = int(getattr(self.result, "effective_tree_count", 1) or 0)
+        is_tree_set = actual_name.startswith("S-BioGeoBEARS") or input_tree_count > 1
 
         semantics_note = (
             "BioGeoBEARS 第一版通过外部 Rscript 调用 BioGeoBEARS，"
@@ -712,9 +757,13 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
         return MethodSummarySchema(
             method_name=actual_name,
             method_type=self.method_type,
-            input_tree_count=int(getattr(self.result, "input_tree_count", 1) or 1),
-            effective_tree_count=int(getattr(self.result, "effective_tree_count", 1) or 1),
-            is_tree_set=False,
+            input_tree_count=input_tree_count,
+            effective_tree_count=effective_tree_count,
+            failed_tree_count=int(getattr(self.result, "failed_tree_count", 0) or 0),
+            unmatched_tree_count=int(getattr(self.result, "unmatched_tree_count", 0) or 0),
+            unmatched_clade_count=int(getattr(self.result, "unmatched_clade_count", 0) or 0),
+            tree_failure_reasons=list(getattr(self.result, "tree_failure_reasons", []) or []),
+            is_tree_set=is_tree_set,
             has_event_model=not actual_name.startswith("BayesTraits"),
             has_time_model=not actual_name.startswith("BayesTraits"),
             display_id_source="reference_node_id",
@@ -731,7 +780,20 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
         state_text = self._stringify_states(state_labels)
 
         state_supports = dict(getattr(node_result, "state_supports", {}) or {})
-        support_summary = self._format_state_supports(state_supports)
+        supporting_tree_count = int(getattr(node_result, "supporting_tree_count", 1) or 0)
+        total_tree_count = int(getattr(node_result, "total_tree_count", 1) or 0)
+        unmatched_tree_count = int(
+            getattr(node_result, "unmatched_tree_count", max(0, total_tree_count - supporting_tree_count))
+            or 0
+        )
+        if str(getattr(self.result, "model_name", "") or "").startswith("S-BioGeoBEARS"):
+            support_summary = "支持树数: %s / %s；未匹配: %s" % (
+                supporting_tree_count,
+                total_tree_count,
+                unmatched_tree_count,
+            )
+        else:
+            support_summary = self._format_state_supports(state_supports)
 
         return NodePayloadSchema(
             method_name=str(getattr(self.result, "model_name", "") or "BioGeoBEARS"),
@@ -745,8 +807,9 @@ class BioGeoBEARSResultSchemaAdapter(BaseResultSchemaAdapter):
             state_summary=state_text,
             support_summary=support_summary,
             ambiguity_count=len(state_labels),
-            supporting_tree_count=int(getattr(node_result, "supporting_tree_count", 1) or 1),
-            total_tree_count=int(getattr(node_result, "total_tree_count", 1) or 1),
+            supporting_tree_count=supporting_tree_count,
+            total_tree_count=total_tree_count,
+            unmatched_tree_count=unmatched_tree_count,
             state_counts={},
             state_supports=state_supports,
             event_summary=str(getattr(node_result, "event_summary", "") or ""),

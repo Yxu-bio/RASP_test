@@ -1288,16 +1288,17 @@ class MainWindow(QMainWindow):
     def _build_sdiva_summary_text(self, result):
         warning_count = len(getattr(result, "parse_warnings", []) or [])
         node_count = len(getattr(result, "node_results", {}) or {})
-        tree_count = getattr(result, "tree_count_total", 0)
         config_path = str(getattr(result, "config_path", "") or "").strip()
 
         lines = [
             "S-DIVA 运行完成",
             "",
-            f"参与分析树数: {tree_count}",
+        ]
+        lines.extend(self._tree_set_accounting_lines(result))
+        lines.extend([
             f"聚合节点数: {node_count}",
             f"警告数: {warning_count}",
-        ]
+        ])
         if config_path:
             lines.append(f"配置文件: {config_path}")
         lines.extend([
@@ -1323,17 +1324,16 @@ class MainWindow(QMainWindow):
     def _build_sdec_summary_text(self, result):
         node_count = len(getattr(result, "node_results", {}) or {})
         warning_count = len(getattr(result, "parse_warnings", []) or [])
-        input_tree_count = int(getattr(result, "input_tree_count", 0) or 0)
-        effective_tree_count = int(getattr(result, "effective_tree_count", 0) or 0)
-
-        return (
-            "S-DEC 运行完成\n\n"
-            f"输入树数: {input_tree_count}\n"
-            f"有效树数: {effective_tree_count}\n"
-            f"解析节点数: {node_count}\n"
-            f"警告数: {warning_count}\n\n"
-            f"当前共识树:\n{self._get_consensus_tree_summary_text()}"
-        )
+        lines = ["S-DEC 运行完成", ""]
+        lines.extend(self._tree_set_accounting_lines(result))
+        lines.extend([
+            f"解析节点数: {node_count}",
+            f"警告数: {warning_count}",
+            "",
+            "当前共识树:",
+            self._get_consensus_tree_summary_text(),
+        ])
+        return "\n".join(lines)
 
     def _build_biogeobears_summary_text(self, result):
         node_count = len(getattr(result, "node_results", {}) or {})
@@ -1343,10 +1343,7 @@ class MainWindow(QMainWindow):
         effective_tree_count = int(getattr(result, "effective_tree_count", 1) or 1)
         tree_lines = ""
         if input_tree_count > 1 or method_name.startswith("S-BioGeoBEARS"):
-            tree_lines = (
-                f"输入树数: {input_tree_count}\n"
-                f"有效树数: {effective_tree_count}\n"
-            )
+            tree_lines = "\n".join(self._tree_set_accounting_lines(result)) + "\n"
         stats_lines = self._build_model_statistic_summary_lines(result, limit=8)
         if stats_lines:
             tree_lines += "\nStatistics:\n" + "\n".join(stats_lines) + "\n"
@@ -1358,6 +1355,27 @@ class MainWindow(QMainWindow):
             f"警告数: {warning_count}\n\n"
             f"当前共识树:\n{self._get_consensus_tree_summary_text()}"
         )
+
+    def _tree_set_accounting_lines(self, result):
+        legacy_count = int(getattr(result, "tree_count_total", 0) or 0)
+        input_count = int(getattr(result, "input_tree_count", 0) or legacy_count)
+        effective_count = int(getattr(result, "effective_tree_count", 0) or legacy_count)
+        lines = [
+            "输入树数: %s" % input_count,
+            "有效树数: %s" % effective_count,
+            "失败树数: %s" % int(getattr(result, "failed_tree_count", 0) or 0),
+            "无参考节点贡献树数: %s" % int(getattr(result, "unmatched_tree_count", 0) or 0),
+            "未匹配 clade-tree 记录数: %s" % int(
+                getattr(result, "unmatched_clade_count", 0) or 0
+            ),
+        ]
+        failure_reasons = list(getattr(result, "tree_failure_reasons", []) or [])
+        if failure_reasons:
+            lines.append("失败原因:")
+            lines.extend("  - %s" % str(reason) for reason in failure_reasons[:5])
+            if len(failure_reasons) > 5:
+                lines.append("  - ... 其余 %s 条见 Information/日志" % (len(failure_reasons) - 5))
+        return lines
 
     def _build_model_statistic_summary_lines(self, result, limit=8):
         stats = dict(getattr(result, "model_statistics", {}) or {})
@@ -1435,8 +1453,14 @@ class MainWindow(QMainWindow):
     def _build_sdiva_status_text(self, result):
         warning_count = len(getattr(result, "parse_warnings", []) or [])
         node_count = len(getattr(result, "node_results", {}) or {})
-        tree_count = getattr(result, "tree_count_total", 0)
-        return f"S-DIVA 完成：树数={tree_count}，节点数={node_count}，警告数={warning_count}"
+        legacy_count = int(getattr(result, "tree_count_total", 0) or 0)
+        input_count = int(getattr(result, "input_tree_count", 0) or legacy_count)
+        effective_count = int(getattr(result, "effective_tree_count", 0) or legacy_count)
+        failed_count = int(getattr(result, "failed_tree_count", 0) or 0)
+        return (
+            f"S-DIVA 完成：有效树={effective_count}/{input_count}，"
+            f"失败={failed_count}，节点数={node_count}，警告数={warning_count}"
+        )
 
     def _build_dec_status_text(self, result):
         node_count = len(getattr(result, "node_results", {}) or {})
@@ -1447,8 +1471,12 @@ class MainWindow(QMainWindow):
     def _build_sdec_status_text(self, result):
         input_tree_count = int(getattr(result, "input_tree_count", 0) or 0)
         effective_tree_count = int(getattr(result, "effective_tree_count", 0) or 0)
+        failed_tree_count = int(getattr(result, "failed_tree_count", 0) or 0)
         node_count = len(getattr(result, "node_results", {}) or {})
-        return f"S-DEC 完成：有效树={effective_tree_count}/{input_tree_count}，节点数={node_count}"
+        return (
+            f"S-DEC 完成：有效树={effective_tree_count}/{input_tree_count}，"
+            f"失败={failed_tree_count}，节点数={node_count}"
+        )
 
     def _build_biogeobears_status_text(self, result):
         method_name = str(getattr(result, "model_name", "") or "BioGeoBEARS")
@@ -1456,7 +1484,11 @@ class MainWindow(QMainWindow):
         input_tree_count = int(getattr(result, "input_tree_count", 1) or 1)
         effective_tree_count = int(getattr(result, "effective_tree_count", 1) or 1)
         if input_tree_count > 1 or method_name.startswith("S-BioGeoBEARS"):
-            return f"{method_name} 完成：有效树={effective_tree_count}/{input_tree_count}，节点数={node_count}"
+            failed_tree_count = int(getattr(result, "failed_tree_count", 0) or 0)
+            return (
+                f"{method_name} 完成：有效树={effective_tree_count}/{input_tree_count}，"
+                f"失败={failed_tree_count}，节点数={node_count}"
+            )
         return f"{method_name} 完成：节点数={node_count}"
 
     def _update_analysis_feedback(self, method_name, result):

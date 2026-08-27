@@ -89,6 +89,9 @@ class SDECAnalysisService:
 
         result = SDECResult(reference_tree=reference_tree)
         result.input_tree_count = len(tree_entries)
+        result.effective_tree_count = 0
+        result.failed_tree_count = 0
+        result.unmatched_tree_count = 0
         result.result_note = (
             "S-DEC aggregation; per-tree DEC is computed by lagrange-ng.exe."
         )
@@ -124,7 +127,9 @@ class SDECAnalysisService:
         for run in per_tree_runs:
             idx = run["tree_index"]
             if run.get("error"):
-                result.parse_warnings.append("Tree %s DEC failed: %s" % (idx, run["error"]))
+                reason = "Tree %s DEC failed: %s" % (idx, run["error"])
+                result.parse_warnings.append(reason)
+                result.tree_failure_reasons.append(reason)
                 continue
 
             tree = run["tree"]
@@ -142,23 +147,37 @@ class SDECAnalysisService:
             )
             result.per_tree_result_paths.append(str(intermediate_path))
 
+            matched_clade_count = 0
             for clade_key, dec_node in dict(getattr(per_tree, "node_results", {}) or {}).items():
                 if clade_key not in reference_clades:
                     continue
 
+                percentages = self._filter_valid_state_percentages(
+                    self._extract_state_percentages(dec_node),
+                    set(getattr(per_tree, "state_order", []) or []),
+                )
+                if not self._has_state_contribution(percentages):
+                    continue
+
                 aggregate = result.node_results[clade_key]
                 aggregate.supporting_tree_count += 1
+                matched_clade_count += 1
 
-                percentages = self._extract_state_percentages(dec_node)
                 for state, percent in percentages.items():
                     aggregate.state_weights[state] = aggregate.state_weights.get(state, 0.0) + percent
                     global_state_percent_sums[state] += percent
+            if matched_clade_count == 0:
+                result.unmatched_tree_count += 1
 
         if effective_count == 0:
             raise RuntimeError("S-DEC run failed: all per-tree DEC analyses failed.")
 
         result.effective_tree_count = effective_count
+        result.failed_tree_count = max(0, result.input_tree_count - effective_count)
         self._finalize_node_results(result, effective_count, global_state_percent_sums)
+        result.unmatched_clade_count = sum(
+            node.unmatched_tree_count for node in result.node_results.values()
+        )
 
         analysis_log = self._write_analysis_log(
             run_dir=run_dir,
@@ -285,6 +304,10 @@ class SDECAnalysisService:
 
         for node_result in result.node_results.values():
             node_result.total_tree_count = effective_count
+            node_result.unmatched_tree_count = max(
+                0,
+                effective_count - node_result.supporting_tree_count,
+            )
 
             if node_result.supporting_tree_count <= 0 or not node_result.state_weights:
                 node_result.states = []
@@ -315,16 +338,20 @@ class SDECAnalysisService:
             node_result.raw_method_payload = {
                 "supporting_tree_count": node_result.supporting_tree_count,
                 "total_tree_count": node_result.total_tree_count,
+                "unmatched_tree_count": node_result.unmatched_tree_count,
                 "state_supports": dict(ordered),
             }
 
-        if result.parse_warnings:
-            result.result_note += " effective_trees=%s/%s" % (
-                effective_count,
+        result.result_note += (
+            " input_trees=%s effective_trees=%s failed_trees=%s "
+            "zero_contribution_trees=%s"
+            % (
                 result.input_tree_count,
+                effective_count,
+                result.failed_tree_count,
+                result.unmatched_tree_count,
             )
-        else:
-            result.result_note += " effective_trees=%s" % effective_count
+        )
 
     def _write_per_tree_intermediate(
         self,
@@ -395,6 +422,14 @@ class SDECAnalysisService:
         lines.extend([
             "[TREE]",
             "Tree=" + reference_numeric_newick,
+            "[ACCOUNTING]",
+            "Input trees=%s" % int(result.input_tree_count),
+            "Effective trees=%s" % int(result.effective_tree_count),
+            "Failed trees=%s" % int(result.failed_tree_count),
+            "Zero-contribution trees=%s" % int(result.unmatched_tree_count),
+            "Unmatched clade observations=%s" % int(result.unmatched_clade_count),
+            "[FAILURES]",
+            *(list(result.tree_failure_reasons) if result.tree_failure_reasons else ["None"]),
             "[RESULT]",
             "SDEC results:",
         ])
@@ -497,6 +532,19 @@ class SDECAnalysisService:
             return {state: percent for state in states}
 
         return {}
+
+    @staticmethod
+    def _has_state_contribution(percentages) -> bool:
+        return any(float(value) > 0.0 for value in dict(percentages or {}).values())
+
+    @staticmethod
+    def _filter_valid_state_percentages(percentages, valid_states) -> Dict[str, float]:
+        allowed = set(str(state) for state in (valid_states or []) if str(state))
+        return {
+            str(state): float(value)
+            for state, value in dict(percentages or {}).items()
+            if str(state) in allowed
+        }
 
     def _state_columns(self, matrix) -> List[str]:
         return [

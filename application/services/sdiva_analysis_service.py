@@ -41,6 +41,7 @@ class SDivaAnalysisService:
         config=None,
         progress_callback=None,
     ) -> SDivaResult:
+        tree_entries = list(tree_entries or [])
         if not tree_entries:
             raise ValueError("S-DIVA run failed: no trees are available for analysis")
         if matrix is None:
@@ -50,14 +51,8 @@ class SDivaAnalysisService:
         if not self.diva_exe_path.exists():
             raise FileNotFoundError("DIVA executable not found: %s" % self.diva_exe_path)
 
-        valid_entries = [x for x in tree_entries if getattr(x, "parsed_tree", None) is not None]
-        if not valid_entries:
-            raise ValueError("S-DIVA run failed: no parsed trees are available")
-
         taxa_order, name_to_index, index_to_name = self._build_global_taxon_order(matrix)
         self._validate_tree_taxa(reference_tree, name_to_index, "reference tree")
-        for idx, entry in enumerate(valid_entries, start=1):
-            self._validate_tree_taxa(entry.parsed_tree, name_to_index, "tree %s" % idx)
 
         run_dir = self._make_run_dir()
         config_text = ""
@@ -67,15 +62,32 @@ class SDivaAnalysisService:
             config_path = str(self._write_text(run_dir / "sdiva_config.txt", config_text))
 
         prepared = []
-        for idx, entry in enumerate(valid_entries, start=1):
-            numeric_newick = self._build_numeric_newick(entry.parsed_tree, name_to_index) + ";"
+        tree_failure_reasons = []
+        for source_idx, entry in enumerate(tree_entries, start=1):
+            parsed_tree = getattr(entry, "parsed_tree", None)
+            if parsed_tree is None:
+                tree_failure_reasons.append("Tree %s has no parsed tree." % source_idx)
+                continue
+            try:
+                self._validate_tree_taxa(parsed_tree, name_to_index, "tree %s" % source_idx)
+            except Exception as exc:
+                tree_failure_reasons.append("Tree %s preflight failed: %s" % (source_idx, exc))
+                continue
+            idx = len(prepared) + 1
+            numeric_newick = self._build_numeric_newick(parsed_tree, name_to_index) + ";"
             prepared.append(
                 {
                     "tree_index": idx,
+                    "source_tree_index": source_idx,
                     "entry": entry,
                     "numeric_newick": numeric_newick,
                     "tokens": self._legacy_tree_tokens(numeric_newick),
                 }
+            )
+        if not prepared:
+            raise ValueError(
+                "S-DIVA run failed: no valid parsed trees are available. %s"
+                % " ".join(tree_failure_reasons[:20])
             )
 
         reference_numeric_newick = self._build_numeric_newick(reference_tree, name_to_index) + ";"
@@ -94,23 +106,33 @@ class SDivaAnalysisService:
             fossil_count=len(reference_nodes),
             run_final_tree=run_final_tree,
         )
-        console_log = self._run_diva_proc_files(
+        preflight_failure_count = len(tree_failure_reasons)
+        if preflight_failure_count:
+            self._emit_progress(
+                progress_callback,
+                preflight_failure_count,
+                len(tree_entries),
+                "S-DIVA rejected %s/%s tree(s) during preflight"
+                % (preflight_failure_count, len(tree_entries)),
+            )
+
+        def engine_progress(done, _total, message):
+            self._emit_progress(
+                progress_callback,
+                preflight_failure_count + int(done or 0),
+                len(tree_entries),
+                message,
+            )
+
+        console_log, process_warnings = self._run_diva_proc_files(
             proc_paths,
             run_dir,
             len(prepared),
-            progress_callback=progress_callback,
+            progress_callback=engine_progress,
         )
 
-        warnings = []
-        missing = []
-        for item in prepared:
-            if not (run_dir / ("%s.diva" % item["tree_index"])).exists():
-                missing.append(str(item["tree_index"]))
-        if missing:
-            raise ValueError(
-                "S-DIVA run failed: missing DIVA result files for tree(s): %s\nConsole log: %s"
-                % (", ".join(missing[:20]), console_log)
-            )
+        warnings = list(process_warnings)
+        tree_failure_reasons.extend(process_warnings)
 
         final_tree_constraints = {}
         restrict_to_final_tree_states = False
@@ -140,9 +162,14 @@ class SDivaAnalysisService:
             restrict_to_final_tree_states=restrict_to_final_tree_states,
         )
 
+        tree_failure_reasons.extend(aggregation.get("failure_reasons", []))
+        effective_count = int(aggregation.get("effective_tree_count", 0) or 0)
+        if effective_count <= 0:
+            raise RuntimeError("S-DIVA run failed: no per-tree DIVA result could be parsed.")
+
         result = SDivaResult(
             reference_tree=reference_tree,
-            tree_count_total=len(prepared),
+            tree_count_total=effective_count,
             parse_warnings=warnings,
             config=config,
             config_text=config_text,
@@ -158,6 +185,14 @@ class SDivaAnalysisService:
         result.proc_file = str(proc_paths[0]) if proc_paths else ""
         result.proc_files = [str(path) for path in proc_paths]
         result.console_log = str(console_log)
+        result.input_tree_count = len(tree_entries)
+        result.effective_tree_count = effective_count
+        result.failed_tree_count = max(0, result.input_tree_count - effective_count)
+        result.unmatched_tree_count = int(aggregation.get("unmatched_tree_count", 0) or 0)
+        result.tree_failure_reasons = list(tree_failure_reasons)
+        for reason in tree_failure_reasons:
+            if reason not in result.parse_warnings:
+                result.parse_warnings.append(reason)
 
         for node in reference_nodes:
             node_key = node["node_key"]
@@ -191,7 +226,8 @@ class SDivaAnalysisService:
             node_result = SDivaNodeResult(
                 node_key=node_key,
                 supporting_tree_count=supporting_tree_count,
-                total_tree_count=len(prepared),
+                total_tree_count=effective_count,
+                unmatched_tree_count=max(0, effective_count - supporting_tree_count),
                 states=states,
                 state_counts=state_counts,
                 state_supports=state_supports,
@@ -200,6 +236,10 @@ class SDivaAnalysisService:
             node_result.pie_percents = [state_supports.get(state, 0.0) for state in states]
             node_result.pie_colors = [state_colors.get(state, "#808080") for state in states]
             result.node_results[node_key] = node_result
+
+        result.unmatched_clade_count = sum(
+            node.unmatched_tree_count for node in result.node_results.values()
+        )
 
         analysis_log = self._write_analysis_log(
             run_dir=run_dir,
@@ -295,13 +335,14 @@ class SDivaAnalysisService:
             )
         return log_path
 
-    def _run_diva_proc_files(self, proc_paths: list, run_dir: Path, tree_count: int, progress_callback=None) -> str:
+    def _run_diva_proc_files(self, proc_paths: list, run_dir: Path, tree_count: int, progress_callback=None) -> tuple:
         if not proc_paths:
             raise ValueError("S-DIVA run failed: no proc files were written")
 
         timeout = max(30, min(self.DIVA_TIMEOUT_SECONDS, 3 * int(tree_count or 1)))
         processes = []
         log_paths = []
+        process_warnings = []
         try:
             for index, proc_path in enumerate(proc_paths):
                 log_path = run_dir / ("DIVA_console_%s.log" % index)
@@ -340,22 +381,38 @@ class SDivaAnalysisService:
                             running.kill()
                     first_proc = processes[0][1]
                     first_log = processes[0][3]
-                    raise TimeoutError(
+                    process_warnings.append(
                         "DIVA.exe did not exit in threaded proc mode after %s seconds.\n"
                         "Proc file: %s\nConsole log: %s\nLog tail:\n%s"
                         % (timeout, first_proc, first_log, self._read_tail(first_log))
                     )
+                    break
                 time.sleep(0.5)
 
             for process, proc_path, log_file, log_path in processes:
                 return_code = process.poll()
+                if return_code is None:
+                    try:
+                        return_code = process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        return_code = process.wait(timeout=5)
                 log_file.close()
 
                 if return_code != 0:
-                    raise RuntimeError(
+                    process_warnings.append(
                         "DIVA.exe failed with return code %s.\nProc file: %s\nConsole log: %s\nLog tail:\n%s"
                         % (return_code, proc_path, log_path, self._read_tail(log_path))
                     )
+
+            output_count = min(self._count_numeric_diva_outputs(run_dir), int(tree_count or 0))
+            self._emit_progress(
+                progress_callback,
+                int(tree_count or 0),
+                int(tree_count or 0),
+                "S-DIVA DIVA.exe processing finished; result files=%s/%s"
+                % (output_count, int(tree_count or 0)),
+            )
         finally:
             for process, _proc_path, log_file, _log_path in processes:
                 try:
@@ -365,7 +422,7 @@ class SDivaAnalysisService:
                     if not log_file.closed:
                         log_file.close()
 
-        return "; ".join(str(path) for path in log_paths)
+        return "; ".join(str(path) for path in log_paths), process_warnings
 
     def _count_numeric_diva_outputs(self, run_dir: Path) -> int:
         count = 0
@@ -397,6 +454,9 @@ class SDivaAnalysisService:
             for node in reference_nodes
         }
         presence_by_clade = {node["legacy_clade"]: 0 for node in reference_nodes}
+        effective_tree_count = 0
+        unmatched_tree_count = 0
+        failure_reasons = []
 
         for item in prepared:
             tree_counts = {
@@ -409,8 +469,14 @@ class SDivaAnalysisService:
             diva_path = run_dir / ("%s.diva" % item["tree_index"])
             node_lines = self._parse_diva_node_lines(diva_path)
             if not node_lines:
-                warnings.append("tree %s: no optimal distributions block in %s" % (item["tree_index"], diva_path.name))
+                reason = "Tree %s has no optimal distributions block in %s." % (
+                    item.get("source_tree_index", item["tree_index"]),
+                    diva_path.name,
+                )
+                warnings.append(reason)
+                failure_reasons.append(reason)
                 continue
+            effective_tree_count += 1
 
             for parsed in node_lines:
                 legacy_clade = self._legacy_clade_from_terminal_spec(
@@ -424,14 +490,20 @@ class SDivaAnalysisService:
                 if not raw_states:
                     continue
 
-                tree_presence[legacy_clade] = 1
+                # Legacy Form_Main.do_analysis adds Temp_area.Length before
+                # final-tree/state filtering. Keep that cross-tree weighting;
+                # node percentages are normalized after all trees are merged.
                 total_lengths[legacy_clade] += len(raw_states)
                 allowed_states = set(final_tree_constraints.get(legacy_clade, []))
+                contributed = False
                 for state in raw_states:
                     if restrict_to_final_tree_states and allowed_states and state not in allowed_states:
                         continue
                     if state in state_order:
                         tree_counts[legacy_clade][state] += 1.0
+                        contributed = True
+                if contributed:
+                    tree_presence[legacy_clade] = 1
 
             for legacy_clade in counts_by_clade:
                 total = float(total_lengths.get(legacy_clade, 0))
@@ -441,12 +513,20 @@ class SDivaAnalysisService:
                     counts_by_clade[legacy_clade][state] += tree_counts[legacy_clade][state] / total
                 presence_by_clade[legacy_clade] += int(tree_presence.get(legacy_clade, 0))
 
+            if not any(tree_presence.values()):
+                unmatched_tree_count += 1
+
         return {
             "counts": counts_by_clade,
             "presence": presence_by_clade,
+            "effective_tree_count": effective_tree_count,
+            "unmatched_tree_count": unmatched_tree_count,
+            "failure_reasons": failure_reasons,
         }
 
     def _parse_diva_node_lines(self, diva_path: Path) -> list:
+        if not diva_path.exists():
+            return []
         text = diva_path.read_text(encoding="utf-8", errors="ignore")
         result = []
         in_block = False
@@ -755,6 +835,14 @@ class SDivaAnalysisService:
         lines.extend([
             "[TREE]",
             "Tree=" + reference_numeric_newick,
+            "[ACCOUNTING]",
+            "Input trees=%s" % int(result.input_tree_count),
+            "Effective trees=%s" % int(result.effective_tree_count),
+            "Failed trees=%s" % int(result.failed_tree_count),
+            "Zero-contribution trees=%s" % int(result.unmatched_tree_count),
+            "Unmatched clade observations=%s" % int(result.unmatched_clade_count),
+            "[FAILURES]",
+            *(list(result.tree_failure_reasons) if result.tree_failure_reasons else ["None"]),
             "[RESULT]",
             "Optimal reconstruction:",
         ])

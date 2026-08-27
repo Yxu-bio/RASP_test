@@ -108,6 +108,8 @@ class SBGBAnalysisService:
         result.model_name = "S-BioGeoBEARS-%s" % display_model
         result.input_tree_count = len(tree_entries)
         result.effective_tree_count = 0
+        result.failed_tree_count = 0
+        result.unmatched_tree_count = 0
         result.result_note = (
             "Legacy-style S-BGB aggregation; per-tree BioGeoBEARS analyses "
             "are combined only when a sampled-tree clade exactly matches the "
@@ -150,29 +152,43 @@ class SBGBAnalysisService:
 
         global_state_percent_sums = defaultdict(float)
         per_tree_outputs = []
-        worker_count = min(max(1, int(thread_count or 1)), len(tree_entries))
         jobs = []
+        preflight_failures = []
         for idx, entry in enumerate(tree_entries, start=1):
-            tree = self._extract_tree(entry)
-            self._validate_tree_taxa(tree, name_to_index, "tree %s" % idx)
-            run_files = self.biogeobears_service.build_run_files(
-                tree=tree,
-                matrix=matrix,
-                model_name=model_name,
-                run_name="%s_%s_t%04d" % (run_name_prefix, run_dir.name, idx),
-                max_range_size=max_range_size,
-                include_null_range=include_null_range,
-                null_range_mode=null_range_mode,
-                cores=1,
-                include_ranges=include_ranges,
-                exclude_ranges=exclude_ranges,
-                period_times=period_times,
-                time_matrix_kind=time_matrix_kind,
-                period_matrices=period_matrices,
-                root_age=root_age,
-                scale_tree_to_root_age=True,
+            try:
+                tree = self._extract_tree(entry)
+                self._validate_tree_taxa(tree, name_to_index, "tree %s" % idx)
+                run_files = self.biogeobears_service.build_run_files(
+                    tree=tree,
+                    matrix=matrix,
+                    model_name=model_name,
+                    run_name="%s_%s_t%04d" % (run_name_prefix, run_dir.name, idx),
+                    max_range_size=max_range_size,
+                    include_null_range=include_null_range,
+                    null_range_mode=null_range_mode,
+                    cores=1,
+                    include_ranges=include_ranges,
+                    exclude_ranges=exclude_ranges,
+                    period_times=period_times,
+                    time_matrix_kind=time_matrix_kind,
+                    period_matrices=period_matrices,
+                    root_age=root_age,
+                    scale_tree_to_root_age=True,
+                )
+                jobs.append({"idx": idx, "tree": tree, "run_files": run_files})
+            except Exception as exc:
+                reason = "Tree %s BioGeoBEARS preflight failed: %s" % (idx, exc)
+                preflight_failures.append((idx, reason))
+                result.parse_warnings.append(reason)
+                result.tree_failure_reasons.append(reason)
+
+        if not jobs:
+            raise RuntimeError(
+                "S-BGB run failed: all per-tree BioGeoBEARS analyses failed. %s"
+                % " ".join(reason for _idx, reason in preflight_failures[:20])
             )
-            jobs.append({"idx": idx, "tree": tree, "run_files": run_files})
+
+        worker_count = min(max(1, int(thread_count or 1)), len(jobs))
 
         batches = [[] for _ in range(worker_count)]
         for job in jobs:
@@ -199,6 +215,13 @@ class SBGBAnalysisService:
                 completed_count,
                 len(tree_entries),
                 message,
+            )
+
+        for failed_idx, _reason in preflight_failures:
+            mark_tree_completed(
+                failed_idx,
+                "S-BGB BioGeoBEARS tree %s/%s failed preflight"
+                % (failed_idx, len(tree_entries)),
             )
 
         def run_one_batch(batch_number, batch_jobs):
@@ -246,17 +269,17 @@ class SBGBAnalysisService:
                 try:
                     for idx, tree, per_tree, run_files, warning in future.result():
                         if warning:
-                            result.parse_warnings.append(
-                                "Tree %s BioGeoBEARS failed: %s" % (idx, warning)
-                            )
+                            reason = "Tree %s BioGeoBEARS failed: %s" % (idx, warning)
+                            result.parse_warnings.append(reason)
+                            result.tree_failure_reasons.append(reason)
                         else:
                             per_tree_outputs.append((idx, tree, per_tree, run_files))
                 except Exception as exc:
                     for job in batch_jobs:
                         idx = int(job["idx"])
-                        result.parse_warnings.append(
-                            "Tree %s BioGeoBEARS batch failed: %s" % (idx, exc)
-                        )
+                        reason = "Tree %s BioGeoBEARS batch failed: %s" % (idx, exc)
+                        result.parse_warnings.append(reason)
+                        result.tree_failure_reasons.append(reason)
                         mark_tree_completed(
                             idx,
                             "S-BGB BioGeoBEARS tree %s/%s failed" % (idx, len(tree_entries)),
@@ -265,6 +288,7 @@ class SBGBAnalysisService:
         effective_count = 0
         for idx, tree, per_tree, run_files in sorted(per_tree_outputs, key=lambda item: item[0]):
             effective_count += 1
+            matched_clade_count = 0
             intermediate_path = self._write_per_tree_intermediate(
                 run_dir=run_dir,
                 tree_index=idx,
@@ -308,25 +332,48 @@ class SBGBAnalysisService:
                     )
                     continue
 
+                valid_states = set(getattr(per_tree, "state_order", []) or [])
+                valid_states.update(
+                    dict(getattr(per_tree, "model_statistics", {}) or {}).get(
+                        "full_state_order", []
+                    )
+                    or []
+                )
+                percentages = self._filter_valid_state_percentages(
+                    self._extract_state_percentages(bgb_node),
+                    valid_states,
+                )
+                if not self._has_state_contribution(percentages):
+                    continue
+
                 aggregate = result.node_results[clade_key]
                 aggregate.supporting_tree_count += 1
+                matched_clade_count += 1
 
-                percentages = self._extract_state_percentages(bgb_node)
                 state_percent_sums = aggregate.raw_method_payload.setdefault("state_percent_sums", {})
                 source_clade_counts = aggregate.raw_method_payload.setdefault("source_clade_counts", {})
                 source_clade_counts[source_clade_key] = source_clade_counts.get(source_clade_key, 0) + 1
                 for state, percent in percentages.items():
                     state_percent_sums[state] = state_percent_sums.get(state, 0.0) + percent
                     global_state_percent_sums[state] += percent
+            if matched_clade_count == 0:
+                result.unmatched_tree_count += 1
 
         if effective_count == 0:
             raise RuntimeError("S-BGB run failed: all per-tree BioGeoBEARS analyses failed.")
 
         result.effective_tree_count = effective_count
+        result.failed_tree_count = max(0, result.input_tree_count - effective_count)
         result.model_statistics["effective_tree_count"] = effective_count
         result.model_statistics["input_tree_count"] = len(tree_entries)
+        result.model_statistics["failed_tree_count"] = result.failed_tree_count
+        result.model_statistics["zero_contribution_tree_count"] = result.unmatched_tree_count
 
         self._finalize_node_results(result, effective_count, global_state_percent_sums)
+        result.unmatched_clade_count = sum(
+            node.unmatched_tree_count for node in result.node_results.values()
+        )
+        result.model_statistics["unmatched_clade_observation_count"] = result.unmatched_clade_count
 
         analysis_log = self._write_analysis_log(
             run_dir=run_dir,
@@ -356,6 +403,10 @@ class SBGBAnalysisService:
 
         for node_result in result.node_results.values():
             node_result.total_tree_count = effective_count
+            node_result.unmatched_tree_count = max(
+                0,
+                effective_count - node_result.supporting_tree_count,
+            )
             state_percent_sums = dict(node_result.raw_method_payload.get("state_percent_sums", {}) or {})
 
             if node_result.supporting_tree_count <= 0 or not state_percent_sums:
@@ -388,17 +439,21 @@ class SBGBAnalysisService:
                 {
                     "supporting_tree_count": node_result.supporting_tree_count,
                     "total_tree_count": node_result.total_tree_count,
+                    "unmatched_tree_count": node_result.unmatched_tree_count,
                     "state_supports": dict(ordered),
                 }
             )
 
-        if result.parse_warnings:
-            result.result_note += " effective_trees=%s/%s" % (
-                effective_count,
+        result.result_note += (
+            " input_trees=%s effective_trees=%s failed_trees=%s "
+            "zero_contribution_trees=%s"
+            % (
                 result.input_tree_count,
+                effective_count,
+                result.failed_tree_count,
+                result.unmatched_tree_count,
             )
-        else:
-            result.result_note += " effective_trees=%s" % effective_count
+        )
 
     def _write_per_tree_intermediate(
         self,
@@ -468,6 +523,14 @@ class SBGBAnalysisService:
             [
                 "[TREE]",
                 "Tree=" + reference_numeric_newick,
+                "[ACCOUNTING]",
+                "Input trees=%s" % int(result.input_tree_count),
+                "Effective trees=%s" % int(result.effective_tree_count),
+                "Failed trees=%s" % int(result.failed_tree_count),
+                "Zero-contribution trees=%s" % int(result.unmatched_tree_count),
+                "Unmatched clade observations=%s" % int(result.unmatched_clade_count),
+                "[FAILURES]",
+                *(list(result.tree_failure_reasons) if result.tree_failure_reasons else ["None"]),
                 "[RESULT]",
                 "%s results:" % str(getattr(result, "model_name", "") or "S-BGB"),
             ]
@@ -586,6 +649,19 @@ class SBGBAnalysisService:
             return {state: percent for state in states}
 
         return {}
+
+    @staticmethod
+    def _has_state_contribution(percentages) -> bool:
+        return any(float(value) > 0.0 for value in dict(percentages or {}).values())
+
+    @staticmethod
+    def _filter_valid_state_percentages(percentages, valid_states) -> Dict[str, float]:
+        allowed = set(str(state) for state in (valid_states or []) if str(state))
+        return {
+            str(state): float(value)
+            for state, value in dict(percentages or {}).items()
+            if str(state) in allowed
+        }
 
     def _state_columns(self, matrix) -> List[str]:
         return [

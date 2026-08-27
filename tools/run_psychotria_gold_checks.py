@@ -204,6 +204,7 @@ def snapshot_result(result, method_name):
                 "state_supports": clean_float_map(payload.state_supports),
                 "supporting_tree_count": int(payload.supporting_tree_count or 0),
                 "total_tree_count": int(payload.total_tree_count or 0),
+                "unmatched_tree_count": int(payload.unmatched_tree_count or 0),
             }
         )
     nodes.sort(key=node_sort_key)
@@ -215,6 +216,9 @@ def snapshot_result(result, method_name):
         "model_name": str(getattr(result, "model_name", method_name) or method_name),
         "input_tree_count": int(summary.input_tree_count or 0),
         "effective_tree_count": int(summary.effective_tree_count or 0),
+        "failed_tree_count": int(summary.failed_tree_count or 0),
+        "unmatched_tree_count": int(summary.unmatched_tree_count or 0),
+        "unmatched_clade_count": int(summary.unmatched_clade_count or 0),
         "warning_count": len(list(summary.warnings or [])),
         "warnings": [str(value) for value in list(summary.warnings or [])],
         "state_order": [str(value) for value in list(standard.state_order or [])],

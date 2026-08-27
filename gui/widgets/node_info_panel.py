@@ -1020,6 +1020,12 @@ class NodeInfoPanel(QWidget):
                     info_lines.append("  " + str(warning))
             info_text = "\n".join(info_lines)
 
+        failure_reasons = list(getattr(result, "tree_failure_reasons", []) or [])
+        if failure_reasons and "TREE-SET FAILURE DETAILS" not in info_text:
+            failure_lines = ["", "TREE-SET FAILURE DETAILS:"]
+            failure_lines.extend("  " + str(reason) for reason in failure_reasons)
+            info_text += "\n".join(failure_lines)
+
         if not time_text:
             time_text = (
                 "No structured time/event data is attached to this result."
