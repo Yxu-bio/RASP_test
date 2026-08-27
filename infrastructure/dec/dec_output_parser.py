@@ -58,6 +58,10 @@ class DECOutputParser:
             node_map = self._build_node_id_to_clade_key_from_file(nodes_tree_path)
             result.parse_warnings.append("results.json 未提供 attributes.nodes-tree，已回退到 nodes.tre 文件解析。")
 
+        reference_node_ids = self._build_reference_node_id_map(reference_tree)
+        if not reference_node_ids:
+            raise ValueError("DEC results cannot be mapped because the reference tree has no internal nodes.")
+
         all_state_labels = []
 
         for entry in list(payload.get("node-results", []) or []):
@@ -72,6 +76,13 @@ class DECOutputParser:
             if not clade_key:
                 result.parse_warnings.append(f"DEC 节点结果 {node_id} 无法映射到内部节点。")
                 continue
+
+            display_node_id = reference_node_ids.get(clade_key)
+            if not display_node_id:
+                raise ValueError(
+                    "DEC result node %s maps to a clade that is absent from the reference tree: %s"
+                    % (node_id, clade_key)
+                )
 
             state_items = self._parse_state_items(entry.get("states", []) or [], area_names)
             state_labels = [x["label"] for x in state_items]
@@ -91,7 +102,7 @@ class DECOutputParser:
 
             node_result = DECNodeResult(
                 node_key=clade_key,
-                display_node_id=node_id,
+                display_node_id=display_node_id,
                 states=state_labels,
                 event_counts={},
                 event_supports=event_supports,
@@ -103,7 +114,7 @@ class DECOutputParser:
             )
 
             result.node_results[clade_key] = node_result
-            result.reference_node_ids[clade_key] = node_id
+            result.reference_node_ids[clade_key] = display_node_id
 
         result.state_order = list(all_state_labels)
         result.state_colors = {
@@ -122,6 +133,20 @@ class DECOutputParser:
             result.result_note += " params: " + desc
 
         return result
+
+    def _build_reference_node_id_map(self, reference_tree) -> Dict[str, str]:
+        mapping = {}
+        if reference_tree is None or not hasattr(reference_tree, "traverse"):
+            return mapping
+        taxon_count = len(reference_tree.get_leaf_names())
+        counter = 0
+        for node in reference_tree.traverse("postorder"):
+            if node.is_leaf():
+                continue
+            counter += 1
+            clade_key = "|".join(sorted(node.get_leaf_names()))
+            mapping[clade_key] = str(taxon_count + counter)
+        return mapping
 
     def _build_node_id_to_clade_key_from_file(self, nodes_tree_path) -> Dict[str, str]:
         raw_text = Path(nodes_tree_path).read_text(encoding="utf-8").strip()
