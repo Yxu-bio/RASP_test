@@ -84,6 +84,7 @@ class BioGeoBEARSRunner:
         bsm_outdir=None,
         bsm_nummaps=None,
         bsm_seed=None,
+        bsm_maxnum_maps_to_try=None,
         bsm_maxtries_per_branch=None,
     ) -> BioGeoBEARSRunOutput:
         rscript = self.resolve_rscript_path()
@@ -109,6 +110,11 @@ class BioGeoBEARSRunner:
                 cmd.extend(["--bsm_nummaps", str(int(bsm_nummaps))])
             if bsm_seed is not None:
                 cmd.extend(["--bsm_seed", str(int(bsm_seed))])
+            if bsm_maxnum_maps_to_try is not None:
+                cmd.extend([
+                    "--bsm_maxnum_maps_to_try",
+                    str(int(bsm_maxnum_maps_to_try)),
+                ])
             if bsm_maxtries_per_branch is not None:
                 cmd.extend(["--bsm_maxtries_per_branch", str(int(bsm_maxtries_per_branch))])
 

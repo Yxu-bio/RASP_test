@@ -872,6 +872,12 @@ run_bsm_if_requested <- function(args, res) {
   bsm_nummaps <- as.integer(ifelse(is.null(args[["bsm_nummaps"]]), 100, args[["bsm_nummaps"]]))
   bsm_nummaps <- max(1, bsm_nummaps)
   bsm_seed <- as.integer(ifelse(is.null(args[["bsm_seed"]]), 12345, args[["bsm_seed"]]))
+  bsm_maxnum_maps_to_try <- as.integer(ifelse(
+    is.null(args[["bsm_maxnum_maps_to_try"]]),
+    bsm_nummaps,
+    args[["bsm_maxnum_maps_to_try"]]
+  ))
+  bsm_maxnum_maps_to_try <- max(1, bsm_maxnum_maps_to_try)
   bsm_maxtries <- as.integer(ifelse(is.null(args[["bsm_maxtries_per_branch"]]), 40000, args[["bsm_maxtries_per_branch"]]))
   bsm_maxtries <- max(1, bsm_maxtries)
 
@@ -895,7 +901,7 @@ run_bsm_if_requested <- function(args, res) {
   bsm_output <- runBSM(
     res,
     stochastic_mapping_inputs_list = stochastic_mapping_inputs_list,
-    maxnum_maps_to_try = bsm_nummaps,
+    maxnum_maps_to_try = bsm_maxnum_maps_to_try,
     nummaps_goal = bsm_nummaps,
     maxtries_per_branch = bsm_maxtries,
     save_after_every_try = TRUE,
@@ -910,6 +916,7 @@ run_bsm_if_requested <- function(args, res) {
     list(
       nummaps = bsm_nummaps,
       seed = bsm_seed,
+      maxnum_maps_to_try = bsm_maxnum_maps_to_try,
       maxtries_per_branch = bsm_maxtries,
       clado_rows = summary$clado_rows,
       ana_rows = summary$ana_rows,

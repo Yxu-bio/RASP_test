@@ -1,0 +1,64 @@
+{
+  "format": "RASP5 Dore-derived adjacency-path BSM benchmark specification",
+  "version": 1,
+  "benchmark_id": "dore_ponerinae_decj_bsm_1000",
+  "study": {
+    "citation": "Dore et al. 2025, Nature Communications 16:8297",
+    "repository": "https://github.com/MaelDore/Ponerinae_Historical_Biogeography",
+    "repository_commit": "ea39cdd63c101eeadc92a39d7aa23e19aab27b56",
+    "model_script": {
+      "path": "scripts/04_Fit_biogeographic_models.R",
+      "sha256": "84E7FBEF66FA4D52C46FD318CC81BF0E195FDD8338A6E83A5F0A9D6D55583FE8"
+    },
+    "bsm_script": {
+      "path": "scripts/05_Biogeographic_Stochastic_Mapping.R",
+      "sha256": "341AC5E6AD92523A17769297DC20B532E3DA0B57952D875C957A0F337A924326"
+    }
+  },
+  "inputs": {
+    "tree": {
+      "path": "data/benchmarks/dore_ponerinae/final_inputs/Ponerinae_MCC_phylogeny_1534t_short_names.tree",
+      "sha256": "749CAE969D3161AEFAABC9B915CF523787E8DF3D1F6A1257185C2F3210418DD6"
+    },
+    "range_matrix": {
+      "path": "data/benchmarks/dore_ponerinae/taxa_bioregions_7areas_matrix.csv",
+      "sha256": "91DEAE278E0614B17B193DE6F1EF6AAB42055EA819C3D156B81F282876793246"
+    },
+    "time_boundaries": {
+      "path": "data/benchmarks/dore_ponerinae/final_inputs/time_boundaries.txt",
+      "sha256": "D4E079E79FE1C792E2B53EBCEEB0985B0EE64D42399C8D9188A78253CDEAA74E"
+    },
+    "areas_adjacency": {
+      "path": "data/benchmarks/dore_ponerinae/final_inputs/Dore_2024_BioGeoBears_Adjacency_matrix_7areas_7TS.txt",
+      "sha256": "39BBF52522E873D6B59D99CBBDC49A7C247CE5917496A51304DC78E48F5F20B1"
+    }
+  },
+  "area_code_mapping": {
+    "Afrotropics": "A",
+    "Australasia": "U",
+    "Indomalaya": "I",
+    "Nearctic": "R",
+    "Neotropics": "N",
+    "Eastern Palearctic": "E",
+    "Western Palearctic": "W"
+  },
+  "matrix_taxon_aliases": {
+    "NewGenus_bucki_EX2455_DZUP549431": "Neoponera_bucki"
+  },
+  "analysis": {
+    "model_name": "DECJ",
+    "model_display": "DEC+J",
+    "max_range_size": 5,
+    "include_null_range": true,
+    "cores": 1,
+    "time_matrix_kind": "areas_adjacency",
+    "period_boundaries_ma": [5.33, 23.03, 33.9, 56.0, 66.0, 100.5, 145.0],
+    "j_start": 0.0001,
+    "bsm_nummaps": 1000,
+    "bsm_seed": 12345,
+    "bsm_maxnum_maps_to_try": 200,
+    "bsm_maxtries_per_branch": 40000
+  },
+  "rasp_mapping_note": "The paper assigns lists_of_states_lists_0based derived from the seven adjacency matrices. RASP5 supplies the same matrices through BioGeoBEARS areas_adjacency_fn. WP5 must compare the resulting allowed state list per period before claiming numerical identity with the paper.",
+  "asset_status": "rebuildable Dore-derived RASP adjacency-path benchmark; not yet a paper-equivalent numerical reproduction; fixed 1000-map output is not stored in source control"
+}

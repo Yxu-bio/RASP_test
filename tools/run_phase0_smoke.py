@@ -135,12 +135,21 @@ def run_task(payload, name, callback):
 
 
 def summarize_result(result):
+    run_dir = str(getattr(result, "run_dir", "") or "")
+    artifacts = getattr(result, "artifacts", None)
+    if not run_dir and artifacts is not None:
+        run_dir = str(getattr(artifacts, "run_dir", "") or "")
+    if not run_dir:
+        result_note = str(getattr(result, "result_note", "") or "")
+        marker = " workdir="
+        if marker in result_note:
+            run_dir = result_note.split(marker, 1)[1].split(" ", 1)[0].strip()
     return {
         "class": type(result).__name__,
         "node_count": len(getattr(result, "node_results", {}) or {}),
         "warning_count": len(getattr(result, "parse_warnings", []) or []),
         "warnings": list(getattr(result, "parse_warnings", []) or [])[:10],
-        "run_dir": str(getattr(result, "run_dir", "") or ""),
+        "run_dir": run_dir,
         "has_information": bool(str(getattr(result, "information_text", "") or "").strip()),
         "has_time_data": bool(getattr(result, "heuristic_time_data", None)),
     }
@@ -187,18 +196,26 @@ def summarize_model_test(result):
     }
 
 
-def summarize_bsm(result):
+def summarize_bsm(result, expected_maxnum_maps_to_try=None):
     event_count = len(getattr(result, "events", []) or [])
     raw_tables = dict(getattr(result, "raw_tables", {}) or {})
+    summary = dict(getattr(result, "summary", {}) or {})
     if event_count <= 0:
         raise AssertionError("BSM generated no parsed events")
     if not raw_tables:
         raise AssertionError("BSM generated no raw tables")
+    if expected_maxnum_maps_to_try is not None:
+        actual = int(summary.get("maxnum_maps_to_try", 0) or 0)
+        if actual != int(expected_maxnum_maps_to_try):
+            raise AssertionError(
+                "BSM maxnum_maps_to_try mismatch: expected %s, got %s"
+                % (expected_maxnum_maps_to_try, actual)
+            )
     return {
         "class": type(result).__name__,
         "event_count": event_count,
         "raw_tables": {name: len(rows or []) for name, rows in raw_tables.items()},
-        "summary": dict(getattr(result, "summary", {}) or {}),
+        "summary": summary,
         "warnings": list(getattr(result, "parse_warnings", []) or [])[:10],
     }
 
@@ -410,9 +427,11 @@ def main():
                 run_name="phase0_bgb_bsm",
                 nummaps=5,
                 seed=12345,
+                maxnum_maps_to_try=5,
                 maxtries_per_branch=40000,
                 scale_tree_to_root_age=True,
-            )
+            ),
+            expected_maxnum_maps_to_try=5,
         ),
     )
 

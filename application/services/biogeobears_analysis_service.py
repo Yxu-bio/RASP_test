@@ -114,6 +114,7 @@ class BioGeoBEARSAnalysisService:
         run_name=None,
         nummaps=100,
         seed=12345,
+        maxnum_maps_to_try=None,
         maxtries_per_branch=40000,
         scale_tree_to_root_age=False,
     ):
@@ -165,6 +166,11 @@ class BioGeoBEARSAnalysisService:
                 bsm_outdir=bsm_dir,
                 bsm_nummaps=int(nummaps),
                 bsm_seed=int(seed),
+                bsm_maxnum_maps_to_try=(
+                    None
+                    if maxnum_maps_to_try is None
+                    else int(maxnum_maps_to_try)
+                ),
                 bsm_maxtries_per_branch=int(maxtries_per_branch),
             )
         except Exception as exc:
