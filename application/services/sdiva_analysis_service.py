@@ -6,6 +6,7 @@ import time
 
 from domain.models.sdiva_config import EMPTY_STATE_TOKENS
 from domain.models.sdiva_result import SDivaResult, SDivaNodeResult
+from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
@@ -27,10 +28,15 @@ class SDivaAnalysisService:
         re.IGNORECASE,
     )
 
-    def __init__(self, project_root: str = None) -> None:
+    def __init__(self, project_root: str = None, work_root: str = None) -> None:
         if project_root is None:
             project_root = Path(__file__).resolve().parent.parent.parent
         self.project_root = Path(project_root)
+        self.work_root = (
+            Path(work_root)
+            if work_root is not None
+            else self.project_root / "runs" / "sdiva"
+        )
         self.diva_exe_path = self.project_root / "engines" / "diva" / "DIVA.exe"
 
     def run(
@@ -56,6 +62,12 @@ class SDivaAnalysisService:
         self._validate_tree_taxa(reference_tree, name_to_index, "reference tree")
 
         run_dir = self._make_run_dir()
+        write_run_provenance(
+            run_dir,
+            analysis="S-DIVA",
+            engine_paths={"diva_executable": self.diva_exe_path},
+            extra={"input_tree_count": len(tree_entries)},
+        )
         config_text = ""
         config_path = ""
         if config is not None:
@@ -884,7 +896,7 @@ class SDivaAnalysisService:
 
     def _make_run_dir(self) -> Path:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        run_dir = self.project_root / "runs" / "sdiva" / ("legacy_sdiva_%s" % stamp)
+        run_dir = self.work_root / ("legacy_sdiva_%s" % stamp)
         run_dir.mkdir(parents=True, exist_ok=False)
         return run_dir
 

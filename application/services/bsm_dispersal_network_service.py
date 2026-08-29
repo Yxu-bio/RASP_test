@@ -14,6 +14,11 @@ class BSMDispersalNetworkService:
 
     ANAGENETIC_TYPES = set(["d", "a"])
     FOUNDER_EVENT = "founder (j)"
+    NETWORK_FORMAT = "rasp5_bsm_dispersal_network"
+    NETWORK_VERSION = 1
+    SOURCE_METHOD_UNIQUE = "biogeobears_probabilistic_unique_source"
+    SOURCE_METHOD_FRACTIONAL = "fractional_equal_split_fallback"
+    SOURCE_METHOD_MIXED = "mixed_unique_and_fractional_fallback"
     KNOWN_AREA_ALIASES = {
         "A": "Afrotropics",
         "U": "Australasia",
@@ -41,8 +46,24 @@ class BSMDispersalNetworkService:
             nummaps = 1
 
         precomputed_edges = list(getattr(result, "precomputed_bsm_network_edges", []) or [])
-        if precomputed_edges:
-            edge_rows = self._edge_rows_from_precomputed(precomputed_edges, area_codes, area_metadata, nummaps)
+        precomputed_available = bool(
+            getattr(result, "precomputed_bsm_network_available", False)
+        ) or bool(precomputed_edges)
+        if precomputed_available:
+            source_assignment_method = self._precomputed_source_assignment_method(
+                result,
+                precomputed_edges,
+            )
+            edge_rows = self._edge_rows_from_precomputed(
+                precomputed_edges,
+                area_codes,
+                area_metadata,
+                nummaps,
+                include_anagenetic=include_anagenetic,
+                include_founder=include_founder,
+            )
+            for row in edge_rows:
+                row["source_assignment_method"] = source_assignment_method
             area_codes = self._unique_preserve_order(
                 list(area_codes or [])
                 + [str(row.get("source_area", "") or "") for row in edge_rows]
@@ -53,6 +74,7 @@ class BSMDispersalNetworkService:
                 node_rows,
                 list(getattr(result, "precomputed_bsm_node_rows", []) or []),
             )
+            self._attach_edge_richness_metrics(edge_rows, node_rows)
             threshold = self._safe_float(min_mean_per_map, 0.0)
             display_edges = [
                 row for row in edge_rows
@@ -61,9 +83,15 @@ class BSMDispersalNetworkService:
             warnings = list(getattr(result, "parse_warnings", []) or [])
             if not area_metadata:
                 warnings.append("No spatial area metadata was supplied; using schematic network layout.")
+            self._append_source_assignment_warning(warnings, source_assignment_method)
             return {
+                "format": self.NETWORK_FORMAT,
+                "version": self.NETWORK_VERSION,
                 "nummaps": nummaps,
                 "min_mean_per_map": threshold,
+                "threshold_metric": "mean_per_map",
+                "metric_definitions": self._metric_definitions(source_assignment_method),
+                "source_assignment_method": source_assignment_method,
                 "edge_rows": edge_rows,
                 "display_edge_rows": display_edges,
                 "node_rows": node_rows,
@@ -76,14 +104,22 @@ class BSMDispersalNetworkService:
             }
 
         edge_acc = {}
+        source_methods = set()
         if include_anagenetic:
             for row in self._raw_rows(result, "anagenetic"):
                 event_type = self._clean(row.get("event_type") or row.get("clado_event_type"))
                 if event_type not in self.ANAGENETIC_TYPES:
                     continue
                 target = self._clean(row.get("dispersal_to") or row.get("new_area_num_1based"))
-                source_range = self._clean(row.get("current_rangetxt") or row.get("sampled_states_AT_brbots"))
-                self._add_split_source_edge(edge_acc, source_range, target, area_codes, "anagenetic")
+                unique_source = self._clean(row.get("ana_dispersal_from"))
+                if unique_source and self._add_unique_source_edge(
+                    edge_acc, unique_source, target, area_codes, "anagenetic"
+                ):
+                    source_methods.add(self.SOURCE_METHOD_UNIQUE)
+                else:
+                    source_range = self._clean(row.get("current_rangetxt") or row.get("sampled_states_AT_brbots"))
+                    if self._add_split_source_edge(edge_acc, source_range, target, area_codes, "anagenetic"):
+                        source_methods.add(self.SOURCE_METHOD_FRACTIONAL)
 
         if include_founder:
             for row in self._raw_rows(result, "cladogenetic"):
@@ -91,12 +127,20 @@ class BSMDispersalNetworkService:
                 if event_type != self.FOUNDER_EVENT:
                     continue
                 target = self._clean(row.get("clado_dispersal_to") or row.get("dispersal_to"))
-                text = self._clean(row.get("clado_event_txt") or row.get("event_txt"))
-                source_range = text.split("->", 1)[0].strip() if "->" in text else ""
-                if not source_range:
-                    source_range = self._clean(row.get("sampled_states_AT_brbots"))
-                self._add_split_source_edge(edge_acc, source_range, target, area_codes, "founder")
+                unique_source = self._clean(row.get("clado_dispersal_from"))
+                if unique_source and self._add_unique_source_edge(
+                    edge_acc, unique_source, target, area_codes, "founder"
+                ):
+                    source_methods.add(self.SOURCE_METHOD_UNIQUE)
+                else:
+                    text = self._clean(row.get("clado_event_txt") or row.get("event_txt"))
+                    source_range = text.split("->", 1)[0].strip() if "->" in text else ""
+                    if not source_range:
+                        source_range = self._clean(row.get("sampled_states_AT_brbots"))
+                    if self._add_split_source_edge(edge_acc, source_range, target, area_codes, "founder"):
+                        source_methods.add(self.SOURCE_METHOD_FRACTIONAL)
 
+        source_assignment_method = self._combined_source_assignment_method(source_methods)
         edge_rows = []
         for key in sorted(edge_acc.keys()):
             row = edge_acc[key]
@@ -119,10 +163,12 @@ class BSMDispersalNetworkService:
                 "source_lat": source_meta.get("centroid_lat", ""),
                 "target_lon": target_meta.get("centroid_lon", ""),
                 "target_lat": target_meta.get("centroid_lat", ""),
+                "source_assignment_method": source_assignment_method,
             })
         edge_rows.sort(key=lambda row: (-float(row.get("total_count", 0.0)), row.get("source_area", ""), row.get("target_area", "")))
 
         node_rows = self._node_rows(area_codes, area_metadata, range_matrix, edge_rows)
+        self._attach_edge_richness_metrics(edge_rows, node_rows)
         threshold = self._safe_float(min_mean_per_map, 0.0)
         display_edges = [
             row for row in edge_rows
@@ -141,9 +187,15 @@ class BSMDispersalNetworkService:
         if not area_metadata:
             warnings.append("No spatial area metadata was supplied; network tables can be exported but map coordinates are unavailable.")
 
+        self._append_source_assignment_warning(warnings, source_assignment_method)
         return {
+            "format": self.NETWORK_FORMAT,
+            "version": self.NETWORK_VERSION,
             "nummaps": nummaps,
             "min_mean_per_map": threshold,
+            "threshold_metric": "mean_per_map",
+            "metric_definitions": self._metric_definitions(source_assignment_method),
+            "source_assignment_method": source_assignment_method,
             "edge_rows": edge_rows,
             "display_edge_rows": display_edges,
             "node_rows": node_rows,
@@ -155,7 +207,15 @@ class BSMDispersalNetworkService:
             "node_geojson": self.node_geojson(node_rows),
         }
 
-    def _edge_rows_from_precomputed(self, rows, area_codes, area_metadata, nummaps):
+    def _edge_rows_from_precomputed(
+        self,
+        rows,
+        area_codes,
+        area_metadata,
+        nummaps,
+        include_anagenetic=True,
+        include_founder=True,
+    ):
         output = []
         for row in list(rows or []):
             source = self._clean(row.get("source_area") or row.get("from") or row.get("source") or "")
@@ -164,19 +224,30 @@ class BSMDispersalNetworkService:
                 continue
             source_meta = area_metadata.get(source, {})
             target_meta = area_metadata.get(target, {})
+            has_components = any(
+                key in row
+                for key in ("anagenetic_count", "ana_count", "founder_count", "clado_count")
+            )
             ana_count = self._safe_float(row.get("anagenetic_count") or row.get("ana_count"), 0.0)
             founder_count = self._safe_float(row.get("founder_count") or row.get("clado_count"), 0.0)
-            total = self._safe_float(row.get("total_count"), ana_count + founder_count)
-            mean = self._safe_float(row.get("mean_per_map"), None)
-            if mean is None:
-                mean = total / float(nummaps or 1)
+            if has_components:
+                selected_ana = ana_count if include_anagenetic else 0.0
+                selected_founder = founder_count if include_founder else 0.0
+                total = selected_ana + selected_founder
+            else:
+                total = self._safe_float(row.get("total_count"), 0.0) if (include_anagenetic or include_founder) else 0.0
+                selected_ana = total if include_anagenetic else 0.0
+                selected_founder = 0.0
+            if total <= 0.0:
+                continue
+            mean = total / float(nummaps or 1)
             output.append({
                 "source_area": source,
                 "target_area": target,
                 "source_name": source_meta.get("display_name") or row.get("source_name") or row.get("from_name") or source,
                 "target_name": target_meta.get("display_name") or row.get("target_name") or row.get("to_name") or target,
-                "anagenetic_count": ana_count,
-                "founder_count": founder_count,
+                "anagenetic_count": selected_ana,
+                "founder_count": selected_founder,
                 "total_count": total,
                 "mean_per_map": mean,
                 "source_lon": source_meta.get("centroid_lon", ""),
@@ -253,6 +324,9 @@ class BSMDispersalNetworkService:
                     "founder_count": row.get("founder_count", 0.0),
                     "total_count": row.get("total_count", 0.0),
                     "mean_per_map": row.get("mean_per_map", 0.0),
+                    "mean_per_map_per_source_richness": row.get("mean_per_map_per_source_richness"),
+                    "mean_per_map_per_target_richness": row.get("mean_per_map_per_target_richness"),
+                    "source_assignment_method": row.get("source_assignment_method", ""),
                 },
             })
         return {"type": "FeatureCollection", "features": features}
@@ -294,6 +368,47 @@ class BSMDispersalNetworkService:
                 writer.writerow(dict((key, row.get(key, "")) for key in headers))
         return path
 
+    def _attach_edge_richness_metrics(self, edge_rows, node_rows):
+        richness = dict(
+            (str(row.get("area_code", "") or ""), self._safe_float(row.get("richness"), 0.0))
+            for row in list(node_rows or [])
+        )
+        for row in list(edge_rows or []):
+            mean = self._safe_float(row.get("mean_per_map"), 0.0)
+            source_richness = richness.get(str(row.get("source_area", "") or ""), 0.0)
+            target_richness = richness.get(str(row.get("target_area", "") or ""), 0.0)
+            row["source_richness"] = source_richness
+            row["target_richness"] = target_richness
+            row["mean_per_map_per_source_richness"] = (
+                mean / float(source_richness) if source_richness > 0.0 else None
+            )
+            row["mean_per_map_per_target_richness"] = (
+                mean / float(target_richness) if target_richness > 0.0 else None
+            )
+
+    def _metric_definitions(self, source_assignment_method):
+        if source_assignment_method == self.SOURCE_METHOD_UNIQUE:
+            total_count = (
+                "Anagenetic plus founder-event dispersal counts after BioGeoBEARS "
+                "probabilistically assigns one source area to each event."
+            )
+        elif source_assignment_method == self.SOURCE_METHOD_MIXED:
+            total_count = (
+                "Anagenetic plus founder-event dispersal counts using BioGeoBEARS unique "
+                "source assignments where available and equal fractional allocation otherwise."
+            )
+        else:
+            total_count = (
+                "Anagenetic plus founder-event dispersal counts; events lacking a BioGeoBEARS "
+                "unique source assignment are allocated equally across candidate source areas."
+            )
+        return {
+            "total_count": total_count,
+            "mean_per_map": "total_count divided by nummaps; this is the display threshold metric.",
+            "mean_per_map_per_source_richness": "mean_per_map divided by source-area tip richness.",
+            "mean_per_map_per_target_richness": "mean_per_map divided by target-area tip richness.",
+        }
+
     def _raw_rows(self, result, name):
         raw_tables = dict(getattr(result, "raw_tables", {}) or {})
         return list(raw_tables.get(name, []) or [])
@@ -311,27 +426,79 @@ class BSMDispersalNetworkService:
                     sample_ids.add(sample_id)
         return len(sample_ids) or 1
 
+    def _add_unique_source_edge(self, edge_acc, source, target, area_codes, event_kind):
+        source = self._normalize_area_code(source, area_codes)
+        target = self._normalize_area_code(target, area_codes)
+        if not source or not target or source == target:
+            return False
+        self._add_edge_weight(edge_acc, source, target, event_kind, 1.0)
+        return True
+
     def _add_split_source_edge(self, edge_acc, source_range, target, area_codes, event_kind):
         target = self._normalize_area_code(target, area_codes)
         if not target:
-            return
+            return False
         sources = self._split_range_label(source_range, area_codes)
         if not sources:
-            return
+            return False
+        sources = [source for source in sources if source != target]
+        if not sources:
+            return False
         weight = 1.0 / float(len(sources))
-        count_key = "founder_count" if event_kind == "founder" else "anagenetic_count"
+        added = False
         for source in sources:
-            if source == target:
-                continue
-            key = (source, target)
-            if key not in edge_acc:
-                edge_acc[key] = {
-                    "source_area": source,
-                    "target_area": target,
-                    "anagenetic_count": 0.0,
-                    "founder_count": 0.0,
-                }
-            edge_acc[key][count_key] += weight
+            self._add_edge_weight(edge_acc, source, target, event_kind, weight)
+            added = True
+        return added
+
+    def _add_edge_weight(self, edge_acc, source, target, event_kind, weight):
+        count_key = "founder_count" if event_kind == "founder" else "anagenetic_count"
+        key = (source, target)
+        if key not in edge_acc:
+            edge_acc[key] = {
+                "source_area": source,
+                "target_area": target,
+                "anagenetic_count": 0.0,
+                "founder_count": 0.0,
+            }
+        edge_acc[key][count_key] += float(weight)
+
+    def _combined_source_assignment_method(self, methods):
+        methods = set(methods or [])
+        if self.SOURCE_METHOD_UNIQUE in methods and self.SOURCE_METHOD_FRACTIONAL in methods:
+            return self.SOURCE_METHOD_MIXED
+        if self.SOURCE_METHOD_UNIQUE in methods:
+            return self.SOURCE_METHOD_UNIQUE
+        return self.SOURCE_METHOD_FRACTIONAL
+
+    def _precomputed_source_assignment_method(self, result, rows):
+        summary = dict(getattr(result, "summary", {}) or {})
+        methods = set(
+            self._clean(row.get("source_assignment_method"))
+            for row in list(rows or [])
+            if self._clean(row.get("source_assignment_method"))
+        )
+        if methods:
+            return self._combined_source_assignment_method(methods)
+        reported = self._clean(
+            summary.get("network_source_assignment_method")
+            or summary.get("source_assignment_method")
+        )
+        if reported:
+            return reported
+        return self.SOURCE_METHOD_FRACTIONAL
+
+    def _append_source_assignment_warning(self, warnings, source_assignment_method):
+        if source_assignment_method == self.SOURCE_METHOD_FRACTIONAL:
+            warnings.append(
+                "BSM tables do not contain BioGeoBEARS unique source-area assignments; "
+                "multi-area sources are represented by equal fractional allocation."
+            )
+        elif source_assignment_method == self.SOURCE_METHOD_MIXED:
+            warnings.append(
+                "Only part of the BSM input contains BioGeoBEARS unique source-area assignments; "
+                "remaining multi-area sources use equal fractional allocation."
+            )
 
     def _split_range_label(self, value, area_codes):
         text = self._clean(value)
@@ -389,7 +556,11 @@ class BSMDispersalNetworkService:
         event_codes = []
         for name in ("anagenetic", "cladogenetic"):
             for row in self._raw_rows(result, name)[:2000]:
-                for key in ("current_rangetxt", "new_rangetxt", "dispersal_to", "clado_dispersal_to", "clado_event_txt"):
+                for key in (
+                    "current_rangetxt", "new_rangetxt", "dispersal_to",
+                    "ana_dispersal_from", "clado_dispersal_from",
+                    "clado_dispersal_to", "clado_event_txt"
+                ):
                     for code in self._extract_event_area_codes(row.get(key)):
                         if code and code not in event_codes:
                             event_codes.append(code)

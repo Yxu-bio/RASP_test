@@ -6,6 +6,7 @@ import shutil
 import subprocess
 
 from application.services.dec_dataset_builder import DECRunFiles
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -55,6 +56,11 @@ class DECRunner:
 
     def run(self, run_files: DECRunFiles, env_overrides=None) -> DECRunOutput:
         engine = self.resolve_engine_path()
+        write_run_provenance(
+            run_files.workdir,
+            analysis="DEC",
+            engine_paths={"lagrange_ng_executable": engine},
+        )
 
         env = os.environ.copy()
         engine_dir = str(engine.parent.resolve())

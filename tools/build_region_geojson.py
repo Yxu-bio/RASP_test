@@ -40,6 +40,11 @@ DEFAULT_COLORS = [
     "#AF7AA1",
 ]
 
+REGION_BUILDER_CONFIG_FORMAT = "rasp5_region_builder_config"
+REGION_BUILDER_CONFIG_VERSION = 1
+REGION_BUILDER_OUTPUT_FORMAT = "rasp5_region_builder_geojson"
+REGION_BUILDER_OUTPUT_VERSION = 1
+
 
 def _is_url(value):
     text = str(value or "")
@@ -74,6 +79,21 @@ def _load_csv_rows(path_or_url, base_dir=None):
     for row in csv.DictReader(text.splitlines()):
         rows.append(dict((str(k or "").strip(), str(v or "").strip()) for k, v in row.items()))
     return rows
+
+
+def _validate_config_schema(config):
+    if not isinstance(config, dict):
+        raise ValueError("Region Builder config must contain a JSON object.")
+    fmt = str(config.get("format", "") or "")
+    if fmt and fmt != REGION_BUILDER_CONFIG_FORMAT:
+        raise ValueError("Unsupported Region Builder config format: %s" % fmt)
+    version = config.get("version", REGION_BUILDER_CONFIG_VERSION)
+    try:
+        version = int(version)
+    except Exception:
+        raise ValueError("Invalid Region Builder config version: %s" % version)
+    if version != REGION_BUILDER_CONFIG_VERSION:
+        raise ValueError("Unsupported Region Builder config version: %s" % version)
 
 
 def _geometry_to_polygons(geometry):
@@ -385,6 +405,7 @@ def _area_metadata(config, area_order):
 
 
 def build_regions(config, config_dir=None):
+    _validate_config_schema(config)
     sources = _load_sources(config, config_dir)
     mapping, mapping_config = _load_mapping(config, config_dir)
     groups = defaultdict(list)
@@ -459,6 +480,8 @@ def build_regions(config, config_dir=None):
         "type": "FeatureCollection",
         "name": str(config.get("name") or "study_regions"),
         "metadata": {
+            "format": REGION_BUILDER_OUTPUT_FORMAT,
+            "version": REGION_BUILDER_OUTPUT_VERSION,
             "schema": "rasp5_region_builder.v1",
             "boundary_kind": str(config.get("boundary_kind") or "rule_based_reference"),
             "official_author_boundary": bool(config.get("official_author_boundary", False)),

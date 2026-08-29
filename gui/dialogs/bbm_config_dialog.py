@@ -171,6 +171,10 @@ class BBMConfigDialog(QDialog):
         self.chain_length_spin.setSingleStep(1000)
         self.chains_spin = QSpinBox(group)
         self.chains_spin.setRange(1, 100000000)
+        self.chains_spin.setToolTip(
+            "Four chains are recommended. The bundled 32-bit MrBayes may emit an "
+            "allocation warning with the old RASP default of 10 chains."
+        )
         self.sample_frequency_spin = QSpinBox(group)
         self.sample_frequency_spin.setRange(1, 2147483647)
         self.sample_frequency_spin.setSingleStep(100)

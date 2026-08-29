@@ -4,6 +4,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 class BioGeoBEARSBSMEventWorker(QThread):
     succeeded = pyqtSignal(object)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(int, int, str)
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class BioGeoBEARSBSMEventWorker(QThread):
                 nummaps=self.nummaps,
                 seed=self.seed,
                 maxtries_per_branch=self.maxtries_per_branch,
+                progress_callback=self.progress.emit,
             )
         except Exception as exc:
             self.failed.emit(str(exc))

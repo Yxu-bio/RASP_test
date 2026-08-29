@@ -1,5 +1,5 @@
 {
-  "format": "RASP5 Dore-derived adjacency-path BSM benchmark specification",
+  "format": "RASP5 Dore-derived paper-rule BSM benchmark specification",
   "version": 1,
   "benchmark_id": "dore_ponerinae_decj_bsm_1000",
   "study": {
@@ -59,6 +59,6 @@
     "bsm_maxnum_maps_to_try": 200,
     "bsm_maxtries_per_branch": 40000
   },
-  "rasp_mapping_note": "The paper assigns lists_of_states_lists_0based derived from the seven adjacency matrices. RASP5 supplies the same matrices through BioGeoBEARS areas_adjacency_fn. WP5 must compare the resulting allowed state list per period before claiming numerical identity with the paper.",
-  "asset_status": "rebuildable Dore-derived RASP adjacency-path benchmark; not yet a paper-equivalent numerical reproduction; fixed 1000-map output is not stored in source control"
+  "rasp_mapping_note": "The paper uses adjacency matrices only to derive custom lists_of_states_lists_0based, then runs BioGeoBEARS with areas_adjacency_fn=NA. The benchmark mirrors that path: it passes the broader paper-rule range list separately for each period and does not apply native adjacency pruning a second time.",
+  "asset_status": "rebuildable Dore-derived paper-rule benchmark; fixed 1000-map output is not stored in source control"
 }

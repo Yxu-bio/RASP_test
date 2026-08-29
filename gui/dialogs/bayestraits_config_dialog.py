@@ -74,9 +74,11 @@ class BayesTraitsConfigDialog(QDialog):
         layout.setContentsMargins(6, 6, 6, 6)
 
         left = QWidget(self)
+        self.left_panel = left
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 4, 0)
-        left_layout.addWidget(self._build_node_group(), 1)
+        self.node_group = self._build_node_group()
+        left_layout.addWidget(self.node_group, 1)
 
         right = QWidget(self)
         right_layout = QVBoxLayout(right)
@@ -85,10 +87,14 @@ class BayesTraitsConfigDialog(QDialog):
         right_content = QWidget(right)
         right_content_layout = QVBoxLayout(right_content)
         right_content_layout.setContentsMargins(0, 0, 0, 0)
-        right_content_layout.addWidget(self._build_model_group())
-        right_content_layout.addWidget(self._build_mcmc_ml_group())
-        right_content_layout.addWidget(self._build_prior_group())
-        right_content_layout.addWidget(self._build_advanced_group())
+        self.model_group = self._build_model_group()
+        self.runtime_group = self._build_mcmc_ml_group()
+        self.prior_group = self._build_prior_group()
+        self.advanced_group = self._build_advanced_group()
+        right_content_layout.addWidget(self.model_group)
+        right_content_layout.addWidget(self.runtime_group)
+        right_content_layout.addWidget(self.prior_group)
+        right_content_layout.addWidget(self.advanced_group)
         right_content_layout.addStretch(1)
 
         right_scroll = QScrollArea(right)
@@ -161,6 +167,7 @@ class BayesTraitsConfigDialog(QDialog):
         group = QGroupBox("Model", self)
         layout = QVBoxLayout(group)
         form = QFormLayout()
+        self.model_form = form
         self.model_combo = QComboBox(group)
         for key, spec in BAYESTRAITS_MODELS.items():
             self.model_combo.addItem(str(spec["label"]), key)
@@ -169,6 +176,8 @@ class BayesTraitsConfigDialog(QDialog):
         self.analysis_combo.addItem(BAYESTRAITS_ANALYSIS_METHODS["ML"], "ML")
         self.analysis_combo.addItem(BAYESTRAITS_ANALYSIS_METHODS["MCMC"], "MCMC")
         self.analysis_combo.currentIndexChanged.connect(self._update_controls)
+        self.output_mode_combo = QComboBox(group)
+        self.output_mode_combo.currentIndexChanged.connect(self._update_controls)
         self.trait_column_combo = QComboBox(group)
         for column in self.trait_columns:
             self.trait_column_combo.addItem(column, column)
@@ -179,13 +188,10 @@ class BayesTraitsConfigDialog(QDialog):
         self.continuous_transform_combo.currentIndexChanged.connect(self._on_continuous_transform_changed)
         form.addRow("Model", self.model_combo)
         form.addRow("Analysis", self.analysis_combo)
+        form.addRow("Output", self.output_mode_combo)
         form.addRow("Primary trait", self.trait_column_combo)
         form.addRow("Trait transform", self.continuous_transform_combo)
         layout.addLayout(form)
-
-        self.continuous_asr_check = QCheckBox("Continuous ASR visualization (contMap-like)", group)
-        self.continuous_asr_check.toggled.connect(self._update_controls)
-        layout.addWidget(self.continuous_asr_check)
 
         self.trait_table = QTableWidget(group)
         self.trait_table.setColumnCount(2)
@@ -221,14 +227,19 @@ class BayesTraitsConfigDialog(QDialog):
         self.burnin_spin.setSingleStep(1000)
         self.mltries_spin = QSpinBox(group)
         self.mltries_spin.setRange(1, 1000000)
+        self.seed_spin = QSpinBox(group)
+        self.seed_spin.setRange(0, 2147483647)
+        self.seed_spin.setToolTip("0 lets BayesTraits choose the seed; a positive value makes MCMC runs reproducible.")
         form.addRow("Iterations", self.iterations_spin)
         form.addRow("Sample", self.sample_spin)
         form.addRow("BurnIn", self.burnin_spin)
+        form.addRow("Seed", self.seed_spin)
         form.addRow("MLTries", self.mltries_spin)
+        self.runtime_form = form
         return group
 
     def _build_prior_group(self):
-        group = QGroupBox("MCMC priors", self)
+        group = QGroupBox("MCMC priors and rate restrictions", self)
         form = QFormLayout(group)
         self.hpall_combo = self._combo_from_values(BAYESTRAITS_HYPER_PRIOR_ALL, group)
         self.rjhp_combo = self._combo_from_values(BAYESTRAITS_REVJUMP_HP, group)
@@ -238,8 +249,9 @@ class BayesTraitsConfigDialog(QDialog):
         self.resall_combo.currentIndexChanged.connect(self._exclusive_rjhp_resall)
         form.addRow("HPAll", self.hpall_combo)
         form.addRow("RJHP", self.rjhp_combo)
-        form.addRow("ResAll", self.resall_combo)
+        form.addRow("Restrict all rates", self.resall_combo)
         form.addRow("Stone", self.stones_combo)
+        self.prior_form = form
         return group
 
     def _build_advanced_group(self):
@@ -278,7 +290,14 @@ class BayesTraitsConfigDialog(QDialog):
         self.stones_combo.setEditText(str(config.stones or ""))
         self.extra_commands_edit.setPlainText(str(config.extra_commands or ""))
         self.auto_map_check.setChecked(bool(config.auto_map_categorical))
-        self.continuous_asr_check.setChecked(bool(getattr(config, "continuous_asr", False)))
+        self.seed_spin.setValue(int(getattr(config, "random_seed", 0) or 0))
+        self._refresh_output_modes(
+            preferred=(
+                "INTERNAL_NODES"
+                if bool(getattr(config, "continuous_asr", False))
+                else "MODEL_STATISTICS"
+            )
+        )
         self._set_combo_data(
             self.continuous_transform_combo,
             normalize_bayestraits_continuous_transform(getattr(config, "continuous_transform", "none")),
@@ -303,8 +322,9 @@ class BayesTraitsConfigDialog(QDialog):
             restrict_all=str(self.resall_combo.currentText() or ""),
             stones=str(self.stones_combo.currentText() or ""),
             extra_commands=self.extra_commands_edit.toPlainText(),
+            random_seed=int(self.seed_spin.value()),
             auto_map_categorical=bool(self.auto_map_check.isChecked()),
-            continuous_asr=bool(self.continuous_asr_check.isChecked()),
+            continuous_asr=str(self.output_mode_combo.currentData() or "") == "INTERNAL_NODES",
             continuous_transform=str(self.continuous_transform_combo.currentData() or "none"),
             selected_node_ids=self._selected_node_ids(),
             fossil_states=self._fossil_states(),
@@ -316,13 +336,12 @@ class BayesTraitsConfigDialog(QDialog):
         is_mcmc = str(self.analysis_combo.currentData()) == "MCMC"
         model = str(self.model_combo.currentData() or "MULTISTATE")
         spec = BAYESTRAITS_MODELS.get(model, BAYESTRAITS_MODELS["MULTISTATE"])
+        is_multistate = model == "MULTISTATE"
         supports_continuous_asr = bool(spec.get("supports_continuous_asr", False))
-        if not supports_continuous_asr and self.continuous_asr_check.isChecked():
-            self.continuous_asr_check.blockSignals(True)
-            self.continuous_asr_check.setChecked(False)
-            self.continuous_asr_check.blockSignals(False)
-        continuous_asr = bool(self.continuous_asr_check.isChecked() and supports_continuous_asr)
-        self.continuous_asr_check.setEnabled(supports_continuous_asr)
+        continuous_asr = bool(
+            supports_continuous_asr
+            and str(self.output_mode_combo.currentData() or "") == "INTERNAL_NODES"
+        )
         forced_method = str(spec.get("analysis_method", "") or "")
         if continuous_asr:
             forced_method = "MCMC"
@@ -330,20 +349,37 @@ class BayesTraitsConfigDialog(QDialog):
             self._set_combo_data(self.analysis_combo, forced_method)
             is_mcmc = str(self.analysis_combo.currentData()) == "MCMC"
         self.analysis_combo.setEnabled(not bool(forced_method))
-        self.iterations_spin.setEnabled(is_mcmc)
-        self.sample_spin.setEnabled(is_mcmc)
-        self.burnin_spin.setEnabled(is_mcmc)
-        self.hpall_combo.setEnabled(is_mcmc)
-        self.rjhp_combo.setEnabled(is_mcmc)
-        self.resall_combo.setEnabled(is_mcmc)
-        self.stones_combo.setEnabled(is_mcmc and not continuous_asr)
-        self.mltries_spin.setEnabled(not is_mcmc)
-        self.node_table.setEnabled(bool(spec.get("supports_nodes", False)) and not continuous_asr)
-        self.auto_map_check.setEnabled(str(spec.get("trait_kind", "")) == "categorical")
+        self.output_mode_combo.setEnabled(self.output_mode_combo.count() > 1)
+
+        self.runtime_group.setTitle("MCMC settings" if is_mcmc else "ML settings")
+        for widget in [self.iterations_spin, self.sample_spin, self.burnin_spin, self.seed_spin]:
+            self._set_form_field_visible(self.runtime_form, widget, is_mcmc)
+        self._set_form_field_visible(self.runtime_form, self.mltries_spin, not is_mcmc)
+        self.prior_group.setTitle(
+            "MCMC priors and rate restrictions" if is_mcmc else "Rate restrictions"
+        )
+        self.prior_group.setVisible(is_mcmc or is_multistate)
+        self._set_form_field_visible(self.prior_form, self.hpall_combo, is_mcmc)
+        self._set_form_field_visible(self.prior_form, self.rjhp_combo, is_mcmc and is_multistate)
+        self._set_form_field_visible(self.prior_form, self.resall_combo, is_multistate)
+        self._set_form_field_visible(self.prior_form, self.stones_combo, is_mcmc and not continuous_asr)
+
+        supports_selected_nodes = bool(spec.get("supports_nodes", False))
+        self.left_panel.setVisible(supports_selected_nodes)
+        self.node_group.setVisible(supports_selected_nodes)
+        self.node_table.setEnabled(supports_selected_nodes)
+        is_categorical = str(spec.get("trait_kind", "")) == "categorical"
+        self.auto_map_check.setVisible(is_categorical)
         is_continuous = str(spec.get("trait_kind", "")) == "continuous"
-        self.continuous_transform_combo.setEnabled(is_continuous)
+        self._set_form_field_visible(
+            self.model_form,
+            self.continuous_transform_combo,
+            is_continuous,
+        )
         if not is_continuous:
             self._set_combo_data(self.continuous_transform_combo, "none")
+        max_traits = int(spec.get("max_traits", 0) or 0)
+        self.trait_table.setVisible(max_traits == 0 or max_traits > 1)
         self._enforce_trait_selection_for_model()
 
     def _exclusive_rjhp_resall(self):
@@ -361,7 +397,39 @@ class BayesTraitsConfigDialog(QDialog):
         if combo.isEditable():
             combo.setEditText(str(value or ""))
 
+    def _refresh_output_modes(self, preferred=None):
+        model = str(self.model_combo.currentData() or "MULTISTATE")
+        spec = BAYESTRAITS_MODELS.get(model, BAYESTRAITS_MODELS["MULTISTATE"])
+        current = str(preferred or self.output_mode_combo.currentData() or "")
+        if bool(spec.get("supports_nodes", False)):
+            modes = [("Selected-node reconstruction", "SELECTED_NODES")]
+        elif bool(spec.get("supports_continuous_asr", False)):
+            modes = [
+                ("Model statistics only", "MODEL_STATISTICS"),
+                ("All internal-node reconstruction (MCMC)", "INTERNAL_NODES"),
+            ]
+        else:
+            modes = [("Model statistics only", "MODEL_STATISTICS")]
+
+        self.output_mode_combo.blockSignals(True)
+        try:
+            self.output_mode_combo.clear()
+            for label, value in modes:
+                self.output_mode_combo.addItem(label, value)
+            index = self.output_mode_combo.findData(current)
+            self.output_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            self.output_mode_combo.blockSignals(False)
+
+    @staticmethod
+    def _set_form_field_visible(form, widget, visible):
+        widget.setVisible(bool(visible))
+        label = form.labelForField(widget)
+        if label is not None:
+            label.setVisible(bool(visible))
+
     def _on_model_changed(self):
+        self._refresh_output_modes()
         self._update_controls()
 
     def _on_continuous_transform_changed(self):

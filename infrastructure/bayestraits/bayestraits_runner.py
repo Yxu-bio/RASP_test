@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from application.services.bayestraits_dataset_builder import BayesTraitsRunFiles
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -50,6 +51,15 @@ class BayesTraitsRunner:
     def run(self, run_files: BayesTraitsRunFiles) -> BayesTraitsRunOutput:
         exe = self.resolve_executable_path()
         executable_version = self.detect_version(exe)
+        write_run_provenance(
+            run_files.workdir,
+            analysis="BayesTraits",
+            engine_paths={"bayestraits_executable": exe},
+            extra={
+                "engine_reported_version": executable_version,
+                "continuous_asr": bool(getattr(run_files, "continuous_asr", False)),
+            },
+        )
         if bool(getattr(run_files, "continuous_asr", False)):
             return self._run_continuous_asr(run_files, exe, executable_version)
 

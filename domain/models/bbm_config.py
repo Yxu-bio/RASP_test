@@ -30,7 +30,7 @@ class BBMConfig:
     chain_length: int = 50000
     sample_frequency: int = 100
     discard_samples: int = 100
-    chains: int = 10
+    chains: int = 4
     temperature: float = 0.1
 
     state_frequency_model: str = "JC"

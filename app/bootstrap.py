@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 
+from app.version import __version__
+
 
 class ApplicationBootstrap:
     def __init__(self) -> None:
@@ -64,7 +66,28 @@ class ApplicationBootstrap:
         except Exception as exc:
             raise ImportError(f"导入内嵌 ete3 失败: {exc}") from exc
 
+    def configure_qt_paths(self) -> None:
+        """Use the bundled PyQt plugin path without relying on a relocated Qt prefix."""
+        try:
+            import PyQt5
+            from PyQt5.QtCore import QCoreApplication
+        except Exception as exc:
+            raise ImportError(f"导入 PyQt5 运行时失败: {exc}") from exc
+
+        qt_root = Path(PyQt5.__file__).resolve().parent / "Qt5"
+        plugin_root = qt_root / "plugins"
+        platform_plugins = plugin_root / "platforms"
+        if not plugin_root.is_dir() or not platform_plugins.is_dir():
+            raise FileNotFoundError(
+                f"未找到 PyQt5 插件目录: {plugin_root}"
+            )
+
+        os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
+        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_plugins)
+        QCoreApplication.setLibraryPaths([str(plugin_root)])
+
     def build_qt_application(self):
+        self.configure_qt_paths()
         try:
             from PyQt5.QtWidgets import QApplication
         except Exception as exc:
@@ -72,6 +95,8 @@ class ApplicationBootstrap:
 
         app = QApplication(sys.argv)
         app.setApplicationName("RASP5")
+        app.setApplicationVersion(__version__)
+        app.setOrganizationName("RASP5")
         return app
 
     def build_main_window(self):
@@ -82,6 +107,7 @@ class ApplicationBootstrap:
     def run(self) -> int:
         self.inject_conda_dll_paths()
         self.inject_vendor_packages()
+        self.configure_qt_paths()
         self.validate_ete3_import()
 
         app = self.build_qt_application()

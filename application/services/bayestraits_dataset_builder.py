@@ -430,6 +430,11 @@ class BayesTraitsDatasetBuilder:
                     lines.append("Fossil FNode%s %s %s" % (node_id, tag_name, state_text))
 
         if str(config.analysis_method).upper() == "ML":
+            if (
+                str(model_spec.get("trait_kind", "")) == "categorical"
+                and str(config.restrict_all or "").strip()
+            ):
+                lines.append(str(config.restrict_all).strip())
             lines.append("MLTries %s" % int(config.ml_tries))
         else:
             seed = int(getattr(config, "random_seed", 0) or 0)

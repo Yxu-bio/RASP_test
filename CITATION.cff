@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use RASP5, cite this software and the original papers for every analysis engine and model used."
+title: "RASP5: an auditable desktop workbench for historical biogeography and ancestral trait reconstruction"
+type: software
+authors:
+  - family-names: Xu
+    given-names: Yan
+repository-code: "https://github.com/Yxu-bio/RASP_test"
+url: "https://github.com/Yxu-bio/RASP_test"
+version: "5.0.0-dev.0"
+license: MIT
+keywords:
+  - historical biogeography
+  - ancestral state reconstruction
+  - BioGeoBEARS
+  - stochastic mapping
+  - phylogenetics
+abstract: >-
+  RASP5 connects phylogenetic trees, geographic range and trait matrices,
+  spatial records, established reconstruction engines, normalized ancestral
+  results, and stochastic biogeographic event summaries in a Windows desktop
+  workflow.

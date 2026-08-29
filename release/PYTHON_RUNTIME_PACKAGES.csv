@@ -1,0 +1,64 @@
+record_type,package,version,build,channel_or_home_page,license,metadata_path
+conda-package,blas,1.0,mkl,https://repo.anaconda.com/pkgs/main/win-64,NOT_REPORTED,conda-meta/blas-1.0-mkl.json
+conda-package,certifi,2021.5.30,py36haa95532_0,https://repo.anaconda.com/pkgs/main/win-64,MPL-2.0,conda-meta/certifi-2021.5.30-py36haa95532_0.json
+conda-package,cycler,0.11.0,pyhd3eb1b0_0,https://repo.anaconda.com/pkgs/main/noarch,BSD-3-Clause,conda-meta/cycler-0.11.0-pyhd3eb1b0_0.json
+conda-package,dataclasses,0.8,pyh4f3eec9_6,https://repo.anaconda.com/pkgs/main/noarch,Apache-2.0,conda-meta/dataclasses-0.8-pyh4f3eec9_6.json
+conda-package,freetype,2.14.1,hfbffc0b_0,https://repo.anaconda.com/pkgs/main/win-64,GPL-2.0-only or FTL,conda-meta/freetype-2.14.1-hfbffc0b_0.json
+conda-package,intel-openmp,2025.0.0,haa95532_1164,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-IntelSimplifiedSoftwareOct2022,conda-meta/intel-openmp-2025.0.0-haa95532_1164.json
+conda-package,jpeg,9f,ha349fce_0,https://repo.anaconda.com/pkgs/main/win-64,IJG,conda-meta/jpeg-9f-ha349fce_0.json
+conda-package,kiwisolver,1.3.1,py36hd77b12b_0,https://repo.anaconda.com/pkgs/main/win-64,BSD-3-Clause,conda-meta/kiwisolver-1.3.1-py36hd77b12b_0.json
+conda-package,lerc,4.1.0,hd7fb8db_2,https://repo.anaconda.com/pkgs/main/win-64,Apache-2.0,conda-meta/lerc-4.1.0-hd7fb8db_2.json
+conda-package,libdeflate,1.17,h2bbff1b_1,https://repo.anaconda.com/pkgs/main/win-64,MIT,conda-meta/libdeflate-1.17-h2bbff1b_1.json
+conda-package,libpng,1.6.56,h2854ad3_0,https://repo.anaconda.com/pkgs/main/win-64,Zlib,conda-meta/libpng-1.6.56-h2854ad3_0.json
+conda-package,libtiff,4.5.0,h8a3f274_0,https://repo.anaconda.com/pkgs/main/win-64,HPND,conda-meta/libtiff-4.5.0-h8a3f274_0.json
+conda-package,libzlib,1.3.1,h1c6eee0_1,https://repo.anaconda.com/pkgs/main/win-64,Zlib,conda-meta/libzlib-1.3.1-h1c6eee0_1.json
+conda-package,lz4-c,1.9.4,h2bbff1b_1,https://repo.anaconda.com/pkgs/main/win-64,BSD-2-Clause,conda-meta/lz4-c-1.9.4-h2bbff1b_1.json
+conda-package,matplotlib-base,3.3.4,py36h49ac443_0,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-PSF-based,conda-meta/matplotlib-base-3.3.4-py36h49ac443_0.json
+conda-package,mkl,2020.2,256,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-ProprietaryIntel,conda-meta/mkl-2020.2-256.json
+conda-package,mkl-service,2.3.0,py36h196d8e1_0,https://repo.anaconda.com/pkgs/main/win-64,BSD-3-Clause,conda-meta/mkl-service-2.3.0-py36h196d8e1_0.json
+conda-package,mkl_fft,1.3.0,py36h46781fe_0,https://repo.anaconda.com/pkgs/main/win-64,BSD 3-Clause,conda-meta/mkl_fft-1.3.0-py36h46781fe_0.json
+conda-package,mkl_random,1.1.1,py36h47e9c7a_0,https://repo.anaconda.com/pkgs/main/win-64,BSD 3-Clause,conda-meta/mkl_random-1.1.1-py36h47e9c7a_0.json
+conda-package,numpy,1.19.2,py36hadc3359_0,https://repo.anaconda.com/pkgs/main/win-64,BSD 3-Clause,conda-meta/numpy-1.19.2-py36hadc3359_0.json
+conda-package,numpy-base,1.19.2,py36ha3acd2a_0,https://repo.anaconda.com/pkgs/main/win-64,BSD 3-Clause,conda-meta/numpy-base-1.19.2-py36ha3acd2a_0.json
+conda-package,olefile,0.46,py36_0,https://repo.anaconda.com/pkgs/main/win-64,BSD 2-Clause,conda-meta/olefile-0.46-py36_0.json
+conda-package,pillow,8.3.1,py36h4fa10fc_0,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-PIL,conda-meta/pillow-8.3.1-py36h4fa10fc_0.json
+conda-package,pip,21.2.2,py36haa95532_0,https://repo.anaconda.com/pkgs/main/win-64,MIT,conda-meta/pip-21.2.2-py36haa95532_0.json
+conda-package,pyparsing,3.0.4,pyhd3eb1b0_0,https://repo.anaconda.com/pkgs/main/noarch,MIT,conda-meta/pyparsing-3.0.4-pyhd3eb1b0_0.json
+conda-package,python,3.6.13,h3758d61_0,https://repo.anaconda.com/pkgs/main/win-64,PSF,conda-meta/python-3.6.13-h3758d61_0.json
+conda-package,python-dateutil,2.8.2,pyhd3eb1b0_0,https://repo.anaconda.com/pkgs/main/noarch,BSD-3-Clause and Apache,conda-meta/python-dateutil-2.8.2-pyhd3eb1b0_0.json
+conda-package,setuptools,58.0.4,py36haa95532_0,https://repo.anaconda.com/pkgs/main/win-64,MIT,conda-meta/setuptools-58.0.4-py36haa95532_0.json
+conda-package,six,1.16.0,pyhd3eb1b0_1,https://repo.anaconda.com/pkgs/main/noarch,MIT,conda-meta/six-1.16.0-pyhd3eb1b0_1.json
+conda-package,sqlite,3.51.1,hda9a48d_0,https://repo.anaconda.com/pkgs/main/win-64,blessing,conda-meta/sqlite-3.51.1-hda9a48d_0.json
+conda-package,tk,8.6.15,hf199647_0,https://repo.anaconda.com/pkgs/main/win-64,TCL,conda-meta/tk-8.6.15-hf199647_0.json
+conda-package,tornado,6.1,py36h2bbff1b_0,https://repo.anaconda.com/pkgs/main/win-64,Apache-2.0,conda-meta/tornado-6.1-py36h2bbff1b_0.json
+conda-package,ucrt,10.0.22621.0,haa95532_0,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-MicrosoftWindowsSDK10,conda-meta/ucrt-10.0.22621.0-haa95532_0.json
+conda-package,vc,14.3,h2df5915_10,https://repo.anaconda.com/pkgs/main/win-64,BSD-3-Clause,conda-meta/vc-14.3-h2df5915_10.json
+conda-package,vc14_runtime,14.44.35208,h4927774_10,https://repo.anaconda.com/pkgs/main/win-64,LicenseRef-MicrosoftVisualCpp2015-2022Runtime,conda-meta/vc14_runtime-14.44.35208-h4927774_10.json
+conda-package,vs2015_runtime,14.44.35208,ha6b5a95_10,https://repo.anaconda.com/pkgs/main/win-64,BSD-3-Clause,conda-meta/vs2015_runtime-14.44.35208-ha6b5a95_10.json
+conda-package,wheel,0.37.1,pyhd3eb1b0_0,https://repo.anaconda.com/pkgs/main/noarch,MIT,conda-meta/wheel-0.37.1-pyhd3eb1b0_0.json
+conda-package,wincertstore,0.2,py36h7fe50ca_0,https://repo.anaconda.com/pkgs/main/win-64,PSF 2,conda-meta/wincertstore-0.2-py36h7fe50ca_0.json
+conda-package,xz,5.8.2,h53af0af_0,https://repo.anaconda.com/pkgs/main/win-64,LGPL-2.1-or-later and GPL-2.0-or-later and 0BSD,conda-meta/xz-5.8.2-h53af0af_0.json
+conda-package,zlib,1.3.1,h1c6eee0_1,https://repo.anaconda.com/pkgs/main/win-64,Zlib,conda-meta/zlib-1.3.1-h1c6eee0_1.json
+conda-package,zstd,1.5.7,h56299aa_0,https://repo.anaconda.com/pkgs/main/win-64,BSD-3-Clause AND GPL-2.0-or-later,conda-meta/zstd-1.5.7-h56299aa_0.json
+python-distribution,certifi,2021.5.30,NOT_APPLICABLE,https://certifiio.readthedocs.io/en/latest/,MPL-2.0,Lib/site-packages/certifi-2021.5.30-py3.6.egg-info/PKG-INFO
+python-distribution,cycler,0.11.0,NOT_APPLICABLE,https://github.com/matplotlib/cycler,BSD,Lib/site-packages/cycler-0.11.0.dist-info/METADATA
+python-distribution,dataclasses,0.8,NOT_APPLICABLE,https://github.com/ericvsmith/dataclasses,Apache,Lib/site-packages/dataclasses-0.8.dist-info/METADATA
+python-distribution,kiwisolver,1.3.1,NOT_APPLICABLE,https://github.com/nucleic/kiwi,BSD,Lib/site-packages/kiwisolver-1.3.1.dist-info/METADATA
+python-distribution,matplotlib,3.3.4,NOT_APPLICABLE,https://matplotlib.org,PSF,Lib/site-packages/matplotlib-3.3.4.dist-info/METADATA
+python-distribution,mkl-fft,1.3.0,NOT_APPLICABLE,http://github.com/IntelPython/mkl_fft,BSD,Lib/site-packages/mkl_fft-1.3.0-py3.6.egg-info/PKG-INFO
+python-distribution,mkl-random,1.1.1,NOT_APPLICABLE,http://github.com/IntelPython/mkl_random,BSD,Lib/site-packages/mkl_random-1.1.1.dist-info/METADATA
+python-distribution,mkl-service,2.3.0,NOT_APPLICABLE,https://github.com/IntelPython/mkl-service,BSD,Lib/site-packages/mkl_service-2.3.0-py3.6.egg-info/PKG-INFO
+python-distribution,numpy,1.19.2,NOT_APPLICABLE,https://www.numpy.org,BSD,Lib/site-packages/numpy-1.19.2.dist-info/METADATA
+python-distribution,olefile,0.46,NOT_APPLICABLE,https://www.decalage.info/python/olefileio,BSD,Lib/site-packages/olefile-0.46-py3.6.egg-info/PKG-INFO
+python-distribution,Pillow,8.3.1,NOT_APPLICABLE,https://python-pillow.org,HPND,Lib/site-packages/Pillow-8.3.1.dist-info/METADATA
+python-distribution,pip,21.2.2,NOT_APPLICABLE,https://pip.pypa.io/,MIT,Lib/site-packages/pip-21.2.2-py3.6.egg-info/PKG-INFO
+python-distribution,pyparsing,3.0.4,NOT_APPLICABLE,https://github.com/pyparsing/pyparsing/,MIT License,Lib/site-packages/pyparsing-3.0.4.dist-info/METADATA
+python-distribution,PyQt5,5.15.4,NOT_APPLICABLE,https://www.riverbankcomputing.com/software/pyqt/,GPL v3,Lib/site-packages/PyQt5-5.15.4.dist-info/METADATA
+python-distribution,PyQt5-Qt5,5.15.2,NOT_APPLICABLE,https://www.riverbankcomputing.com/software/pyqt/,LGPL v3,Lib/site-packages/PyQt5_Qt5-5.15.2.dist-info/METADATA
+python-distribution,PyQt5-sip,12.9.1,NOT_APPLICABLE,https://www.riverbankcomputing.com/software/sip/,SIP,Lib/site-packages/PyQt5_sip-12.9.1.dist-info/METADATA
+python-distribution,python-dateutil,2.8.2,NOT_APPLICABLE,https://github.com/dateutil/dateutil,Dual License,Lib/site-packages/python_dateutil-2.8.2.dist-info/METADATA
+python-distribution,setuptools,58.0.4,NOT_APPLICABLE,https://github.com/pypa/setuptools,UNKNOWN,Lib/site-packages/setuptools-58.0.4-py3.6.egg-info/PKG-INFO
+python-distribution,sip,4.19.8,NOT_APPLICABLE,https://www.riverbankcomputing.com/software/sip/,NOT_REPORTED,Lib/site-packages/sip-4.19.8.dist-info/METADATA
+python-distribution,six,1.16.0,NOT_APPLICABLE,https://github.com/benjaminp/six,MIT,Lib/site-packages/six-1.16.0.dist-info/METADATA
+python-distribution,tornado,6.1,NOT_APPLICABLE,http://www.tornadoweb.org/,http://www.apache.org/licenses/LICENSE-2.0,Lib/site-packages/tornado-6.1.dist-info/METADATA
+python-distribution,wheel,0.37.1,NOT_APPLICABLE,https://github.com/pypa/wheel,MIT,Lib/site-packages/wheel-0.37.1-py3.9.egg-info/PKG-INFO

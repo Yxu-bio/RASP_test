@@ -1,0 +1,9 @@
+taxon,decimalLongitude,decimalLatitude
+DateEast,179,5
+DateWest,-179,5
+DateHole,179,0
+HoledOuter,2,2
+HoledHole,10,10
+MultiOne,45,5
+MultiTwo,65,5
+Outside,100,40

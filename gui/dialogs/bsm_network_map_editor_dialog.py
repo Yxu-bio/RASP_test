@@ -104,6 +104,8 @@ class _EdgeLabelItem(QGraphicsSimpleTextItem):
 
 
 class BSMNetworkMapEditorDialog(QDialog):
+    LAYOUT_FORMAT = "rasp5_bsm_network_layout"
+    LAYOUT_VERSION = 2
     """Map-based editor for BSM dispersal network figure layouts.
 
     This dialog consumes existing data from upstream modules. It can draw on
@@ -1170,8 +1172,28 @@ class BSMNetworkMapEditorDialog(QDialog):
         for key, layout in dict(self.manual_edge_layout).items():
             edges[str(key)] = self._copy_edge_layout(layout)
         payload = {
-            "format": "rasp5_bsm_network_layout",
-            "version": 1,
+            "format": self.LAYOUT_FORMAT,
+            "version": self.LAYOUT_VERSION,
+            "layout_mode": str(self.layout_mode_combo.currentData() or "auto"),
+            "projection": str(self.projection_combo.currentData() or "equirectangular"),
+            "controls": {
+                "min_mean_per_map": str(self.threshold_edit.text() or ""),
+                "circle_edge_percentile": str(self.edge_percentile_edit.text() or ""),
+                "edge_width_scale": str(self.width_scale_edit.text() or ""),
+                "include_anagenetic": bool(self.include_anagenetic_check.isChecked()),
+                "include_founder": bool(self.include_founder_check.isChecked()),
+                "show_edge_values": bool(self.show_values_check.isChecked()),
+                "show_area_labels": bool(self.show_area_labels_check.isChecked()),
+            },
+            "network_ref": {
+                "format": str((self.current_network or {}).get("format", "") or ""),
+                "version": (self.current_network or {}).get("version", ""),
+                "nummaps": (self.current_network or {}).get("nummaps", ""),
+                "edge_keys": sorted(
+                    "%s->%s" % (row.get("source_area", ""), row.get("target_area", ""))
+                    for row in list((self.current_network or {}).get("edge_rows", []) or [])
+                ),
+            },
             "edges": edges,
         }
         try:
@@ -1190,14 +1212,51 @@ class BSMNetworkMapEditorDialog(QDialog):
             return
         try:
             payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            fmt = str(payload.get("format", "") or "")
+            if fmt and fmt != self.LAYOUT_FORMAT:
+                raise ValueError("Unsupported BSM network layout format: %s" % fmt)
+            version = int(payload.get("version", 1) or 1)
+            if version not in (1, self.LAYOUT_VERSION):
+                raise ValueError("Unsupported BSM network layout version: %s" % version)
             edges = dict(payload.get("edges", {}) or {})
         except Exception as exc:
             QMessageBox.critical(self, "Load layout failed", str(exc))
             return
+        if int(payload.get("version", 1) or 1) >= 2:
+            self._restore_layout_controls(payload)
+            self.refresh_network(reset_layout=False)
         copied_edges = {str(key): self._copy_edge_layout(value) for key, value in edges.items()}
         self.edge_layout.update({key: self._copy_edge_layout(value) for key, value in copied_edges.items()})
         self.manual_edge_layout.update({key: self._copy_edge_layout(value) for key, value in copied_edges.items()})
         self.redraw(fit_view=False)
+
+    def _restore_layout_controls(self, payload):
+        controls = dict(payload.get("controls", {}) or {})
+        widgets = [
+            self.layout_mode_combo, self.projection_combo, self.threshold_edit,
+            self.edge_percentile_edit, self.width_scale_edit,
+            self.include_anagenetic_check, self.include_founder_check,
+            self.show_values_check, self.show_area_labels_check,
+        ]
+        old_states = [widget.blockSignals(True) for widget in widgets]
+        try:
+            self._set_combo_data(self.layout_mode_combo, payload.get("layout_mode", "auto"))
+            self._set_combo_data(self.projection_combo, payload.get("projection", "equirectangular"))
+            self.threshold_edit.setText(str(controls.get("min_mean_per_map", self.threshold_edit.text()) or "0"))
+            self.edge_percentile_edit.setText(str(controls.get("circle_edge_percentile", self.edge_percentile_edit.text()) or "0"))
+            self.width_scale_edit.setText(str(controls.get("edge_width_scale", self.width_scale_edit.text()) or "1"))
+            self.include_anagenetic_check.setChecked(bool(controls.get("include_anagenetic", True)))
+            self.include_founder_check.setChecked(bool(controls.get("include_founder", True)))
+            self.show_values_check.setChecked(bool(controls.get("show_edge_values", False)))
+            self.show_area_labels_check.setChecked(bool(controls.get("show_area_labels", False)))
+        finally:
+            for widget, state in zip(widgets, old_states):
+                widget.blockSignals(state)
+
+    def _set_combo_data(self, combo, value):
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
 
     def export_png(self):
         path, _selected = QFileDialog.getSaveFileName(

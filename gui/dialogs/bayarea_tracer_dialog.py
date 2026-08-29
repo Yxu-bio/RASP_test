@@ -266,18 +266,22 @@ class BayAreaTracerDialog(QDialog):
         diagnostics = [self._trace_diagnostic(chain) for chain in values_by_chain]
         rhat = self._split_rhat(values_by_chain) if len(values_by_chain) > 1 else None
         warning_parts = []
-        if any(len(chain) >= 100 and float(item["ess_approx"]) < 50.0 for chain, item in zip(values_by_chain, diagnostics)):
+        if any(len(chain) < 100 for chain in values_by_chain):
+            warning_parts.append("fewer than 100 retained samples in at least one chain")
+        if any(len(chain) >= 100 and float(item["ess_approx"]) < 100.0 for chain, item in zip(values_by_chain, diagnostics)):
             warning_parts.append("low ESS in at least one chain")
-        if any(len(chain) >= 100 and float(item["relative_half_shift"]) > 0.25 for chain, item in zip(values_by_chain, diagnostics)):
+        if any(len(chain) >= 100 and float(item["standardized_half_shift"]) > 0.25 for chain, item in zip(values_by_chain, diagnostics)):
             warning_parts.append("strong within-chain drift")
         if rhat is not None and (not math.isfinite(rhat) or rhat > 1.05):
             warning_parts.append("split-Rhat indicates non-convergence")
         warning = " Warning: %s." % "; ".join(warning_parts) if warning_parts else ""
         min_ess = min(float(item["ess_approx"]) for item in diagnostics)
+        max_shift = max(float(item["standardized_half_shift"]) for item in diagnostics)
         rhat_text = "n/a" if rhat is None else ("infinite" if not math.isfinite(rhat) else "%.3f" % rhat)
         self.summary_label.setText(
             "%s; chains: %d; samples: %d; retained per chain: %s; pooled min/mean/max: "
-            "%.6g / %.6g / %.6g; minimum per-chain ESS: %.1f; split-Rhat: %s.%s"
+            "%.6g / %.6g / %.6g; minimum per-chain ESS: %.1f; maximum half-mean shift: %.3f SD; "
+            "split-Rhat: %s.%s"
             % (
                 self._selected_trace_name(),
                 len(chain_samples),
@@ -287,6 +291,7 @@ class BayAreaTracerDialog(QDialog):
                 sum(values) / float(len(values)),
                 max(values),
                 min_ess,
+                max_shift,
                 rhat_text,
                 warning,
             )
@@ -393,6 +398,11 @@ class BayAreaTracerDialog(QDialog):
         second = values[midpoint:] or values[-1:]
         first_mean = sum(first) / float(len(first))
         second_mean = sum(second) / float(len(second))
+        mean = sum(values) / float(count)
+        standard_deviation = math.sqrt(
+            sum((value - mean) ** 2 for value in values) / float(max(1, count - 1))
+        )
+        half_difference = abs(first_mean - second_mean)
         ess_values = values
         if count > 5000:
             step = int(math.ceil(float(count) / 5000.0))
@@ -400,10 +410,15 @@ class BayAreaTracerDialog(QDialog):
         return {
             "minimum": min(values),
             "maximum": max(values),
-            "mean": sum(values) / float(count),
+            "mean": mean,
+            "standard_deviation": standard_deviation,
             "ess_approx": self._approximate_ess(ess_values),
             "ess_diagnostic_sample_count": len(ess_values),
-            "relative_half_shift": abs(first_mean - second_mean) / max(abs(second_mean), 1e-12),
+            "relative_half_shift": half_difference / max(abs(second_mean), 1e-12),
+            "standardized_half_shift": (
+                half_difference / standard_deviation
+                if standard_deviation > 0.0 else (0.0 if half_difference == 0.0 else float("inf"))
+            ),
         }
 
     def _split_rhat(self, chains):

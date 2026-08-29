@@ -1,0 +1,22 @@
+name: Source CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dependency-free-contracts:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up supported CI Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run source and pure-Python contract checks
+        run: python tools/run_release_source_checks.py

@@ -49,6 +49,7 @@ class BioGeoBEARSResult:
     tree_failure_reasons: List[str] = field(default_factory=list)
 
     model_statistics: Dict = field(default_factory=dict)
+    metadata: Dict = field(default_factory=dict)
 
     information_text: str = ""
     time_summary_text: str = ""

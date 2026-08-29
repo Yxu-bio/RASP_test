@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from domain.models.sdec_result import SDECResult, SDECNodeResult
+from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
@@ -44,11 +45,16 @@ class SDECAnalysisService:
         "#66a61e",
     ]
 
-    def __init__(self, dec_service, project_root=None):
+    def __init__(self, dec_service, project_root=None, work_root=None):
         self.dec_service = dec_service
         if project_root is None:
             project_root = Path(__file__).resolve().parent.parent.parent
         self.project_root = Path(project_root)
+        self.work_root = (
+            Path(work_root)
+            if work_root is not None
+            else self.project_root / "runs" / "sdec"
+        )
 
     def analyze(
         self,
@@ -85,6 +91,17 @@ class SDECAnalysisService:
         self._validate_tree_taxa(reference_tree, name_to_index, "reference tree")
 
         run_dir = self._make_run_dir()
+        write_run_provenance(
+            run_dir,
+            analysis="S-DEC aggregate",
+            engine_paths={
+                "lagrange_ng_executable": self.dec_service.runner.resolve_engine_path()
+            },
+            extra={
+                "input_tree_count": len(tree_entries),
+                "outer_workers": outer_workers,
+            },
+        )
         reference_nodes = self._build_reference_nodes(reference_tree, name_to_index, index_to_name)
         reference_clades = {node["node_key"]: node for node in reference_nodes}
 
@@ -573,7 +590,7 @@ class SDECAnalysisService:
 
     def _make_run_dir(self) -> Path:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        run_dir = self.project_root / "runs" / "sdec" / ("sdec_%s" % stamp)
+        run_dir = self.work_root / ("sdec_%s" % stamp)
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 

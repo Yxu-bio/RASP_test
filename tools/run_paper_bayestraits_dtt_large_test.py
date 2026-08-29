@@ -1,9 +1,12 @@
 import argparse
+import copy
 import csv
 import json
+import os
 import shutil
 import sys
 import time
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -154,6 +157,7 @@ def main():
     bootstrap.inject_vendor_packages()
 
     from application.services.bayestraits_analysis_service import BayesTraitsAnalysisService
+    from application.services.continuous_trait_dtt_service import ContinuousTraitDTTService
     from application.services.continuous_trait_figure_exporter import ContinuousTraitPublicationFigureExporter
     from domain.models.bayestraits_config import BayesTraitsConfig
 
@@ -191,21 +195,14 @@ def main():
         continuous_transform="log10",
         continuous_display_scale="original",
         continuous_plot_scale="analysis",
-        continuous_dtt=not bool(args.no_dtt),
-        continuous_dtt_tree_limit=tree_count,
-        continuous_dtt_threads=max(1, int(args.threads)),
-        continuous_dtt_random_seed=int(args.seed),
-        continuous_dtt_time_step=5.0,
-        continuous_dtt_age_offset=273.01,
-        continuous_dtt_bootstrap_count=max(1, int(args.bootstrap)),
-        continuous_dtt_weight_mode="corrected",
+        random_seed=int(args.seed),
         selected_node_ids=[],
     )
     config.validate()
 
     log(
-        "Running BayesTraits: iterations=%s sample=%s burnin=%s DTT threads=%s bootstrap=%s"
-        % (args.iterations, args.sample, args.burnin, args.threads, args.bootstrap)
+        "Running reference-tree BayesTraits: iterations=%s sample=%s burnin=%s"
+        % (args.iterations, args.sample, args.burnin)
     )
     service = BayesTraitsAnalysisService(
         executable_path=PROJECT_ROOT / "engines" / "bayestraits" / "BayesTraitsV5.exe",
@@ -215,10 +212,40 @@ def main():
         reference_tree=reference_tree,
         matrix=matrix,
         config=config,
-        tree_entries=entries,
+        tree_entries=None,
         run_name="run",
     )
-    log("BayesTraits and DTT finished; exporting figure")
+    log("Reference-tree BayesTraits finished")
+
+    if not bool(args.no_dtt):
+        dtt_config = copy.deepcopy(config)
+        dtt_config.continuous_dtt = True
+        dtt_config.continuous_dtt_tree_limit = tree_count
+        dtt_config.continuous_dtt_threads = max(1, int(args.threads))
+        dtt_config.continuous_dtt_random_seed = int(args.seed)
+        dtt_config.continuous_dtt_time_step = 5.0
+        dtt_config.continuous_dtt_age_offset = 273.01
+        dtt_config.continuous_dtt_bootstrap_count = max(1, int(args.bootstrap))
+        dtt_config.continuous_dtt_weight_mode = "corrected"
+        log(
+            "Running Experimental DTT post-analysis: trees=%s threads=%s bootstrap=%s"
+            % (tree_count, args.threads, args.bootstrap)
+        )
+        dtt_service = ContinuousTraitDTTService(
+            dataset_builder=service.dataset_builder,
+            runner=service.runner,
+            output_parser=service.output_parser,
+        )
+        result = dtt_service.attach_dtt(
+            result=result,
+            matrix=matrix,
+            config=dtt_config,
+            tree_entries=entries,
+            output_dir=out_root / "experimental_dtt",
+        )
+        log("Experimental DTT post-analysis finished")
+
+    log("Exporting Experimental publication-style figure")
 
     result.figure_occurrences = occurrences
     result.figure_group_values = group_values
@@ -279,5 +306,20 @@ def main():
     }, ensure_ascii=False, indent=2))
 
 
+def _run_cli():
+    exit_code = 0
+    try:
+        main()
+    except BaseException:
+        traceback.print_exc()
+        exit_code = 1
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    if sys.platform == "win32":
+        os._exit(exit_code)
+    raise SystemExit(exit_code)
+
+
 if __name__ == "__main__":
-    main()
+    _run_cli()

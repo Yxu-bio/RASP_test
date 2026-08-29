@@ -1,4 +1,6 @@
 {
+  "format": "rasp5_region_builder_config",
+  "version": 1,
   "name": "simple_region_builder_demo",
   "group": "simple_region_builder_demo",
   "source": "RASP5 demo using simplified world countries",

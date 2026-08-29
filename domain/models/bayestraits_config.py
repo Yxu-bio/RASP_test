@@ -184,7 +184,7 @@ class BayesTraitsConfig:
             raise ValueError("Random seed cannot be negative.")
         if self.continuous_asr:
             if not bool(model_spec.get("supports_continuous_asr", False)):
-                raise ValueError("Continuous ASR visualization is only available for Continuous Model A / Model B.")
+                raise ValueError("Continuous internal-node reconstruction is only available for Continuous Model A / Model B.")
             self.analysis_method = "MCMC"
 
         requested_traits = [
@@ -214,19 +214,19 @@ class BayesTraitsConfig:
         if self.continuous_asr:
             self.analysis_method = "MCMC"
         self.ml_tries = int(self.ml_tries or 0)
-        if self.ml_tries <= 0:
+        if self.analysis_method == "ML" and self.ml_tries <= 0:
             raise ValueError("MLTries must be greater than 0.")
 
         self.iterations = int(self.iterations or 0)
         self.sample_frequency = int(self.sample_frequency or 0)
         self.burnin = int(self.burnin or 0)
-        if self.iterations <= 0:
-            raise ValueError("Iterations must be greater than 0.")
-        if self.sample_frequency <= 0:
-            raise ValueError("Sample must be greater than 0.")
-        if self.burnin < 0:
-            raise ValueError("BurnIn cannot be negative.")
         if self.analysis_method == "MCMC":
+            if self.iterations <= 0:
+                raise ValueError("Iterations must be greater than 0.")
+            if self.sample_frequency <= 0:
+                raise ValueError("Sample must be greater than 0.")
+            if self.burnin < 0:
+                raise ValueError("BurnIn cannot be negative.")
             if self.burnin >= self.iterations - self.sample_frequency - 1:
                 raise ValueError("Number of discard samples is too large.")
             if self.burnin < 1000:
@@ -239,9 +239,12 @@ class BayesTraitsConfig:
         self.extra_commands = str(self.extra_commands or "").replace("\r\n", "\n").replace("\r", "\n")
 
         selected = [str(x).strip() for x in list(self.selected_node_ids or []) if str(x).strip()]
-        if bool(model_spec.get("supports_nodes", False)) and not selected:
-            raise ValueError("Select one node at least.")
-        self.selected_node_ids = selected
+        if bool(model_spec.get("supports_nodes", False)):
+            if not selected:
+                raise ValueError("Select one node at least.")
+            self.selected_node_ids = selected
+        else:
+            self.selected_node_ids = []
 
         fossils = {}
         for node_id, state in dict(self.fossil_states or {}).items():
@@ -249,7 +252,7 @@ class BayesTraitsConfig:
             value = str(state or "").strip()
             if key and value:
                 fossils[key] = value
-        self.fossil_states = fossils
+        self.fossil_states = fossils if bool(model_spec.get("supports_nodes", False)) else {}
 
     def to_preset_dict(self) -> Dict[str, object]:
         return {

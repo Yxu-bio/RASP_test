@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "application_version": "5.0.0-dev.0",
+  "platform": "windows-x86_64",
+  "runtime_strategy": "conda-pack-python-3.6.13",
+  "python_runtime": {
+    "archive_name": "RASP5-python-3.6.13-windows-x86_64.zip",
+    "sha256": "E0C07978163B7405919E9EF5DD0CC6D0ADAFE8A7CE0FC5685BA2CF6B26407897"
+  },
+  "engine_manifest": "release/engine-bundle.json",
+  "mappings": [
+    {"source": "app", "target": "app"},
+    {"source": "application", "target": "application"},
+    {"source": "domain", "target": "domain"},
+    {"source": "gui", "target": "gui"},
+    {"source": "infrastructure", "target": "infrastructure"},
+    {"source": "visualization", "target": "visualization"},
+    {"source": "resources", "target": "resources"},
+    {"source": "tools/build_region_geojson.py", "target": "tools/build_region_geojson.py"},
+    {"source": "tools/build_python_runtime_inventory.py", "target": "tools/build_python_runtime_inventory.py"},
+    {"source": "tools/verify_stage_content.py", "target": "tools/verify_stage_content.py"},
+    {"source": "tools/verify_windows_stage.py", "target": "tools/verify_windows_stage.py"},
+    {"source": "Sample/Psychotria", "target": "Sample/Psychotria"},
+    {"source": "data/fixtures", "target": "data/fixtures"},
+    {"source": "data/benchmarks/psychotria", "target": "data/benchmarks/psychotria"},
+    {"source": "data/benchmarks/primate", "target": "data/benchmarks/primate"},
+    {"source": "data/benchmarks/dore_ponerinae/final_inputs/Ponerinae_phylogeny_MCC_1534t.tree", "target": "data/benchmarks/dore_ponerinae/Ponerinae_phylogeny_MCC_1534t.tree"},
+    {"source": "data/benchmarks/dore_ponerinae/taxa_bioregions_7areas_matrix.csv", "target": "data/benchmarks/dore_ponerinae/taxa_bioregions_7areas_matrix.csv"},
+    {"source": "data/benchmarks/dore_ponerinae/Ponerinae_7_bioregions.geojson", "target": "data/benchmarks/dore_ponerinae/Ponerinae_7_bioregions.geojson"},
+    {"source": "data/benchmarks/dore_ponerinae/ponerinae_occurrences_subset_5000.csv", "target": "data/benchmarks/dore_ponerinae/ponerinae_occurrences_subset_5000.csv"},
+    {"source": "docs/tutorials", "target": "docs/tutorials"},
+    {"source": "docs/bayarea_convergence_latest.md", "target": "docs/bayarea_convergence_latest.md"},
+    {"source": "docs/bayarea-release-status.md", "target": "docs/bayarea-release-status.md"},
+    {"source": "README.md", "target": "README.md"},
+    {"source": "LICENSE", "target": "LICENSE"},
+    {"source": "CITATION.cff", "target": "CITATION.cff"},
+    {"source": "CHANGELOG.md", "target": "CHANGELOG.md"},
+    {"source": "environment-windows-py36.yml", "target": "environment-windows-py36.yml"},
+    {"source": "release/README.md", "target": "release/README.md"},
+    {"source": "release/THIRD_PARTY_ENGINES.md", "target": "release/THIRD_PARTY_ENGINES.md"},
+    {"source": "release/THIRD_PARTY_PYTHON.md", "target": "release/THIRD_PARTY_PYTHON.md"},
+    {"source": "release/PYTHON_RUNTIME_PACKAGES.csv", "target": "release/PYTHON_RUNTIME_PACKAGES.csv"},
+    {"source": "release/engine-bundle.json", "target": "release/engine-bundle.json"},
+    {"source": "release/application-package.json", "target": "release/application-package.json"}
+  ],
+  "exclude": [
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/*.log",
+    "**/*.tmp",
+    "**/*.bak",
+    "**/.git/**"
+  ],
+  "required_runtime_files": [
+    "python.exe",
+    "pythonw.exe",
+    "Scripts/conda-unpack.exe",
+    "Scripts/conda-unpack-script.py"
+  ],
+  "launcher_files": [
+    "RASP5.cmd",
+    "RASP5-debug.cmd"
+  ]
+}

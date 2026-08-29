@@ -10,6 +10,9 @@ from domain.models.biogeobears_event_result import (
 
 
 class BioGeoBEARSBSMEventParser:
+    SUMMARY_FORMAT = "rasp5_biogeobears_bsm_summary"
+    SUMMARY_VERSION = 1
+
     def parse(self, *, output_json_path, bsm_dir):
         output_json_path = Path(output_json_path)
         bsm_path = Path(bsm_dir)
@@ -42,12 +45,18 @@ class BioGeoBEARSBSMEventParser:
         summary_path = bsm_path / "bsm_summary.json"
         ana_path = bsm_path / "bsm_ana_events.csv"
         clado_path = bsm_path / "bsm_clado_events.csv"
+        result.event_source_files = {
+            "anagenetic": str(ana_path),
+            "cladogenetic": str(clado_path),
+        }
 
         result.summary = {"enabled": True, "directory": str(bsm_path)}
         result.summary.update(source_metadata)
         if summary_path.exists():
             try:
-                result.summary.update(json.loads(summary_path.read_text(encoding="utf-8")))
+                summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+                self._validate_summary_schema(summary_payload)
+                result.summary.update(summary_payload)
             except Exception as exc:
                 result.parse_warnings.append("Could not read BSM summary JSON: %s" % exc)
 
@@ -64,6 +73,10 @@ class BioGeoBEARSBSMEventParser:
 
         result.raw_tables = raw_tables
         result.events = events
+        result.event_row_counts = dict((name, len(rows)) for name, rows in raw_tables.items())
+        result.summary["normalized_event_count"] = len(events)
+        result.summary["event_preview_count"] = len(events)
+        result.summary["events_complete"] = True
         result.event_type_counts = dict(Counter(self._event_count_key(event) for event in events))
         result.route_counts = dict(Counter(self._event_route_key(event) for event in events if self._event_route_key(event)))
         result.time_series = self._build_time_series(events)
@@ -151,12 +164,16 @@ class BioGeoBEARSBSMEventParser:
         return rows
 
     def _attach_text(self, result):
+        summary = dict(getattr(result, "summary", {}) or {})
+        event_count = int(summary.get("normalized_event_count", len(result.events)) or 0)
         lines = [
             "BioGeoBEARS BSM event summary",
             "",
             "Source model: %s" % result.source_model_name,
-            "Stochastic-map events: %d" % len(result.events),
+            "Stochastic-map events: %d" % event_count,
         ]
+        if not bool(getattr(result, "events_complete", True)):
+            lines.append("Event table preview: %d of %d normalized events" % (len(result.events), event_count))
         for key, value in sorted(dict(result.event_type_counts).items()):
             lines.append("  %s: %s" % (key, value))
         if result.route_counts:
@@ -179,6 +196,20 @@ class BioGeoBEARSBSMEventParser:
         if len(result.time_series or []) > 500:
             time_lines.append("... truncated to first 500 time rows")
         result.time_summary_text = "\n".join(time_lines)
+
+    def _validate_summary_schema(self, payload):
+        if not isinstance(payload, dict):
+            raise ValueError("BSM summary JSON must contain an object.")
+        fmt = str(payload.get("format", "") or "")
+        if fmt and fmt != self.SUMMARY_FORMAT:
+            raise ValueError("Unsupported BSM summary format: %s" % fmt)
+        version = payload.get("version", self.SUMMARY_VERSION)
+        try:
+            version = int(version)
+        except Exception:
+            raise ValueError("Invalid BSM summary version: %s" % version)
+        if version != self.SUMMARY_VERSION:
+            raise ValueError("Unsupported BSM summary version: %s" % version)
 
     def _safe_bool(self, value):
         if isinstance(value, bool):

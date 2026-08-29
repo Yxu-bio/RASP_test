@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -47,6 +48,15 @@ def _set_combo_data(combo, value):
 def _build_phase2_fixture(workdir):
     bsm_dir = workdir / "bsm_fixture"
     bsm_dir.mkdir(parents=True, exist_ok=True)
+    for filename in (
+        "rasp5_bsm_event_index.json",
+        "bsm_source_assigned_dispersal_events.csv",
+        "fig2b_dispersal_edges.csv",
+        "fig2b_node_richness.csv",
+    ):
+        path = bsm_dir / filename
+        if path.exists():
+            path.unlink()
     output_json = workdir / "bgb_result.json"
     output_json.write_text(
         json.dumps({
@@ -71,6 +81,7 @@ def _build_phase2_fixture(workdir):
             "ana_maps": 2,
             "clado_maps": 2,
             "model": "DEC+J",
+            "area_names": ["A", "B", "C"],
         }, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -86,7 +97,7 @@ def _build_phase2_fixture(workdir):
         [
             {
                 "sample_id": "1", "event_type": "d", "event_txt": "A->AB",
-                "abs_event_time": "10", "node": "20", "parent_br": "b1",
+                "abs_event_time": "10.000001", "node": "20", "parent_br": "b1",
                 "current_rangetxt": "A", "new_rangetxt": "AB", "dispersal_to": "B",
             },
             {
@@ -113,7 +124,7 @@ def _build_phase2_fixture(workdir):
         [
             {
                 "sample_id": "1", "clado_event_type": "founder (j)",
-                "clado_event_txt": "A->A|C", "time_bp": "9", "node": "30",
+                "clado_event_txt": "A->A|C", "time_bp": "10.000002", "node": "30",
                 "SUBparent_br": "c1", "sampled_states_AT_brbots": "A",
                 "sampled_states_AT_nodes": "AC", "clado_dispersal_to": "C",
             },
@@ -202,6 +213,7 @@ def _check_parser_and_event_table(workdir, app):
     assert result.event_type_counts["anagenetic:a"] == 1
     assert result.event_type_counts["cladogenetic:founder (j)"] == 2
     assert len(result.time_series) == 6
+    assert [row["time"] for row in result.time_series][-2:] == [10.000001, 10.000002]
     assert "Stochastic-map events: 6" in result.information_text
 
     dialog = BSMEventTableDialog(result)
@@ -302,6 +314,9 @@ def _check_network_statistics_and_exports(workdir, result, areas, matrix):
         min_mean_per_map=0.5,
     )
     assert network["nummaps"] == 2
+    assert network["format"] == "rasp5_bsm_dispersal_network"
+    assert network["version"] == 1
+    assert network["threshold_metric"] == "mean_per_map"
     assert len(network["edge_rows"]) == 5
     assert len(network["display_edge_rows"]) == 3
     edges = _edge_by_route(network)
@@ -326,6 +341,8 @@ def _check_network_statistics_and_exports(workdir, result, areas, matrix):
     _assert_close(nodes["C"]["richness"], 1.0)
     _assert_close(nodes["A"]["incoming_mean_per_map"], 1.0)
     _assert_close(nodes["A"]["outgoing_mean_per_map"], 1.25)
+    _assert_close(edges["A->C"]["mean_per_map_per_source_richness"], 0.5)
+    _assert_close(edges["A->C"]["mean_per_map_per_target_richness"], 0.75)
 
     ana_only = service.build_network(
         result, areas=areas, range_matrix=matrix, min_mean_per_map=0.0,
@@ -374,32 +391,211 @@ def _check_network_statistics_and_exports(workdir, result, areas, matrix):
     return network
 
 
-def _check_precomputed_network(bsm_dir, expected_network, areas, matrix):
+def _check_precomputed_network(bsm_dir, expected_event_result, expected_network, areas, matrix):
     from application.services.biogeobears_analysis_service import BioGeoBEARSAnalysisService
     from application.services.bsm_dispersal_network_service import BSMDispersalNetworkService
 
     network_service = BSMDispersalNetworkService()
     edge_path = Path(bsm_dir) / "fig2b_dispersal_edges.csv"
     node_path = Path(bsm_dir) / "fig2b_node_richness.csv"
-    network_service.write_edges_csv(expected_network, str(edge_path))
+    sentinel_network = dict(expected_network)
+    sentinel_edges = []
+    for row in list(expected_network.get("edge_rows", []) or []):
+        current = dict(row)
+        if current.get("source_area") == "A" and current.get("target_area") == "B":
+            current["anagenetic_count"] = 20.0
+            current["founder_count"] = 0.0
+            current["total_count"] = 20.0
+            current["mean_per_map"] = 10.0
+        sentinel_edges.append(current)
+    sentinel_network["edge_rows"] = sentinel_edges
+    network_service.write_edges_csv(sentinel_network, str(edge_path))
     network_service.write_nodes_csv(expected_network, str(node_path))
 
-    loaded = BioGeoBEARSAnalysisService().load_existing_bsm_events(str(bsm_dir))
+    service = BioGeoBEARSAnalysisService()
+    progress_rows = []
+    loaded = service.load_existing_bsm_events(
+        str(bsm_dir),
+        progress_callback=lambda done, total, message: progress_rows.append((done, total, message)),
+    )
+    cache_path = Path(bsm_dir) / service.BSM_INDEX_FILENAME
+    assert loaded.summary["load_index_status"] == "rebuilt"
+    assert cache_path.exists()
+    assert progress_rows and progress_rows[-1][0:2] == (100, 100)
     assert loaded.summary["nummaps"] == 2
+    assert loaded.summary["time_bucket_decimals"] == 6
+    assert loaded.time_series == expected_event_result.time_series
     assert len(loaded.precomputed_bsm_network_edges) == 5
     assert len(loaded.precomputed_bsm_node_rows) == 3
+    assert loaded.precomputed_bsm_network_available is True
+    loaded_edges = dict(
+        (
+            "%s->%s" % (row.get("source_area", ""), row.get("target_area", "")),
+            row,
+        )
+        for row in loaded.precomputed_bsm_network_edges
+    )
+    _assert_close(loaded_edges["A->B"]["total_count"], 20.0)
+
+    cached = service.load_existing_bsm_events(str(bsm_dir))
+    assert cached.summary["load_index_status"] == "hit"
+    assert cached.event_row_counts == loaded.event_row_counts
+    assert cached.event_type_counts == loaded.event_type_counts
+    assert cached.route_counts == loaded.route_counts
+    assert cached.time_series == loaded.time_series
+    assert cached.precomputed_bsm_network_edges == loaded.precomputed_bsm_network_edges
+    assert [
+        (
+            event.event_scope,
+            event.sample_id,
+            event.event_type,
+            event.event_text,
+            event.time,
+        )
+        for event in cached.events
+    ] == [
+        (
+            event.event_scope,
+            event.sample_id,
+            event.event_type,
+            event.event_text,
+            event.time,
+        )
+        for event in loaded.events
+    ]
+
+    cache_payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    cache_payload["data"]["events"] = ["invalid event row"]
+    cache_path.write_text(
+        json.dumps(cache_payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    recovered = service.load_existing_bsm_events(str(bsm_dir))
+    assert recovered.summary["load_index_status"] == "rebuilt"
+    assert recovered.time_series == loaded.time_series
+    assert recovered.precomputed_bsm_network_edges == loaded.precomputed_bsm_network_edges
+
+    cache_payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    cache_payload["data"]["time_series"] = [{}]
+    canonical_data = json.dumps(
+        cache_payload["data"],
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    cache_payload["data_sha256"] = hashlib.sha256(canonical_data).hexdigest().upper()
+    cache_path.write_text(
+        json.dumps(cache_payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    recovered_nested = service.load_existing_bsm_events(str(bsm_dir))
+    assert recovered_nested.summary["load_index_status"] == "rebuilt"
+    assert recovered_nested.time_series == loaded.time_series
+
+    ana_path = Path(bsm_dir) / "bsm_ana_events.csv"
+    stat = ana_path.stat()
+    os.utime(str(ana_path), (stat.st_atime, stat.st_mtime + 2.0))
+    invalidated = service.load_existing_bsm_events(str(bsm_dir))
+    assert invalidated.summary["load_index_status"] == "rebuilt"
+    assert invalidated.event_type_counts == loaded.event_type_counts
+    assert invalidated.time_series == loaded.time_series
 
     network = network_service.build_network(
         loaded, areas=areas, range_matrix=matrix, min_mean_per_map=5,
     )
     assert network["nummaps"] == 2
     assert len(network["edge_rows"]) == 5
-    assert len(network["display_edge_rows"]) == 0
+    assert len(network["display_edge_rows"]) == 1
     edges = _edge_by_route(network)
-    _assert_close(edges["A->B"]["mean_per_map"], 0.5)
+    _assert_close(edges["A->B"]["mean_per_map"], 10.0)
     _assert_close(edges["A->C"]["mean_per_map"], 0.75)
     nodes = dict((row["area_code"], row) for row in network["node_rows"])
     _assert_close(nodes["A"]["richness"], 1.5)
+
+    compact_path = Path(bsm_dir) / "bsm_source_assigned_dispersal_events.csv"
+    compact_headers = ["event_kind", "source_area", "target_area"]
+    _write_csv(
+        compact_path,
+        compact_headers,
+        [{"event_kind": "anagenetic", "source_area": "C", "target_area": "B"}],
+    )
+    compact = service.load_existing_bsm_events(str(bsm_dir))
+    assert compact.summary["load_index_status"] == "rebuilt"
+    assert len(compact.precomputed_bsm_network_edges) == 1
+    compact_edge = compact.precomputed_bsm_network_edges[0]
+    assert (compact_edge["source_area"], compact_edge["target_area"]) == ("C", "B")
+    _assert_close(compact_edge["total_count"], 1.0)
+
+    _write_csv(compact_path, compact_headers, [])
+    empty_compact = service.load_existing_bsm_events(str(bsm_dir))
+    assert empty_compact.summary["load_index_status"] == "rebuilt"
+    assert empty_compact.precomputed_bsm_network_edges == []
+    assert empty_compact.precomputed_bsm_network_available is True
+    empty_compact_network = network_service.build_network(
+        empty_compact,
+        areas=areas,
+        range_matrix=matrix,
+        min_mean_per_map=0.0,
+    )
+    assert empty_compact_network["edge_rows"] == []
+
+    compact_path.unlink()
+    _write_csv(edge_path, list(sentinel_edges[0].keys()), [])
+    empty_precomputed = service.load_existing_bsm_events(str(bsm_dir))
+    assert empty_precomputed.summary["load_index_status"] == "rebuilt"
+    assert empty_precomputed.precomputed_bsm_network_available is True
+    assert network_service.build_network(
+        empty_precomputed,
+        areas=areas,
+        range_matrix=matrix,
+        min_mean_per_map=0.0,
+    )["edge_rows"] == []
+
+    edge_path.unlink()
+    summary_path = Path(bsm_dir) / "bsm_summary.json"
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary_payload.pop("area_names", None)
+    summary_path.write_text(
+        json.dumps(summary_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    with patch.object(
+        service,
+        "_infer_bsm_area_codes_from_csvs",
+        side_effect=AssertionError("raw network fallback attempted a second CSV scan"),
+    ):
+        raw_fallback = service.load_existing_bsm_events(str(bsm_dir))
+    assert raw_fallback.summary["load_index_status"] == "rebuilt"
+    raw_edges = dict(
+        (
+            "%s->%s" % (row.get("source_area", ""), row.get("target_area", "")),
+            row,
+        )
+        for row in raw_fallback.precomputed_bsm_network_edges
+    )
+    assert len(raw_edges) == 5
+    _assert_close(raw_edges["A->B"]["mean_per_map"], 0.5)
+    _assert_close(raw_edges["A->C"]["mean_per_map"], 0.75)
+
+    unresolved = [False]
+    numeric_edges = {}
+    numeric_methods = set()
+    service._accumulate_bsm_network_row(
+        "anagenetic",
+        {
+            "event_type": "d",
+            "current_rangetxt": "A",
+            "new_area_num_1based": "2",
+        },
+        ["A", "B"],
+        network_service,
+        numeric_edges,
+        numeric_methods,
+        allow_numeric_area_ids=False,
+        unresolved_numeric_area_ids=unresolved,
+    )
+    assert unresolved == [True]
+    assert numeric_edges == {}
 
 
 def _check_network_editor(workdir, app, result, areas, matrix):
@@ -456,7 +652,9 @@ def _check_network_editor(workdir, app, result, areas, matrix):
         map_dialog.save_layout()
     layout_payload = json.loads(layout_path.read_text(encoding="utf-8"))
     assert layout_payload["format"] == "rasp5_bsm_network_layout"
-    assert layout_payload["version"] == 1
+    assert layout_payload["version"] == 2
+    assert layout_payload["controls"]["edge_width_scale"] == "1.8"
+    assert layout_payload["network_ref"]["format"] == "rasp5_bsm_dispersal_network"
     assert _layout_signature(layout_payload["edges"][key]) == manual_signature
 
     restored = BSMNetworkMapEditorDialog(result, area_records=areas, range_matrix=matrix)
@@ -535,6 +733,7 @@ def main():
     )
     _check_precomputed_network(
         bsm_dir,
+        result,
         network,
         loaded_project.areas,
         loaded_project.encoded_matrix,
@@ -562,6 +761,7 @@ def main():
             "anagenetic/founder network aggregation and mean-per-map denominator",
             "edge/node CSV and GeoJSON export",
             "precomputed BSM network loading",
+            "persistent BSM event-index cache hit and source-file invalidation",
             "map/circle statistical equivalence",
             "manual curve persistence across width, labels, threshold, and layout JSON reload",
         ],

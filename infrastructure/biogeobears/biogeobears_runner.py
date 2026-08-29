@@ -1,5 +1,4 @@
 import json
-import os
 import shutil
 import subprocess
 import time
@@ -7,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from application.services.biogeobears_dataset_builder import BioGeoBEARSRunFiles
+from infrastructure.r_runtime_environment import build_r_subprocess_environment
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -90,9 +91,22 @@ class BioGeoBEARSRunner:
         rscript = self.resolve_rscript_path()
         wrapper = self.resolve_wrapper_script_path()
         site_lib = self.resolve_site_library_path()
+        write_run_provenance(
+            run_files.workdir,
+            analysis="BioGeoBEARS",
+            engine_paths={
+                "rscript_executable": rscript,
+                "biogeobears_wrapper": wrapper,
+            },
+            extra={
+                "model": str(run_files.model_name),
+                "bsm_requested": bsm_outdir is not None,
+            },
+        )
 
         cmd = [
             str(rscript),
+            "--vanilla",
             str(wrapper),
             "--tree", str(run_files.tree_path),
             "--geog", str(run_files.geog_path),
@@ -118,12 +132,7 @@ class BioGeoBEARSRunner:
             if bsm_maxtries_per_branch is not None:
                 cmd.extend(["--bsm_maxtries_per_branch", str(int(bsm_maxtries_per_branch))])
 
-        env = os.environ.copy()
-        site_lib = str(self.resolve_site_library_path())
-
-        env["R_LIBS"] = site_lib
-        env["R_LIBS_SITE"] = site_lib
-        env["R_LIBS_USER"] = site_lib
+        env = build_r_subprocess_environment(self.resolve_site_library_path())
 
         proc = subprocess.run(
             cmd,
@@ -177,6 +186,15 @@ class BioGeoBEARSRunner:
         site_lib = self.resolve_site_library_path()
         batch_workdir = Path(batch_workdir)
         batch_workdir.mkdir(parents=True, exist_ok=True)
+        write_run_provenance(
+            batch_workdir,
+            analysis="BioGeoBEARS batch",
+            engine_paths={
+                "rscript_executable": rscript,
+                "biogeobears_wrapper": wrapper,
+            },
+            extra={"job_count": len(run_files_list)},
+        )
 
         safe_name = str(batch_name or "batch")
         manifest_path = batch_workdir / ("%s_manifest.json" % safe_name)
@@ -220,6 +238,7 @@ class BioGeoBEARSRunner:
 
         cmd = [
             str(rscript),
+            "--vanilla",
             str(wrapper),
             "--batch",
             str(manifest_path),
@@ -229,11 +248,7 @@ class BioGeoBEARSRunner:
             str(progress_path),
         ]
 
-        env = os.environ.copy()
-        site_lib_text = str(site_lib)
-        env["R_LIBS"] = site_lib_text
-        env["R_LIBS_SITE"] = site_lib_text
-        env["R_LIBS_USER"] = site_lib_text
+        env = build_r_subprocess_environment(site_lib)
 
         seen_terminal_jobs = set()
 

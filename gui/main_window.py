@@ -76,6 +76,7 @@ from gui.dialogs.bayarea_config_dialog import BayAreaConfigDialog
 from gui.dialogs.bayarea_tracer_dialog import BayAreaTracerDialog
 from gui.dialogs.bbm_config_dialog import BBMConfigDialog
 from gui.dialogs.bayestraits_config_dialog import BayesTraitsConfigDialog
+from gui.dialogs.trait_model_statistics_dialog import TraitModelStatisticsDialog
 from gui.dialogs.phytools_config_dialog import PhytoolsConfigDialog
 from gui.dialogs.project_import_dialog import ProjectImportDialog
 from gui.dialogs.result_view_window import LINEAGE_RANGE_DYNAMICS_ENABLED, ResultViewWindow
@@ -100,6 +101,7 @@ from visualization.renderers.biogeobears_result_renderer import BioGeoBEARSResul
 from visualization.renderers.continuous_trait_result_renderer import ContinuousTraitResultRenderer
 from infrastructure.tree.tree_reader import TreeReader
 from infrastructure.io.csv_matrix_reader import CsvMatrixReader
+from app.paths import ApplicationPaths
 
 
 
@@ -120,19 +122,32 @@ class MainWindow(QMainWindow):
         self.preflight_validation_service = PreflightValidationService()
         self.spatial_data_service = SpatialDataService()
 
-        self.diva_service = DivaAnalysisService()
-        self.sdiva_service = SDivaAnalysisService()
-
         project_root = Path(__file__).resolve().parents[1]
+        self.application_paths = ApplicationPaths.discover(project_root)
+        runs_root = self.application_paths.runs_root
+
+        self.diva_service = DivaAnalysisService(
+            project_root=project_root,
+            work_root=runs_root / "diva",
+        )
+        self.sdiva_service = SDivaAnalysisService(
+            project_root=project_root,
+            work_root=runs_root / "sdiva",
+        )
+
         default_dec_engine = project_root / "engines" / "lagrange-ng" / "lagrange-ng.exe"
-        default_dec_work_root = project_root / "runs" / "dec"
+        default_dec_work_root = runs_root / "dec"
         self.dec_service = DECAnalysisService(
             engine_path=default_dec_engine,
             work_root=default_dec_work_root,
         )
-        self.sdec_service = SDECAnalysisService(self.dec_service)
+        self.sdec_service = SDECAnalysisService(
+            self.dec_service,
+            project_root=project_root,
+            work_root=runs_root / "sdec",
+        )
 
-        default_bgb_work_root = project_root / "runs" / "biogeobears"
+        default_bgb_work_root = runs_root / "biogeobears"
         default_bgb_wrapper = project_root / "engines" / "biogeobears" / "bgb_runner.R"
         default_bgb_rscript = project_root / "engines" / "R" / "bin" / "Rscript.exe"
         default_bgb_site_lib = project_root / "engines" / "R" / "site-library"
@@ -143,38 +158,42 @@ class MainWindow(QMainWindow):
             work_root=default_bgb_work_root,
             site_library_path=default_bgb_site_lib,
         )
-        self.sbgb_service = SBGBAnalysisService(self.biogeobears_service)
+        self.sbgb_service = SBGBAnalysisService(
+            self.biogeobears_service,
+            project_root=project_root,
+            work_root=runs_root / "sbgb",
+        )
 
         self.biogeobears_model_test_service = BioGeoBEARSModelTestService(self.biogeobears_service)
 
         default_bayarea_engine = project_root / "engines" / "bayarea" / "bin" / "bayarea.exe"
-        default_bayarea_work_root = project_root / "runs" / "bayarea"
+        default_bayarea_work_root = runs_root / "bayarea"
         self.bayarea_service = BayAreaAnalysisService(
             executable_path=default_bayarea_engine,
             work_root=default_bayarea_work_root,
         )
 
         default_mrbayes_engine = project_root / "engines" / "mrbayes" / "mb.3.2.7-win32.exe"
-        default_bbm_work_root = project_root / "runs" / "bbm"
+        default_bbm_work_root = runs_root / "bbm"
         self.bbm_service = BBMAnalysisService(
             executable_path=default_mrbayes_engine,
             work_root=default_bbm_work_root,
         )
 
         default_bayestraits_engine = project_root / "engines" / "bayestraits" / "BayesTraitsV5.exe"
-        default_bayestraits_work_root = project_root / "runs" / "bayestraits"
+        default_bayestraits_work_root = runs_root / "bayestraits"
         self.bayestraits_service = BayesTraitsAnalysisService(
             executable_path=default_bayestraits_engine,
             work_root=default_bayestraits_work_root,
         )
 
-        default_phytools_work_root = project_root / "runs" / "phytools"
+        default_phytools_work_root = runs_root / "phytools"
         self.phytools_service = PhytoolsAnalysisService(
             rscript_path=default_bgb_rscript,
             site_library_path=default_bgb_site_lib,
             work_root=default_phytools_work_root,
         )
-        default_sphytools_work_root = project_root / "runs" / "sphytools"
+        default_sphytools_work_root = runs_root / "sphytools"
         self.sphytools_service = SPhytoolsAnalysisService(
             self.phytools_service,
             work_root=default_sphytools_work_root,
@@ -188,6 +207,7 @@ class MainWindow(QMainWindow):
         self.current_matrix_profiles = {}
         self.current_method_name = "DIVA"
         self.current_result_window = None
+        self.current_trait_statistics_dialog = None
         self.current_tree_collection = None
         self.current_tree_collection_path = ""
         self.current_spatial_project = None
@@ -337,7 +357,7 @@ class MainWindow(QMainWindow):
         return group
 
     def _cleanup_old_run_artifacts(self, retention_days=5):
-        runs_root = Path(__file__).resolve().parents[1] / "runs"
+        runs_root = self.application_paths.runs_root
         if not runs_root.exists():
             return
         try:
@@ -660,6 +680,9 @@ class MainWindow(QMainWindow):
             self.current_bgb_bsm_event_result = None
         if clear_trait:
             self.current_trait_result = None
+            if self.current_trait_statistics_dialog is not None:
+                self.current_trait_statistics_dialog.close()
+                self.current_trait_statistics_dialog = None
 
         if self.current_method_name == "S-DIVA" and self.current_sdiva_result is None:
             self.current_method_name = "DIVA"
@@ -712,8 +735,16 @@ class MainWindow(QMainWindow):
 
     def _get_active_result_context(self):
         if (
+            self._is_trait_method(self.current_method_name)
+            and self.current_trait_result is not None
+            and not self._trait_result_has_nodes(self.current_trait_result)
+        ):
+            raise ValueError(self._trait_reconstruction_failure_message(self.current_trait_result))
+
+        if (
             self.current_trait_result is not None
             and type(self.current_trait_result).__name__ == "ContinuousTraitResult"
+            and self._trait_result_has_nodes(self.current_trait_result)
         ):
             return {
                 "method_name": str(getattr(self.current_trait_result, "model_name", "") or self.current_method_name or "Trait Reconstruction"),
@@ -721,7 +752,11 @@ class MainWindow(QMainWindow):
                 "renderer_cls": ContinuousTraitResultRenderer,
             }
 
-        if self._is_trait_method(self.current_method_name) and self.current_trait_result is not None:
+        if (
+            self._is_trait_method(self.current_method_name)
+            and self.current_trait_result is not None
+            and self._trait_result_has_nodes(self.current_trait_result)
+        ):
             return {
                 "method_name": str(self.current_method_name),
                 "result": self.current_trait_result,
@@ -770,7 +805,14 @@ class MainWindow(QMainWindow):
                 "renderer_cls": BioGeoBEARSResultRenderer,
             }
 
-        if self.current_trait_result is not None and self.current_result is None and self.current_sdiva_result is None and self.current_dec_result is None and self.current_sdec_result is None:
+        if (
+            self.current_trait_result is not None
+            and self._trait_result_has_nodes(self.current_trait_result)
+            and self.current_result is None
+            and self.current_sdiva_result is None
+            and self.current_dec_result is None
+            and self.current_sdec_result is None
+        ):
             return {
                 "method_name": str(getattr(self.current_trait_result, "model_name", "") or "Trait Reconstruction"),
                 "result": self.current_trait_result,
@@ -944,6 +986,21 @@ class MainWindow(QMainWindow):
         return leaf_state_map, state_colors
 
     def open_result_window(self):
+        if self._is_trait_statistics_result(self.current_trait_result):
+            self._show_trait_statistics_result(self.current_trait_result)
+            return
+        if (
+            self._is_trait_method(self.current_method_name)
+            and self.current_trait_result is not None
+            and not self._trait_result_has_nodes(self.current_trait_result)
+        ):
+            QMessageBox.warning(
+                self,
+                "Trait reconstruction unavailable",
+                self._trait_reconstruction_failure_message(self.current_trait_result),
+            )
+            return
+
         if self.current_result_window is None:
             self.current_result_window = ResultViewWindow(self)
 
@@ -994,6 +1051,46 @@ class MainWindow(QMainWindow):
         self.current_result_window.show()
         self.current_result_window.raise_()
         self.current_result_window.activateWindow()
+
+    @staticmethod
+    def _trait_result_has_nodes(result):
+        return bool(getattr(result, "node_results", {}) or {})
+
+    @staticmethod
+    def _is_trait_statistics_result(result):
+        if result is None:
+            return False
+        if type(result).__name__ == "TraitModelResult":
+            return True
+        metadata = dict(getattr(result, "metadata", {}) or {})
+        return str(metadata.get("result_kind", "") or "") == "trait_model_statistics"
+
+    def _show_trait_statistics_result(self, result):
+        if result is None:
+            return
+        if self.current_result_window is not None:
+            self.current_result_window.hide()
+        if self.current_trait_statistics_dialog is not None:
+            self.current_trait_statistics_dialog.close()
+        self.current_trait_statistics_dialog = TraitModelStatisticsDialog(result=result, parent=self)
+        self.current_trait_statistics_dialog.show()
+        self.current_trait_statistics_dialog.raise_()
+        self.current_trait_statistics_dialog.activateWindow()
+
+    @staticmethod
+    def _trait_reconstruction_failure_message(result):
+        warnings = [
+            str(item).strip()
+            for item in list(getattr(result, "parse_warnings", []) or [])
+            if str(item).strip()
+        ]
+        message = (
+            "The analysis did not produce any internal-node estimates that could be "
+            "mapped to the reference tree. No ancestral tree view was created."
+        )
+        if warnings:
+            message += "\n\nDetails:\n" + "\n".join("- " + item for item in warnings[:10])
+        return message
 
     def open_bsm_event_table_viewer(self):
         result = self._current_bsm_result()
@@ -1356,6 +1453,28 @@ class MainWindow(QMainWindow):
             f"当前共识树:\n{self._get_consensus_tree_summary_text()}"
         )
 
+    def _build_trait_summary_text(self, result):
+        method_name = str(getattr(result, "model_name", "") or "Trait Reconstruction")
+        node_count = len(getattr(result, "node_results", {}) or {})
+        warning_count = len(getattr(result, "parse_warnings", []) or [])
+        stats_lines = self._build_model_statistic_summary_lines(result, limit=8)
+        lines = [method_name + " completed", ""]
+        if self._is_trait_statistics_result(result):
+            lines.append("Output: model-level statistics (no internal-node ancestral estimates)")
+        else:
+            lines.append("Reconstructed internal nodes: %s" % node_count)
+        if stats_lines:
+            lines.extend(["", "Statistics:"])
+            lines.extend(stats_lines)
+        lines.extend([
+            "",
+            "Warnings: %s" % warning_count,
+            "",
+            "Current reference tree:",
+            self._get_consensus_tree_summary_text(),
+        ])
+        return "\n".join(lines)
+
     def _tree_set_accounting_lines(self, result):
         legacy_count = int(getattr(result, "tree_count_total", 0) or 0)
         input_count = int(getattr(result, "input_tree_count", 0) or legacy_count)
@@ -1491,8 +1610,24 @@ class MainWindow(QMainWindow):
             )
         return f"{method_name} 完成：节点数={node_count}"
 
+    def _build_trait_status_text(self, result):
+        method_name = str(getattr(result, "model_name", "") or "Trait Reconstruction")
+        warning_count = len(getattr(result, "parse_warnings", []) or [])
+        if self._is_trait_statistics_result(result):
+            sample_count = int(dict(getattr(result, "model_statistics", {}) or {}).get("sample_count", 0) or 0)
+            return "%s completed: statistics rows=%s, warnings=%s" % (
+                method_name,
+                sample_count,
+                warning_count,
+            )
+        node_count = len(getattr(result, "node_results", {}) or {})
+        return "%s completed: nodes=%s, warnings=%s" % (method_name, node_count, warning_count)
+
     def _update_analysis_feedback(self, method_name, result):
-        if self._is_biogeobears_method(method_name):
+        if self._is_trait_method(method_name):
+            self._set_center_info(self._build_trait_summary_text(result))
+            self._set_status_message(self._build_trait_status_text(result))
+        elif self._is_biogeobears_method(method_name):
             self._set_center_info(self._build_biogeobears_summary_text(result))
             self._set_status_message(self._build_biogeobears_status_text(result))
         elif method_name == "S-DEC":
@@ -2432,13 +2567,15 @@ class MainWindow(QMainWindow):
             action.setEnabled(True)
 
     def _append_analysis_result_to_run_log(self, method_name, result):
+        payloads = []
         try:
             adapter = ResultSchemaAdapterFactory.create(result)
             standard = adapter.to_standard_result(result=result, method_name=str(method_name or ""))
             payloads = list(standard.node_payloads.values())
         except Exception as exc:
-            self.append_run_log("Could not summarize result in run log: %s" % exc)
-            return
+            if not self._is_trait_statistics_result(result):
+                self.append_run_log("Could not summarize result in run log: %s" % exc)
+                return
 
         if not payloads:
             for line in self._build_model_statistic_summary_lines(result, limit=20):
@@ -2448,7 +2585,10 @@ class MainWindow(QMainWindow):
             self.append_run_log(self._format_node_payload_log_line(payload))
 
         self.append_run_log("Process end at %s" % self._current_timestamp())
-        self.append_run_log("Open [View -> Open Result Window] to see the result")
+        if self._is_trait_statistics_result(result):
+            self.append_run_log("Trait model statistics are available in the statistics result window")
+        else:
+            self.append_run_log("Open [View -> Open Result Window] to see the result")
 
     def _node_payload_sort_key(self, payload):
         text = str(getattr(payload, "display_node_id", "") or "").strip()
@@ -2588,7 +2728,17 @@ class MainWindow(QMainWindow):
         self.progress_panel.set_done("%s run finished" % self.current_method_name)
         self._update_analysis_feedback(self.current_method_name, result)
         self._append_analysis_result_to_run_log(self.current_method_name, result)
-        self.open_result_window()
+        if self._is_trait_statistics_result(result):
+            self._show_trait_statistics_result(result)
+        elif self._trait_result_has_nodes(result):
+            self.open_result_window()
+        else:
+            self.progress_panel.set_error("%s produced no mappable node estimates" % self.current_method_name)
+            QMessageBox.warning(
+                self,
+                "Trait reconstruction unavailable",
+                self._trait_reconstruction_failure_message(result),
+            )
 
     def _open_diva_config_dialog(self):
         range_context = self._current_range_matrix_context("Cannot configure")
@@ -4279,11 +4429,13 @@ class MainWindow(QMainWindow):
             on_success=self._on_biogeobears_bsm_finished,
             on_failed=self._on_biogeobears_bsm_failed,
             on_finished=self._on_biogeobears_bsm_worker_finished,
+            on_progress=self._on_biogeobears_bsm_index_progress,
         )
 
     def _on_biogeobears_bsm_finished(self, result):
         self.current_bgb_bsm_event_result = result
-        event_count = len(getattr(result, "events", []) or [])
+        summary = dict(getattr(result, "summary", {}) or {})
+        event_count = int(summary.get("normalized_event_count", len(getattr(result, "events", []) or [])) or 0)
         self.progress_panel.set_done("BioGeoBEARS BSM events generated")
         self.append_run_log("BioGeoBEARS BSM events generated: %d" % event_count)
         self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] to inspect events.")
@@ -4298,6 +4450,9 @@ class MainWindow(QMainWindow):
             worker_attr_name="biogeobears_bsm_worker",
             action=self.generate_bgb_bsm_action,
         )
+
+    def _on_biogeobears_bsm_index_progress(self, completed, total, message):
+        self._update_bsm_load_progress(completed, total, message)
 
     def load_existing_biogeobears_bsm_result(self):
         default_path = str(self._default_bsm_result_open_path())
@@ -4322,6 +4477,7 @@ class MainWindow(QMainWindow):
             on_success=self._on_existing_biogeobears_bsm_loaded,
             on_failed=self._on_existing_biogeobears_bsm_load_failed,
             on_finished=self._on_existing_biogeobears_bsm_load_worker_finished,
+            on_progress=self._on_existing_biogeobears_bsm_load_progress,
         )
 
     def _default_bsm_result_open_path(self):
@@ -4358,10 +4514,17 @@ class MainWindow(QMainWindow):
         summary = dict(getattr(result, "summary", {}) or {})
         maps = summary.get("nummaps", "")
         total_rows = int(summary.get("ana_rows", 0) or 0) + int(summary.get("clado_rows", 0) or 0)
+        index_status_code = str(summary.get("load_index_status", "") or "unknown")
+        index_status = {
+            "hit": "reused cached index",
+            "rebuilt": "built index from source tables",
+            "rebuilt_not_saved": "built index but could not save it",
+        }.get(index_status_code, index_status_code)
+        elapsed = float(summary.get("load_elapsed_seconds", 0.0) or 0.0)
         self.progress_panel.set_done("Existing BioGeoBEARS BSM result loaded")
         self.append_run_log(
-            "Existing BioGeoBEARS BSM result loaded: preview_events=%d, raw_event_rows=%d, maps=%s"
-            % (preview_count, total_rows, maps or "unknown")
+            "Existing BioGeoBEARS BSM result loaded: preview_events=%d, raw_event_rows=%d, maps=%s, index=%s, load_seconds=%.3f"
+            % (preview_count, total_rows, maps or "unknown", index_status, elapsed)
         )
         self.append_run_log("Open [Biogeographic Event Analysis -> BSM Event Table Viewer] or [BSM Network Map Editor].")
         self._refresh_result_window_if_open()
@@ -4371,8 +4534,25 @@ class MainWindow(QMainWindow):
             "Loaded existing BSM result.\n"
             "Stochastic maps: %s\n"
             "Raw event rows: %d\n"
-            "Event table preview rows: %d" % (maps or "unknown", total_rows, preview_count),
+            "Event table preview rows: %d\n"
+            "Event index: %s\n"
+            "Load time: %.3f seconds"
+            % (maps or "unknown", total_rows, preview_count, index_status, elapsed),
         )
+
+    def _on_existing_biogeobears_bsm_load_progress(self, completed, total, message):
+        self._update_bsm_load_progress(completed, total, message)
+
+    def _update_bsm_load_progress(self, completed, total, message):
+        total = int(total or 0)
+        completed = int(completed or 0)
+        text = str(message or "Loading BioGeoBEARS BSM result")
+        if total > 0:
+            percent = int(100.0 * max(0, min(completed, total)) / total)
+            self.progress_panel.set_progress(percent, text)
+        else:
+            self.progress_panel.set_busy_indeterminate(text)
+        self._set_status_message(text)
 
     def _on_existing_biogeobears_bsm_load_failed(self, message):
         self.progress_panel.set_error("Load existing BioGeoBEARS BSM failed")

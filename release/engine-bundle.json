@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "bundle_version": "2026.07.11-dev",
+  "bundle_version": "2026.08.28-dev",
   "platform": "windows-x86_64",
-  "archive_timestamp": "2026-07-11T00:00:00",
+  "archive_timestamp": "2026-08-28T00:00:00",
   "archive_name": "RASP5-engine-bundle-{bundle_version}-{platform}-{channel}.zip",
   "components": [
     {
@@ -128,7 +128,7 @@
       "id": "biogeobears-runner",
       "name": "RASP BioGeoBEARS runner",
       "version": "RASP5",
-      "license_spdx": "NOASSERTION",
+      "license_spdx": "MIT",
       "redistribution_status": "cleared",
       "first_party": true,
       "upstream": "https://github.com/Yxu-bio/RASP_test",
@@ -142,6 +142,8 @@
     }
   ],
   "bundle_files": [
+    {"source": "LICENSE", "target": "RASP5-LICENSE.txt"},
+    {"source": "CITATION.cff", "target": "CITATION.cff"},
     {"source": "release/THIRD_PARTY_ENGINES.md", "target": "THIRD_PARTY_ENGINES.md"},
     {"source": "release/README.md", "target": "RELEASE-BUNDLE-README.md"}
   ],
@@ -160,6 +162,7 @@
     {"path": "engines/mrbayes/mb.3.2.7-win32.exe", "size": 2375725, "sha256": "A7358C7E5B906C1872C8948A89BACF5E3A1966F69ADFF57F3C5D8F6346D19E62"},
     {"path": "engines/diva/DIVA.exe", "size": 69120, "sha256": "945620C1A56E3D386BEB3D3126A331628953B4E704B0254DE05C5E9818FF8858"},
     {"path": "engines/R/bin/Rscript.exe", "size": 154624, "sha256": "D9134A5BEEC18CD74A55AF84D9099993594D4063208F14BE050E78EBBF85C759"},
-    {"path": "engines/biogeobears/bgb_runner.R", "size": 37328, "sha256": "43CE391CC26EBEE0FE804E9F4FC4799A53C3717DE8E97B1877597E604299E16B"}
+    {"path": "engines/biogeobears/bgb_runner.R", "size": 40360, "sha256": "B0382C108B791D737055EF9D315DCDBF3002F63A293CACE5330DEFBCF2AECBE0"},
+    {"path": "engines/biogeobears/setup_biogeobears_lib.R", "size": 1580, "sha256": "221F30D6A03BC2035F425AD12BA64673D7890EDED801D86809FE89D6E5770B65"}
   ]
 }

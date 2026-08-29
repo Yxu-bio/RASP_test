@@ -281,12 +281,19 @@ class BayAreaOutputParser:
                 )
         for name in ["gain", "loss", "distP"]:
             diagnostic = diagnostics.get(name)
-            if not diagnostic or int(diagnostic.get("sample_count", 0)) < 100:
+            if not diagnostic:
+                continue
+            sample_count = int(diagnostic.get("sample_count", 0))
+            if sample_count < 100:
+                warnings.append(
+                    "BayArea %s trace has only %d retained samples; at least 100 are needed "
+                    "for the basic ESS and within-chain drift screen."
+                    % (name, sample_count)
+                )
                 continue
             ess = float(diagnostic.get("ess_approx", 0.0) or 0.0)
-            shift = float(diagnostic.get("relative_half_shift", 0.0) or 0.0)
-            if ess < 50.0:
-                sample_count = int(diagnostic.get("sample_count", 0))
+            shift = float(diagnostic.get("standardized_half_shift", 0.0) or 0.0)
+            if ess < 100.0:
                 ess_count = int(diagnostic.get("ess_diagnostic_sample_count", sample_count))
                 if ess_count < sample_count:
                     sample_text = "%d evenly spaced diagnostic points from %d retained samples" % (
@@ -296,15 +303,15 @@ class BayAreaOutputParser:
                 else:
                     sample_text = "%d retained samples" % sample_count
                 warnings.append(
-                    "BayArea %s trace has low approximate single-chain ESS (%.1f from %s). "
+                    "BayArea %s trace has low approximate single-chain ESS (%.1f from %s; minimum 100). "
                     "Use a longer chain and compare independent seeds before interpreting the posterior."
                     % (name, ess, sample_text)
                 )
             if shift > 0.25:
                 warnings.append(
                     "BayArea %s trace differs strongly between its first and second retained halves "
-                    "(relative mean shift %.1f%%); burn-in or chain length is likely insufficient."
-                    % (name, shift * 100.0)
+                    "(half-mean shift %.3f posterior SD); burn-in or chain length is likely insufficient."
+                    % (name, shift)
                 )
         return {"statistics": statistics, "warnings": warnings}
 
@@ -323,7 +330,12 @@ class BayAreaOutputParser:
         second = finite[midpoint:] or finite[-1:]
         first_mean = sum(first) / float(len(first))
         second_mean = sum(second) / float(len(second))
+        mean = sum(finite) / float(count)
+        standard_deviation = math.sqrt(
+            sum((value - mean) ** 2 for value in finite) / float(max(1, count - 1))
+        )
         denominator = max(abs(second_mean), 1e-12)
+        half_difference = abs(first_mean - second_mean)
         ess_values = finite
         if count > 5000:
             step = int(math.ceil(float(count) / 5000.0))
@@ -333,10 +345,15 @@ class BayAreaOutputParser:
             "ess_diagnostic_sample_count": len(ess_values),
             "minimum": min(finite),
             "maximum": max(finite),
-            "mean": sum(finite) / float(count),
+            "mean": mean,
+            "standard_deviation": standard_deviation,
             "first_half_mean": first_mean,
             "second_half_mean": second_mean,
-            "relative_half_shift": abs(first_mean - second_mean) / denominator,
+            "relative_half_shift": half_difference / denominator,
+            "standardized_half_shift": (
+                half_difference / standard_deviation
+                if standard_deviation > 0.0 else (0.0 if half_difference == 0.0 else float("inf"))
+            ),
             "ess_approx": self._approximate_ess(ess_values),
         }
 

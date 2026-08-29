@@ -59,6 +59,7 @@ class ContinuousTraitResult:
     color_scale_max: float = 1.0
 
     model_statistics: Dict = field(default_factory=dict)
+    metadata: Dict = field(default_factory=dict)
 
     # Optional metadata used by the publication-style continuous figure exporter.
     # These fields are intentionally generic so external workflows can supply

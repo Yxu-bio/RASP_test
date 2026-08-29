@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from application.services.bbm_dataset_builder import BBMRunFiles
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -42,6 +43,11 @@ class MrBayesRunner:
 
     def run(self, run_files: BBMRunFiles) -> MrBayesRunOutput:
         exe = self.resolve_executable_path()
+        write_run_provenance(
+            run_files.workdir,
+            analysis="BBM / MrBayes",
+            engine_paths={"mrbayes_executable": exe},
+        )
         cmd = [str(exe), run_files.nexus_path.name]
         proc = subprocess.run(
             cmd,

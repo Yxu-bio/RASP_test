@@ -104,6 +104,18 @@ class PhytoolsAnalysisService:
             is_experimental = phytools_is_experimental(method_key)
         except Exception:
             pass
+        if method_key == "FASTANC_CI":
+            uncertainty_kind = "confidence_interval"
+            interval_label = "95% confidence interval"
+            summary_statistic = "mean"
+        elif method_key == "ANC_BAYES":
+            uncertainty_kind = "posterior_interval"
+            interval_label = "95% posterior interval"
+            summary_statistic = "median"
+        else:
+            uncertainty_kind = "point_estimate"
+            interval_label = ""
+            summary_statistic = "mean"
 
         result = ContinuousTraitResult(reference_tree=tree)
         result.model_name = self._continuous_model_name(method_key, r_method)
@@ -162,6 +174,9 @@ class PhytoolsAnalysisService:
                     "phytools_method": method_key,
                     "phytools_method_label": method_label,
                     "experimental": is_experimental,
+                    "uncertainty_kind": uncertainty_kind,
+                    "summary_statistic": summary_statistic,
+                    "interval_label": interval_label,
                     "ape_node": int(item.get("ape_node", 0) or 0),
                     "terminal_span": str(record.get("terminal_span", "") or ""),
                     "trait_name": trait_name,
@@ -199,8 +214,8 @@ class PhytoolsAnalysisService:
             )
             result.node_results[clade_key] = node_result
             result.reference_node_ids[clade_key] = str(record.get("display_node_id", "") or "")
-            result.analysis_node_values[clade_key] = value
-            result.original_node_values[clade_key] = original_summary["mean"]
+            result.analysis_node_values[clade_key] = plot_value
+            result.original_node_values[clade_key] = self._back_transform_value(plot_value, transform)
             result.plot_node_values[clade_key] = plot_value
             analysis_values.append(plot_value)
 
@@ -230,6 +245,25 @@ class PhytoolsAnalysisService:
             "traits_path": str(run_files.traits_path),
             "missing_trait_taxa": list(getattr(run_files, "missing_trait_taxa", []) or []),
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "continuous_trait_nodes",
+            "trait_kind": "continuous",
+            "node_estimates": True,
+            "estimator": r_method or method_label,
+            "estimation_method": method_key,
+            "uncertainty_kind": uncertainty_kind,
+            "summary_statistic": summary_statistic,
+            "interval_label": interval_label,
+            "trait_column": trait_name,
+            "transform": transform,
+            "analysis_scale": trait_scale,
+            "display_scale": self._scale_label(display_scale, transform),
+            "plot_scale": self._scale_label(plot_scale, transform),
+            "experimental": is_experimental,
+            "tree_set": False,
+        }
+        result.model_statistics.update(result.metadata)
         if not result.node_results:
             result.parse_warnings.append("phytools output did not contain mappable internal node values.")
         return result
@@ -506,6 +540,19 @@ class PhytoolsAnalysisService:
             "tree_path": str(run_files.tree_path),
             "traits_path": str(run_files.traits_path),
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "discrete_trait_nodes",
+            "trait_kind": "categorical",
+            "node_estimates": True,
+            "estimator": method_label,
+            "estimation_method": str(config.method),
+            "uncertainty_kind": "likelihood_probability",
+            "trait_column": trait_name,
+            "experimental": False,
+            "tree_set": False,
+        }
+        result.model_statistics.update(result.metadata)
         if not result.node_results:
             result.parse_warnings.append("ape ace output did not contain mappable internal node probabilities.")
         return result

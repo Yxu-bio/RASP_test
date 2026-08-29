@@ -1,4 +1,6 @@
 {
+  "format": "rasp5_region_builder_config",
+  "version": 1,
   "name": "dore_ponerinae_7_palea_rule_based",
   "group": "Dore_2025_Ponerinae_7_bioregions",
   "source": "Dore_2025_Ponerinae + Natural Earth",

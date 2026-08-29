@@ -11,9 +11,9 @@ Status: **PASSED**
 - Production identity builders checked: bayarea, bbm, bgb_parser, dec_parser, sbgb, sdec, sdiva
 - Single/S result mappings checked: bgb_dec, dec, diva, sbgb_dec_25, sdec_25, sdiva_25
 - S-series topology denominators checked: sbgb_dec_25, sdec_25, sdiva_25
-- Current engine result source: `E:\RASP\runs\psychotria_gold\20260828_013345_949846\report.json`
+- Current engine result source: `E:\RASP\runs\psychotria_gold\20260828_083839_018966\report.json`
 
 Synthetic negative fixtures verify topology changes, missing taxa, duplicate taxa,
 missing/extra result clades, and incorrect display node IDs are reported.
 
-Machine-readable report: `E:\RASP\runs\clade_node_identity\20260828_013645_928727\report.json`
+Machine-readable report: `E:\RASP\runs\clade_node_identity\20260828_084218_557447\report.json`

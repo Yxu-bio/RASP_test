@@ -639,6 +639,13 @@ class SpatialDataService:
         fmt = str(payload.get("format", "") or "")
         if fmt and fmt != self.PROJECT_FORMAT:
             raise ValueError("Unsupported spatial project format: %s" % fmt)
+        version = payload.get("version", self.PROJECT_VERSION)
+        try:
+            version = int(version)
+        except Exception:
+            raise ValueError("Invalid spatial project version: %s" % version)
+        if version != self.PROJECT_VERSION:
+            raise ValueError("Unsupported spatial project version: %s" % version)
         matrix_payload = payload.get("encoded_matrix")
         matrix = None
         if isinstance(matrix_payload, dict):
@@ -812,7 +819,14 @@ class SpatialDataService:
         points = list(self._geometry_points(geometry))
         if not points:
             return None, None
-        lon = sum(point[0] for point in points) / float(len(points))
+        longitudes = [point[0] for point in points]
+        if max(longitudes) - min(longitudes) > 180.0:
+            unwrapped = [value + 360.0 if value < 0.0 else value for value in longitudes]
+            lon = sum(unwrapped) / float(len(unwrapped))
+            if lon > 180.0:
+                lon -= 360.0
+        else:
+            lon = sum(longitudes) / float(len(longitudes))
         lat = sum(point[1] for point in points) / float(len(points))
         return lon, lat
 
@@ -835,9 +849,14 @@ class SpatialDataService:
         geometry_type = str(geometry.get("type", "") or "")
         coordinates = geometry.get("coordinates") or []
         if geometry_type == "Polygon":
-            return self._point_in_polygon(lon, lat, coordinates)
+            polygon, query_lon = self._normalize_antimeridian_polygon(coordinates, lon)
+            return self._point_in_polygon(query_lon, lat, polygon)
         if geometry_type == "MultiPolygon":
-            return any(self._point_in_polygon(lon, lat, polygon) for polygon in list(coordinates or []))
+            for polygon in list(coordinates or []):
+                normalized, query_lon = self._normalize_antimeridian_polygon(polygon, lon)
+                if self._point_in_polygon(query_lon, lat, normalized):
+                    return True
+            return False
         return False
 
     def _prepare_geometry_for_point_lookup(self, geometry):
@@ -853,12 +872,14 @@ class SpatialDataService:
         prepared_polygons = []
         area_bbox = None
         for polygon in polygons:
-            bbox = self._polygon_bbox(polygon)
+            normalized_polygon, _query_lon = self._normalize_antimeridian_polygon(polygon, 0.0)
+            bbox = self._polygon_bbox(normalized_polygon)
             if bbox is None:
                 continue
             prepared_polygons.append({
                 "bbox": bbox,
-                "polygon": polygon,
+                "polygon": normalized_polygon,
+                "antimeridian": normalized_polygon is not polygon,
             })
             area_bbox = self._merge_bbox(area_bbox, bbox)
         return {
@@ -869,15 +890,45 @@ class SpatialDataService:
     def _point_in_prepared_geometry(self, lon, lat, prepared_geometry):
         if not prepared_geometry:
             return False
+        query_lons = [float(lon)]
+        if any(bool(row.get("antimeridian")) for row in list(prepared_geometry.get("polygons") or [])):
+            query_lons.append(float(lon) + 360.0 if float(lon) < 0.0 else float(lon))
         bbox = prepared_geometry.get("bbox")
-        if not self._bbox_contains(bbox, lon, lat):
+        if not any(self._bbox_contains(bbox, query_lon, lat) for query_lon in query_lons):
             return False
         for prepared_polygon in list(prepared_geometry.get("polygons") or []):
-            if not self._bbox_contains(prepared_polygon.get("bbox"), lon, lat):
+            query_lon = float(lon)
+            if bool(prepared_polygon.get("antimeridian")) and query_lon < 0.0:
+                query_lon += 360.0
+            if not self._bbox_contains(prepared_polygon.get("bbox"), query_lon, lat):
                 continue
-            if self._point_in_polygon(lon, lat, prepared_polygon.get("polygon") or []):
+            if self._point_in_polygon(query_lon, lat, prepared_polygon.get("polygon") or []):
                 return True
         return False
+
+    def _normalize_antimeridian_polygon(self, polygon, query_lon):
+        longitudes = []
+        for ring in list(polygon or []):
+            for point in list(ring or []):
+                if len(point) >= 2:
+                    longitudes.append(float(point[0]))
+        if not longitudes or max(longitudes) - min(longitudes) <= 180.0:
+            return polygon, float(query_lon)
+        normalized = []
+        for ring in list(polygon or []):
+            normalized_ring = []
+            for point in list(ring or []):
+                if len(point) < 2:
+                    continue
+                item = list(point)
+                value = float(item[0])
+                item[0] = value + 360.0 if value < 0.0 else value
+                normalized_ring.append(item)
+            normalized.append(normalized_ring)
+        normalized_query = float(query_lon)
+        if normalized_query < 0.0:
+            normalized_query += 360.0
+        return normalized, normalized_query
 
     def _polygon_bbox(self, polygon):
         min_lon = None

@@ -1,10 +1,11 @@
-import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from application.services.phytools_dataset_builder import PhytoolsRunFiles
+from infrastructure.r_runtime_environment import build_r_subprocess_environment
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -48,8 +49,18 @@ class PhytoolsRunner:
 
     def run(self, run_files: PhytoolsRunFiles) -> PhytoolsRunOutput:
         rscript = self.resolve_rscript_path()
+        write_run_provenance(
+            run_files.workdir,
+            analysis="phytools",
+            engine_paths={
+                "rscript_executable": rscript,
+                "phytools_runner_script": run_files.script_path,
+            },
+            extra={"method": str(run_files.config.method)},
+        )
         cmd = [
             str(rscript),
+            "--vanilla",
             str(run_files.script_path),
             "--tree", str(run_files.tree_path),
             "--traits", str(run_files.traits_path),
@@ -63,13 +74,8 @@ class PhytoolsRunner:
             "--seed", str(int(getattr(run_files.config, "seed", 1) or 0)),
         ]
 
-        env = os.environ.copy()
         site_lib = self.resolve_site_library_path()
-        if site_lib is not None:
-            site_lib_text = str(site_lib)
-            env["R_LIBS"] = site_lib_text
-            env["R_LIBS_SITE"] = site_lib_text
-            env["R_LIBS_USER"] = site_lib_text
+        env = build_r_subprocess_environment(site_lib)
 
         proc = subprocess.run(
             cmd,

@@ -1,4 +1,6 @@
 {
+  "format": "rasp5_region_builder_config",
+  "version": 1,
   "name": "kawahara_7_bioregions_rule_based",
   "group": "Kawahara_2023_7_bioregions",
   "source": "Kawahara et al. 2023 Table S27 + Natural Earth",

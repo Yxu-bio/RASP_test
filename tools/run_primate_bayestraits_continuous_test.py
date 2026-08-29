@@ -2,11 +2,12 @@ import argparse
 import csv
 import json
 import math
+import os
 import shutil
 import sys
 import time
+import traceback
 from pathlib import Path
-from types import SimpleNamespace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -91,26 +92,17 @@ def _make_ultrametric_time_tree(tree, target_root_age):
     return copy_tree
 
 
-def _build_inputs(tree_count, trait_column, target_root_age):
+def _build_inputs(trait_column, target_root_age):
     from domain.models.state_matrix import StateMatrix
 
     data_dir = PROJECT_ROOT / "data" / "benchmarks" / "primate" / "Trees_States"
     tree_path = data_dir / "Primates.tree"
-    trees_path = data_dir / "100Trees.trees"
     characters_path = data_dir / "characters.csv"
 
     reference_tree = _make_ultrametric_time_tree(
         _read_nexus_trees(tree_path, limit=1)[0],
         target_root_age,
     )
-    candidate_trees = _read_nexus_trees(trees_path, limit=max(1, tree_count))
-    dated_trees = [
-        _make_ultrametric_time_tree(tree, target_root_age)
-        for tree in candidate_trees[:tree_count]
-    ]
-    if not dated_trees:
-        dated_trees = [reference_tree.copy(method="deepcopy")]
-
     leaf_set = set(reference_tree.get_leaf_names())
     rows = []
     group_values = {}
@@ -151,8 +143,7 @@ def _build_inputs(tree_count, trait_column, target_root_age):
         rows=rows,
         source_path=str(characters_path),
     )
-    entries = [SimpleNamespace(parsed_tree=tree) for tree in dated_trees]
-    return reference_tree, matrix, entries, occurrences, group_values
+    return reference_tree, matrix, occurrences, group_values
 
 
 def main():
@@ -160,9 +151,12 @@ def main():
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--sample", type=int, default=1000)
     parser.add_argument("--burnin", type=int, default=5000)
-    parser.add_argument("--tree-count", type=int, default=25)
-    parser.add_argument("--threads", type=int, default=4)
-    parser.add_argument("--bootstrap", type=int, default=50)
+    parser.add_argument(
+        "--tree-count",
+        type=int,
+        default=1,
+        help="Compatibility option; this BayesTraits check is intentionally single-tree and only accepts 1.",
+    )
     parser.add_argument("--seed", type=int, default=20260608)
     parser.add_argument("--root-age", type=float, default=74.0)
     parser.add_argument("--trait", default="Brain size species mean")
@@ -173,6 +167,11 @@ def main():
     )
     parser.add_argument("--run-name", default="")
     parser.add_argument("--clean", action="store_true")
+    parser.add_argument(
+        "--experimental-figure",
+        action="store_true",
+        help="Also run the separate Experimental publication-style figure exporter.",
+    )
     args = parser.parse_args()
 
     from app.bootstrap import ApplicationBootstrap
@@ -182,13 +181,17 @@ def main():
     bootstrap.inject_vendor_packages()
 
     from application.services.bayestraits_analysis_service import BayesTraitsAnalysisService
-    from application.services.continuous_trait_figure_exporter import ContinuousTraitPublicationFigureExporter
     from domain.models.bayestraits_config import BayesTraitsConfig
 
-    tree_count = max(1, min(30, int(args.tree_count)))
+    tree_count = int(args.tree_count)
+    if tree_count != 1:
+        raise ValueError(
+            "This BayesTraits regression is single-tree. Use --tree-count 1; "
+            "tree-set trait regression belongs to S-phytools/S-ape."
+        )
     run_name = args.run_name or (
-        "primate_%s_%strees_%siter"
-        % (args.trait.lower().replace(" ", "_"), tree_count, int(args.iterations))
+        "primate_%s_single_tree_%siter"
+        % (args.trait.lower().replace(" ", "_"), int(args.iterations))
     )
     out_root = PROJECT_ROOT / "runs" / "bayestraits" / run_name
     if args.clean and out_root.exists():
@@ -203,9 +206,8 @@ def main():
         with open(str(progress_path), "a", encoding="utf-8") as handle:
             handle.write(text + "\n")
 
-    log("Loading Primate data and creating %s synthetic dated trees" % tree_count)
-    reference_tree, matrix, entries, occurrences, group_values = _build_inputs(
-        tree_count,
+    log("Loading Primate data and preparing one dated reference tree")
+    reference_tree, matrix, occurrences, group_values = _build_inputs(
         args.trait,
         args.root_age,
     )
@@ -225,21 +227,14 @@ def main():
         continuous_transform="log10",
         continuous_display_scale="original",
         continuous_plot_scale="analysis",
-        continuous_dtt=True,
-        continuous_dtt_tree_limit=tree_count,
-        continuous_dtt_threads=max(1, int(args.threads)),
-        continuous_dtt_random_seed=int(args.seed),
-        continuous_dtt_time_step=5.0,
-        continuous_dtt_age_offset=0.0,
-        continuous_dtt_bootstrap_count=max(1, int(args.bootstrap)),
-        continuous_dtt_weight_mode="corrected",
+        random_seed=int(args.seed),
         selected_node_ids=[],
     )
     config.validate()
 
     log(
-        "Running BayesTraits: iterations=%s sample=%s burnin=%s DTT threads=%s bootstrap=%s"
-        % (args.iterations, args.sample, args.burnin, args.threads, args.bootstrap)
+        "Running BayesTraits: iterations=%s sample=%s burnin=%s"
+        % (args.iterations, args.sample, args.burnin)
     )
     service = BayesTraitsAnalysisService(
         executable_path=PROJECT_ROOT / "engines" / "bayestraits" / "BayesTraitsV5.exe",
@@ -249,34 +244,39 @@ def main():
         reference_tree=reference_tree,
         matrix=matrix,
         config=config,
-        tree_entries=entries,
+        tree_entries=None,
         run_name="run",
     )
-    log("BayesTraits and DTT finished; exporting figure")
+    log("BayesTraits continuous ASR finished")
 
-    result.figure_occurrences = occurrences
-    result.figure_group_values = group_values
-    result.figure_group_order = sorted(group_values.keys())
-    result.figure_group_colors = {
-        "Sociality A": "#6d6ab1",
-        "Sociality B": "#60b8e6",
-        "Sociality C": "#78b97a",
-        "Sociality D": "#e07a5f",
-        "Sociality AB": "#b68ccf",
-        "Sociality AC": "#d5bd48",
-        "Sociality AD": "#8aa8d9",
-        "Sociality BC": "#64b5a5",
-        "Sociality BD": "#ce9c5d",
-        "Sociality CD": "#a1a85a",
-        "Sociality BCD": "#d47a9f",
-    }
+    figure_path = None
+    if bool(args.experimental_figure):
+        from application.services.continuous_trait_figure_exporter import ContinuousTraitPublicationFigureExporter
 
-    figure_path = out_root / ("%s.png" % run_name)
-    ContinuousTraitPublicationFigureExporter().export(
-        result,
-        str(figure_path),
-        method_name="BayesTraits MCMC Primate continuous test",
-    )
+        log("Running separate Experimental publication-style figure export")
+        result.figure_occurrences = occurrences
+        result.figure_group_values = group_values
+        result.figure_group_order = sorted(group_values.keys())
+        result.figure_group_colors = {
+            "Sociality A": "#6d6ab1",
+            "Sociality B": "#60b8e6",
+            "Sociality C": "#78b97a",
+            "Sociality D": "#e07a5f",
+            "Sociality AB": "#b68ccf",
+            "Sociality AC": "#d5bd48",
+            "Sociality AD": "#8aa8d9",
+            "Sociality BC": "#64b5a5",
+            "Sociality BD": "#ce9c5d",
+            "Sociality CD": "#a1a85a",
+            "Sociality BCD": "#d47a9f",
+        }
+        figure_path = out_root / ("%s_experimental_figure.png" % run_name)
+        ContinuousTraitPublicationFigureExporter().export(
+            result,
+            str(figure_path),
+            method_name="Experimental BayesTraits MCMC Primate continuous figure",
+        )
+        log("Wrote Experimental figure: %s" % figure_path)
 
     summary_path = out_root / ("%s_summary.json" % run_name)
     payload = {
@@ -293,13 +293,31 @@ def main():
         "time_series_lower": result.figure_time_series.get("lower", []),
         "time_series_upper": result.figure_time_series.get("upper", []),
         "model_statistics": dict(getattr(result, "model_statistics", {}) or {}),
-        "figure_path": str(figure_path),
+        "experimental_figure_path": str(figure_path) if figure_path is not None else "",
         "analysis_log_path": str(getattr(result, "analysis_log_path", "") or ""),
     }
     summary_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    log("Wrote figure: %s" % figure_path)
     log("Wrote summary: %s" % summary_path)
 
 
+def _run_cli():
+    exit_code = 0
+    try:
+        main()
+    except BaseException:
+        traceback.print_exc()
+        exit_code = 1
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+    # Importing vendor ETE3 also imports its PyQt5 treeview modules. On the
+    # Python 3.6 Windows test runtime, interpreter teardown can hang or fault
+    # after a headless check even though no QApplication was created.
+    if sys.platform == "win32":
+        os._exit(exit_code)
+    raise SystemExit(exit_code)
+
+
 if __name__ == "__main__":
-    main()
+    _run_cli()

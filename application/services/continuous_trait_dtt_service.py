@@ -8,7 +8,11 @@ from pathlib import Path
 
 
 class ContinuousTraitDTTService:
-    """Build disparity-through-time metadata from per-tree BayesTraits ASR runs."""
+    """Experimental DTT post-analysis over explicit per-tree BayesTraits ASR runs.
+
+    This service is intentionally not called by BayesTraitsAnalysisService or its
+    configuration dialog. Callers must opt in after ancestral-state estimation.
+    """
 
     def __init__(self, *, dataset_builder, runner, output_parser):
         self.dataset_builder = dataset_builder
@@ -74,7 +78,8 @@ class ContinuousTraitDTTService:
         time_series = self._summarise_time_series(all_rows)
         time_series.update({
             "kind": "disparity",
-            "label": "BayesTraits DTT disparity",
+            "label": "Experimental BayesTraits DTT disparity",
+            "experimental": True,
             "x_label": "Age (Ma)" if self._age_offset(config) else "Age (tree units)",
             "y_label": "Disparity",
             "color": "#c95768",
@@ -88,6 +93,7 @@ class ContinuousTraitDTTService:
         stats = dict(getattr(result, "model_statistics", {}) or {})
         stats.update({
             "continuous_dtt_enabled": True,
+            "continuous_dtt_experimental": True,
             "continuous_dtt_estimator": "BayesTraits Continuous ASR",
             "continuous_dtt_input_tree_count": len([
                 entry for entry in list(tree_entries or [])
@@ -104,11 +110,16 @@ class ContinuousTraitDTTService:
             "continuous_dtt_summary_path": str(output_dir / "continuous_dtt_summary.json"),
         })
         result.model_statistics = stats
+        metadata = dict(getattr(result, "metadata", {}) or {})
+        metadata["experimental_dtt"] = True
+        metadata["dtt_result_kind"] = "experimental_post_analysis"
+        result.metadata = metadata
         result.result_note = (str(getattr(result, "result_note", "") or "") + "\n"
-                              "DTT uses per-tree BayesTraits internal-node estimates, corrected gradual-split "
+                              "Experimental DTT uses per-tree BayesTraits internal-node estimates, corrected gradual-split "
                               "branch sampling, and variance on the analysis scale.").strip()
 
         payload = {
+            "experimental": True,
             "time_series": time_series,
             "per_tree": [
                 {

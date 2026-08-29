@@ -615,27 +615,27 @@ class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
     def build_method_summary(self):
         warnings = list(getattr(self.result, "parse_warnings", []) or [])
         actual_name = str(getattr(self.result, "model_name", "") or self.method_name)
-        if actual_name.startswith("BayesTraits"):
-            semantics_note = (
-                "Continuous ASR shows posterior summaries of BayesTraits unknown internal-node values. "
-                "Branches are visualized by interpolating parent and child node/tip values."
-            )
-        elif actual_name.startswith("phytools") or actual_name.startswith("S-phytools"):
-            semantics_note = (
-                "Continuous ASR shows phytools continuous-trait ancestral estimates. "
-                "Branches are visualized by interpolating parent and child node/tip values."
-            )
-        else:
-            semantics_note = (
-                "Continuous ASR shows internal-node continuous trait estimates. "
-                "Branches are visualized by interpolating parent and child node/tip values."
-            )
+        metadata = dict(getattr(self.result, "metadata", {}) or {})
+        estimator = str(metadata.get("estimator", "") or actual_name)
+        uncertainty_kind = str(metadata.get("uncertainty_kind", "") or "point_estimate")
+        uncertainty_labels = {
+            "point_estimate": "point estimates",
+            "confidence_interval": "point estimates with confidence intervals",
+            "posterior_interval": "posterior summaries and posterior intervals",
+            "across_tree_percentile_interval": "across-tree summaries and percentile intervals",
+        }
+        semantics_note = (
+            "Continuous ASR shows %s from %s. Branch colors interpolate the configured "
+            "parent and child node/tip summary values; interpolation is a display operation, "
+            "not a separately estimated within-branch history."
+            % (uncertainty_labels.get(uncertainty_kind, "ancestral estimates"), estimator)
+        )
         return MethodSummarySchema(
             method_name=actual_name,
             method_type=self.method_type,
             input_tree_count=int(getattr(self.result, "input_tree_count", 1) or 1),
             effective_tree_count=int(getattr(self.result, "effective_tree_count", 1) or 1),
-            is_tree_set=False,
+            is_tree_set=bool(metadata.get("tree_set", False)) or int(getattr(self.result, "input_tree_count", 1) or 1) > 1,
             has_event_model=False,
             has_time_model=False,
             display_id_source="reference_node_id",
@@ -654,6 +654,8 @@ class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
             for key, value in method_payload.items():
                 raw.setdefault(key, value)
         raw["continuous"] = True
+        metadata = dict(getattr(self.result, "metadata", {}) or {})
+        raw.update({key: value for key, value in metadata.items() if key not in raw})
         raw["trait_transform"] = str(getattr(self.result, "trait_transform", "none") or "none")
         raw["trait_display_scale"] = str(getattr(self.result, "trait_display_scale", "analysis") or "analysis")
         raw["trait_plot_scale"] = str(getattr(self.result, "trait_plot_scale", "analysis") or "analysis")
@@ -683,12 +685,27 @@ class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
         display_median = float(raw.get("display_median", getattr(node_result, "median", 0.0)) or 0.0)
         display_lower95 = float(raw.get("display_lower95", getattr(node_result, "lower95", 0.0)) or 0.0)
         display_upper95 = float(raw.get("display_upper95", getattr(node_result, "upper95", 0.0)) or 0.0)
-        summary = "mean %.4g, median %.4g, 95%% CI [%.4g, %.4g]" % (
-            display_mean,
-            display_median,
-            display_lower95,
-            display_upper95,
-        )
+        uncertainty_kind = str(metadata.get("uncertainty_kind", raw.get("uncertainty_kind", "point_estimate")) or "point_estimate")
+        summary_statistic = str(metadata.get("summary_statistic", raw.get("summary_statistic", "mean")) or "mean")
+        summary_value = display_median if summary_statistic == "median" else display_mean
+        interval_label = str(metadata.get("interval_label", raw.get("interval_label", "")) or "")
+        if uncertainty_kind == "point_estimate":
+            summary = "%s %.4g" % (summary_statistic, summary_value)
+            support_summary = "point estimate"
+        else:
+            summary = "%s %.4g, %s [%.4g, %.4g]" % (
+                summary_statistic,
+                summary_value,
+                interval_label or "interval",
+                display_lower95,
+                display_upper95,
+            )
+            if uncertainty_kind == "posterior_interval":
+                support_summary = "MCMC samples: %s" % int(getattr(node_result, "sample_count", 0) or 0)
+            elif uncertainty_kind == "across_tree_percentile_interval":
+                support_summary = "supporting trees: %s" % int(getattr(node_result, "sample_count", 0) or 0)
+            else:
+                support_summary = interval_label or "interval estimate"
 
         return NodePayloadSchema(
             method_name=str(getattr(self.result, "model_name", "") or self.method_name),
@@ -700,17 +717,17 @@ class ContinuousTraitResultSchemaAdapter(BaseResultSchemaAdapter):
             state_labels=[],
             state_text=summary,
             state_summary=summary,
-            support_summary="samples: %s" % int(getattr(node_result, "sample_count", 0) or 0),
+            support_summary=support_summary,
             ambiguity_count=0,
             supporting_tree_count=int(getattr(node_result, "sample_count", 0) or 0),
             total_tree_count=int(getattr(node_result, "sample_count", 0) or 0),
             state_counts={},
             state_supports={},
-            event_summary="Continuous trait posterior summary",
+            event_summary="Continuous trait %s" % uncertainty_kind.replace("_", " "),
             time_summary="Time not applicable",
             interpretation_note=(
-                "Node color and branch gradient use the posterior mean continuous trait value "
-                "on the configured trait scale."
+                "Node color and branch gradient use the %s continuous trait value on %s."
+                % (summary_statistic, str(raw.get("plot_scale", "") or "the configured plot scale"))
             ),
             raw_method_payload=raw,
         )

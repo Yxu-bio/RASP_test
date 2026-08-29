@@ -9,10 +9,15 @@ from infrastructure.diva.diva_runner import DivaRunner
 
 
 class DivaAnalysisService:
-    def __init__(self, project_root: str = None) -> None:
+    def __init__(self, project_root: str = None, work_root: str = None) -> None:
         if project_root is None:
             project_root = Path(__file__).resolve().parent.parent.parent
         self.project_root = Path(project_root)
+        self.work_root = (
+            Path(work_root)
+            if work_root is not None
+            else self.project_root / "runs" / "diva"
+        )
 
         self.dataset_builder = DivaDatasetBuilder()
         self.output_parser = DivaOutputParser()
@@ -67,7 +72,7 @@ class DivaAnalysisService:
 
     def _make_run_dir(self, tree_name: str, distribution_name: str) -> Path:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        run_dir = self.project_root / "runs" / "diva" / f"{stamp}_{tree_name}_{distribution_name}"
+        run_dir = self.work_root / f"{stamp}_{tree_name}_{distribution_name}"
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 

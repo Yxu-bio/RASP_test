@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from domain.models.sbgb_config import normalize_sbgb_null_range_mode
 from domain.models.biogeobears_result import BioGeoBEARSResult, BioGeoBEARSNodeResult
+from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
@@ -53,11 +54,16 @@ class SBGBAnalysisService:
         "BAYAREALIKEJ": "BAYAREALIKE+J",
     }
 
-    def __init__(self, biogeobears_service, project_root=None):
+    def __init__(self, biogeobears_service, project_root=None, work_root=None):
         self.biogeobears_service = biogeobears_service
         if project_root is None:
             project_root = Path(__file__).resolve().parent.parent.parent
         self.project_root = Path(project_root)
+        self.work_root = (
+            Path(work_root)
+            if work_root is not None
+            else self.project_root / "runs" / "sbgb"
+        )
 
     def analyze(
         self,
@@ -102,6 +108,20 @@ class SBGBAnalysisService:
         self._validate_tree_taxa(reference_tree, name_to_index, "reference tree")
 
         run_dir = self._make_run_dir(model_name)
+        bgb_runner = self.biogeobears_service.runner
+        write_run_provenance(
+            run_dir,
+            analysis="S-BioGeoBEARS aggregate",
+            engine_paths={
+                "rscript_executable": bgb_runner.resolve_rscript_path(),
+                "biogeobears_wrapper": bgb_runner.resolve_wrapper_script_path(),
+            },
+            extra={
+                "model": model_name,
+                "input_tree_count": len(tree_entries),
+                "threads": max(1, int(thread_count or 1)),
+            },
+        )
         reference_nodes = self._build_reference_nodes(reference_tree, name_to_index, index_to_name)
         reference_clades = {node["node_key"]: node for node in reference_nodes}
 
@@ -715,7 +735,7 @@ class SBGBAnalysisService:
 
     def _make_run_dir(self, model_name: str) -> Path:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        run_dir = self.project_root / "runs" / "sbgb" / ("legacy_sbgb_%s_%s" % (model_name.lower(), stamp))
+        run_dir = self.work_root / ("legacy_sbgb_%s_%s" % (model_name.lower(), stamp))
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 

@@ -236,6 +236,11 @@ vector_key <- function(x, sort_values = FALSE) {
   paste(values, collapse = ",")
 }
 
+period_ranges_key <- function(x) {
+  if (is.null(x) || length(x) == 0) return("")
+  paste(vapply(x, vector_key, FUN.VALUE = character(1), sort_values = FALSE), collapse = ";")
+}
+
 build_bgb_cache_key <- function(
   model_name,
   treefile,
@@ -262,6 +267,7 @@ build_bgb_cache_key <- function(
     as.character(null_range_mode),
     vector_key(areas_meta$include_ranges, sort_values = TRUE),
     vector_key(areas_meta$exclude_ranges, sort_values = TRUE),
+    period_ranges_key(areas_meta$allowed_ranges_by_period),
     as.character(areas_meta$time_matrix_kind),
     file_md5_key(timeperiods_path),
     file_md5_key(dispersal_multipliers_path),
@@ -384,6 +390,32 @@ build_configured_states_list <- function(area_names, max_range_size, include_nul
   }
 
   states[keep]
+}
+
+build_period_states_lists <- function(period_ranges, states_list, area_names) {
+  if (is.null(period_ranges) || length(period_ranges) == 0) {
+    return(NULL)
+  }
+  labels <- vapply(
+    states_list,
+    range_label_for_state,
+    FUN.VALUE = character(1),
+    area_names = area_names
+  )
+  out <- vector("list", length(period_ranges))
+  for (index in seq_along(period_ranges)) {
+    allowed <- as_meta_vector(period_ranges[[index]])
+    keep <- labels %in% allowed
+    if (!any(keep)) {
+      stop(paste("Period allowed ranges removed all states for period", index))
+    }
+    missing <- setdiff(allowed, labels)
+    if (length(missing) > 0) {
+      stop(paste("Period allowed ranges contain unknown states for period", index, ":", paste(missing, collapse = ", ")))
+    }
+    out[[index]] <- states_list[keep]
+  }
+  out
 }
 
 base_model_for_j_model <- function(model_name) {
@@ -806,21 +838,6 @@ stringify_bsm_table <- function(df) {
   df
 }
 
-rbind_bsm_tables <- function(tables) {
-  pieces <- list()
-  for (i in seq_along(tables)) {
-    df <- stringify_bsm_table(tables[[i]])
-    if (!is.null(df) && is.data.frame(df) && nrow(df) > 0) {
-      df$sample_id <- i
-      pieces[[length(pieces) + 1]] <- df
-    }
-  }
-  if (length(pieces) == 0) {
-    return(data.frame(sample_id = integer()))
-  }
-  do.call(rbind, pieces)
-}
-
 add_bsm_state_labels <- function(df, state_labels) {
   if (is.null(df) || !is.data.frame(df) || length(state_labels) == 0) {
     return(df)
@@ -847,6 +864,35 @@ add_bsm_state_labels <- function(df, state_labels) {
   df
 }
 
+write_bsm_tables_csv <- function(tables, path, state_labels = character(0)) {
+  if (file.exists(path)) unlink(path)
+  wrote_header <- FALSE
+  row_count <- 0L
+  for (i in seq_along(tables)) {
+    df <- stringify_bsm_table(tables[[i]])
+    if (is.data.frame(df) && nrow(df) > 0) {
+      df$sample_id <- i
+      df <- add_bsm_state_labels(df, state_labels)
+      write.table(
+        df,
+        file = path,
+        sep = ",",
+        row.names = FALSE,
+        col.names = !wrote_header,
+        append = wrote_header,
+        quote = TRUE,
+        qmethod = "double"
+      )
+      wrote_header <- TRUE
+      row_count <- row_count + nrow(df)
+    }
+  }
+  if (!wrote_header) {
+    write.csv(data.frame(sample_id = integer()), path, row.names = FALSE)
+  }
+  row_count
+}
+
 write_bsm_event_tables <- function(bsm_output, outdir, state_labels = character(0)) {
   dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
   RES_clado_events_tables <- bsm_output$RES_clado_events_tables
@@ -855,12 +901,17 @@ write_bsm_event_tables <- function(bsm_output, outdir, state_labels = character(
   save(RES_clado_events_tables, file = file.path(outdir, "RES_clado_events_tables.Rdata"))
   save(RES_ana_events_tables, file = file.path(outdir, "RES_ana_events_tables.Rdata"))
 
-  all_clado <- add_bsm_state_labels(rbind_bsm_tables(RES_clado_events_tables), state_labels)
-  all_ana <- add_bsm_state_labels(rbind_bsm_tables(RES_ana_events_tables), state_labels)
-
-  write.csv(all_clado, file = file.path(outdir, "bsm_clado_events.csv"), row.names = FALSE)
-  write.csv(all_ana, file = file.path(outdir, "bsm_ana_events.csv"), row.names = FALSE)
-  invisible(list(clado_rows = nrow(all_clado), ana_rows = nrow(all_ana)))
+  clado_rows <- write_bsm_tables_csv(
+    RES_clado_events_tables,
+    file.path(outdir, "bsm_clado_events.csv"),
+    state_labels
+  )
+  ana_rows <- write_bsm_tables_csv(
+    RES_ana_events_tables,
+    file.path(outdir, "bsm_ana_events.csv"),
+    state_labels
+  )
+  invisible(list(clado_rows = clado_rows, ana_rows = ana_rows))
 }
 
 run_bsm_if_requested <- function(args, res) {
@@ -884,10 +935,12 @@ run_bsm_if_requested <- function(args, res) {
   dir.create(bsm_outdir, recursive = TRUE, showWarnings = FALSE)
   stochastic_mapping_inputs_list <- get_inputs_for_stochastic_mapping(res = res)
   bsm_state_labels <- character(0)
+  bsm_areanames <- character(0)
   try({
     returned_mats <- get_Qmat_COOmat_from_BioGeoBEARS_run_object(
       BioGeoBEARS_run_object = res$inputs
     )
+    bsm_areanames <- as.character(returned_mats$areanames)
     bsm_state_labels <- vapply(
       returned_mats$ranges_list,
       range_label_for_state,
@@ -911,13 +964,44 @@ run_bsm_if_requested <- function(args, res) {
     master_nodenum_toPrint = 0
   )
 
+  if (length(bsm_areanames) == 0) {
+    stop("Could not determine BioGeoBEARS area names for BSM source-area assignment.")
+  }
+  bsm_source_seed <- bsm_seed
+  set.seed(bsm_source_seed)
+  bsm_source_warnings <- character(0)
+  source_assigned <- withCallingHandlers(
+    simulate_source_areas_ana_clado(
+      res = res,
+      clado_events_tables = bsm_output$RES_clado_events_tables,
+      ana_events_tables = bsm_output$RES_ana_events_tables,
+      areanames = bsm_areanames
+    ),
+    warning = function(w) {
+      bsm_source_warnings <<- c(bsm_source_warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  bsm_output$RES_clado_events_tables <- source_assigned$clado_events_tables
+  bsm_output$RES_ana_events_tables <- source_assigned$ana_events_tables
+  rm(source_assigned)
+  invisible(gc())
+
   summary <- write_bsm_event_tables(bsm_output, bsm_outdir, state_labels = bsm_state_labels)
   jsonlite::write_json(
     list(
+      format = "rasp5_biogeobears_bsm_summary",
+      version = 1,
       nummaps = bsm_nummaps,
       seed = bsm_seed,
       maxnum_maps_to_try = bsm_maxnum_maps_to_try,
       maxtries_per_branch = bsm_maxtries,
+      source_assignment_method = "biogeobears_probabilistic_unique_source",
+      source_assignment_seed = bsm_source_seed,
+      source_assignment_function = "BioGeoBEARS::simulate_source_areas_ana_clado",
+      source_assignment_warning_count = length(bsm_source_warnings),
+      source_assignment_warnings = unique(bsm_source_warnings),
+      area_names = bsm_areanames,
       clado_rows = summary$clado_rows,
       ana_rows = summary$ana_rows,
       state_labels = bsm_state_labels,
@@ -977,6 +1061,7 @@ dispersal_multipliers_path <- meta_path(areas_meta, "dispersal_multipliers_filen
 areas_allowed_path <- meta_path(areas_meta, "areas_allowed_filename", areas_base_dir)
 areas_adjacency_path <- meta_path(areas_meta, "areas_adjacency_filename", areas_base_dir)
 distances_path <- meta_path(areas_meta, "distances_filename", areas_base_dir)
+period_state_lists_only <- isTRUE(areas_meta$period_state_lists_only)
 
 if (!is.null(timeperiods_path) && file.exists(timeperiods_path)) {
   runobj$timesfn <- timeperiods_path
@@ -987,7 +1072,7 @@ if (!is.null(dispersal_multipliers_path) && file.exists(dispersal_multipliers_pa
 if (!is.null(areas_allowed_path) && file.exists(areas_allowed_path)) {
   runobj$areas_allowed_fn <- areas_allowed_path
 }
-if (!is.null(areas_adjacency_path) && file.exists(areas_adjacency_path)) {
+if (!period_state_lists_only && !is.null(areas_adjacency_path) && file.exists(areas_adjacency_path)) {
   runobj$areas_adjacency_fn <- areas_adjacency_path
 }
 if (!is.null(distances_path) && file.exists(distances_path)) {
@@ -1001,6 +1086,14 @@ runobj$states_list <- build_configured_states_list(
   include_ranges = areas_meta$include_ranges,
   exclude_ranges = areas_meta$exclude_ranges
 )
+period_states_lists <- build_period_states_lists(
+  areas_meta$allowed_ranges_by_period,
+  runobj$states_list,
+  areas_meta$area_names
+)
+if (!is.null(period_states_lists)) {
+  runobj$lists_of_states_lists_0based <- period_states_lists
+}
 
 runobj$use_optimx <- TRUE
 requested_cores <- max(1, as.integer(ifelse(is.null(areas_meta$cores), 1, areas_meta$cores)))

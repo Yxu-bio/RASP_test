@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "case_id": "psychotria_distance_norm_4chain_long",
+  "description": "Reproducible multi-chain BayArea DISTANCE_NORM convergence benchmark using the bundled Psychotria dataset.",
+  "inputs": {
+    "tree": "data/benchmarks/psychotria/Psychotria.tree",
+    "matrix": "data/benchmarks/psychotria/distribution.csv",
+    "coordinates": "data/benchmarks/psychotria/coordinates.csv",
+    "sha256": {
+      "tree": "1F99969216619A28608525956A35D0F03D35061EE96ED62B612443B20189F5F3",
+      "matrix": "DD7F4B19AD92E5047527AECB555D96A6E75713397A743F1F83132A6DE762AB45",
+      "coordinates": "25B794FBDFC332BA56FA23AC582A0FE1B932506AED2EDC57D1AC3BA83A14C194",
+      "engine": "F2BAD391D9DC828C6C87D060863F8BA69BC7D9827FBE239AE1D91547BF14EC12"
+    }
+  },
+  "config": {
+    "model_type": "DISTANCE_NORM",
+    "chain_length": 5000000,
+    "sample_frequency": 1000,
+    "burnin": 500000,
+    "independent_chains": 4,
+    "parallel_chains": 4,
+    "seed": 20260829,
+    "guess_initial_rates": true,
+    "use_auxiliary_sampling": false,
+    "geo_distance_power_positive": true,
+    "geo_distance_truncate": false,
+    "gain_prior": 0.1,
+    "loss_prior": 0.1,
+    "distance_power_prior": 0.1,
+    "area_proposal_tuner": 0.1,
+    "rate_proposal_tuner": 0.5,
+    "distance_proposal_tuner": 0.5
+  },
+  "diagnostics": {
+    "traces": [
+      "lnL",
+      "gain",
+      "loss",
+      "distP"
+    ],
+    "checkpoint_fractions": [
+      0.2,
+      0.5,
+      1.0
+    ],
+    "burnin_fraction": 0.1,
+    "minimum": {
+      "maximum_split_rhat": 1.05,
+      "minimum_per_chain_ess": 100.0,
+      "maximum_standardized_half_shift": 0.25
+    },
+    "target": {
+      "maximum_split_rhat": 1.01,
+      "minimum_per_chain_ess": 400.0,
+      "maximum_standardized_half_shift": 0.1
+    }
+  }
+}

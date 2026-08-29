@@ -256,6 +256,9 @@ class BSMEventTableDialog(QDialog):
         self.export_time_button.clicked.connect(self._export_time_csv)
         controls.addWidget(self.export_time_button)
         layout.addLayout(controls)
+        self.time_caption_label = QLabel("", page)
+        self.time_caption_label.setWordWrap(True)
+        layout.addWidget(self.time_caption_label)
         self.time_table = QTableWidget(page)
         self.time_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.time_table.setAlternatingRowColors(True)
@@ -289,7 +292,13 @@ class BSMEventTableDialog(QDialog):
     def _events_caption(self):
         summary = dict(getattr(self.result, "summary", {}) or {})
         maps = summary.get("nummaps", "")
-        prefix = "%d / %d BSM events" % (len(self.filtered_events), len(self.all_events))
+        total = int(summary.get("normalized_event_count", len(self.all_events)) or 0)
+        if bool(getattr(self.result, "events_complete", True)):
+            prefix = "%d / %d BSM events" % (len(self.filtered_events), total)
+        else:
+            prefix = "Preview: %d filtered / %d loaded; %d total BSM events" % (
+                len(self.filtered_events), len(self.all_events), total,
+            )
         if maps != "":
             prefix += " from %s stochastic maps" % maps
         return prefix
@@ -327,7 +336,14 @@ class BSMEventTableDialog(QDialog):
         self._fill_table(self.events_table, headers, rows)
 
     def _populate_time_table(self):
-        rows = self._build_time_series(self.filtered_events)
+        rows = self._current_time_series()
+        if hasattr(self, "time_caption_label"):
+            if not bool(getattr(self.result, "events_complete", True)) and not self._has_event_filters():
+                self.time_caption_label.setText("Full event-through-time summary from all scanned BSM rows.")
+            elif not bool(getattr(self.result, "events_complete", True)):
+                self.time_caption_label.setText("Filtered event-through-time preview; filters apply to loaded preview rows only.")
+            else:
+                self.time_caption_label.setText("Event-through-time summary for the current event filters.")
         keys = []
         for row in rows:
             for key in row.keys():
@@ -357,19 +373,35 @@ class BSMEventTableDialog(QDialog):
         self._fill_table(self.raw_table, headers, table_rows)
 
     def _summary_text(self, events=None):
+        using_current_events = events is None
         events = list(self.filtered_events if events is None else events)
-        event_type_counts = Counter(self._event_count_key(event) for event in events)
-        route_counts = Counter(self._event_route_key(event) for event in events if self._event_route_key(event))
+        use_full_aggregates = (
+            using_current_events
+            and not bool(getattr(self.result, "events_complete", True))
+            and not self._has_event_filters()
+        )
+        if use_full_aggregates:
+            event_type_counts = Counter(dict(getattr(self.result, "event_type_counts", {}) or {}))
+            route_counts = Counter(dict(getattr(self.result, "route_counts", {}) or {}))
+        else:
+            event_type_counts = Counter(self._event_count_key(event) for event in events)
+            route_counts = Counter(self._event_route_key(event) for event in events if self._event_route_key(event))
         lines = []
         lines.append("BioGeoBEARS BSM event summary")
         lines.append("")
         lines.append("Source model: %s" % str(getattr(self.result, "source_model_name", "") or "BioGeoBEARS"))
-        lines.append("Filtered events: %d / %d" % (len(events), len(self.all_events)))
-        metadata = self._filter_metadata()
+        total = int(dict(getattr(self.result, "summary", {}) or {}).get("normalized_event_count", len(self.all_events)) or 0)
+        if use_full_aggregates:
+            lines.append("Events summarized: %d (full scan)" % total)
+            lines.append("Events shown in table: %d (preview)" % len(self.all_events))
+        elif not bool(getattr(self.result, "events_complete", True)):
+            lines.append("Filtered preview events: %d / %d loaded; %d total in source" % (len(events), len(self.all_events), total))
+        else:
+            lines.append("Filtered events: %d / %d" % (len(events), total))
         active_filters = [
             "%s=%s" % (key, value)
-            for key, value in metadata.items()
-            if str(value).strip() and str(value).strip().lower() not in ("all", "")
+            for key, value in self._active_event_filter_metadata().items()
+            if str(value).strip()
         ]
         if active_filters:
             lines.append("Filters: %s" % "; ".join(active_filters))
@@ -1081,6 +1113,58 @@ class BSMEventTableDialog(QDialog):
             rows.append(row)
         return rows
 
+    def _current_time_series(self):
+        if not bool(getattr(self.result, "events_complete", True)) and not self._has_event_filters():
+            return self._rebucket_time_series_rows(list(getattr(self.result, "time_series", []) or []))
+        return self._build_time_series(self.filtered_events)
+
+    def _rebucket_time_series_rows(self, source_rows):
+        bin_size = self._safe_float_or_none(self._filter_metadata().get("time_bin_size", ""))
+        if bin_size is None or bin_size <= 0.0:
+            bin_size = 0.0
+        buckets = defaultdict(lambda: Counter())
+        for source_row in list(source_rows or []):
+            time_value = self._safe_float_or_none(source_row.get("time"))
+            if time_value is None:
+                continue
+            if bin_size > 0.0:
+                bin_start = math.floor(time_value / bin_size) * bin_size
+                time_key = (round(bin_start, 6), round(bin_start + bin_size, 6))
+            else:
+                time_key = round(time_value, 6)
+            for key, value in dict(source_row).items():
+                if key == "time":
+                    continue
+                try:
+                    buckets[time_key][key] += int(value)
+                except Exception:
+                    continue
+        rows = []
+        reverse = self._filter_metadata().get("time_direction", "ascending") == "descending"
+        for time_key in sorted(buckets.keys(), reverse=reverse):
+            if isinstance(time_key, tuple):
+                row = {
+                    "time_bin_start": time_key[0],
+                    "time_bin_end": time_key[1],
+                    "time_bin_label": "%s-%s" % (self._format_number(time_key[0]), self._format_number(time_key[1])),
+                }
+            else:
+                row = {"time": time_key}
+            for key, value in sorted(buckets[time_key].items()):
+                row[key] = int(value)
+            rows.append(row)
+        return rows
+
+    def _active_event_filter_metadata(self):
+        metadata = self._filter_metadata()
+        return dict((key, metadata.get(key, "")) for key in (
+            "scope", "event_type", "source_range", "target_range", "node", "branch",
+            "time_min", "time_max", "search",
+        ))
+
+    def _has_event_filters(self):
+        return any(str(value or "").strip() for value in self._active_event_filter_metadata().values())
+
     def _event_count_key(self, event):
         event_type = str(getattr(event, "event_type", "") or "").strip()
         scope = str(getattr(event, "event_scope", "") or "").strip()
@@ -1136,7 +1220,23 @@ class BSMEventTableDialog(QDialog):
 
         events = list(self.filtered_events or [])
         metadata = self._filter_metadata()
+        source_total = int(
+            dict(getattr(self.result, "summary", {}) or {}).get(
+                "normalized_event_count", len(self.all_events)
+            ) or 0
+        )
+        events_complete = bool(getattr(self.result, "events_complete", True))
+        if events_complete:
+            data_scope = "complete_event_table"
+        elif self._has_event_filters():
+            data_scope = "filtered_preview_event_table"
+        else:
+            data_scope = "unfiltered_preview_event_table"
         headers = [
+            "data_scope",
+            "events_complete",
+            "source_event_count",
+            "exported_event_count",
             "filter_scope",
             "filter_event_type",
             "filter_source_range",
@@ -1172,6 +1272,10 @@ class BSMEventTableDialog(QDialog):
                     else:
                         row = dict(getattr(event, "__dict__", {}) or {})
                     row.update({
+                        "data_scope": data_scope,
+                        "events_complete": events_complete,
+                        "source_event_count": source_total,
+                        "exported_event_count": len(events),
                         "filter_scope": metadata.get("scope", ""),
                         "filter_event_type": metadata.get("event_type", ""),
                         "filter_source_range": metadata.get("source_range", ""),
@@ -1191,7 +1295,7 @@ class BSMEventTableDialog(QDialog):
             QMessageBox.critical(self, "Export failed", str(exc))
 
     def _export_time_csv(self):
-        rows = self._build_time_series(self.filtered_events)
+        rows = self._current_time_series()
         if not rows:
             QMessageBox.information(self, "Export time CSV", "The filtered time table is empty.")
             return
@@ -1207,7 +1311,22 @@ class BSMEventTableDialog(QDialog):
             path += ".csv"
 
         metadata = self._filter_metadata()
+        events_complete = bool(getattr(self.result, "events_complete", True))
+        if events_complete:
+            data_scope = "complete_event_aggregate"
+        elif self._has_event_filters():
+            data_scope = "filtered_preview_event_aggregate"
+        else:
+            data_scope = "full_scan_event_aggregate"
+        source_total = int(
+            dict(getattr(self.result, "summary", {}) or {}).get(
+                "normalized_event_count", len(self.all_events)
+            ) or 0
+        )
         headers = [
+            "data_scope",
+            "events_complete",
+            "source_event_count",
             "filter_scope",
             "filter_event_type",
             "filter_source_range",
@@ -1230,6 +1349,9 @@ class BSMEventTableDialog(QDialog):
                 writer.writeheader()
                 for row in rows:
                     out = {
+                        "data_scope": data_scope,
+                        "events_complete": events_complete,
+                        "source_event_count": source_total,
                         "filter_scope": metadata.get("scope", ""),
                         "filter_event_type": metadata.get("event_type", ""),
                         "filter_source_range": metadata.get("source_range", ""),

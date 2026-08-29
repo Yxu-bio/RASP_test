@@ -30,9 +30,11 @@ class BBMOutputParser:
     ]
 
     def parse(self, *, reference_tree, run_files, run_output=None):
+        self._sample_accounting = {}
         run1 = self._read_run_probabilities(run_files.run1_p_path, run_files)
         run2 = self._read_run_probabilities(run_files.run2_p_path, run_files)
         combined = self._combine_runs(run1, run2)
+        selected_records = self._selected_records(run_files)
 
         self._write_clade_log(run_files, run1, run2, combined)
 
@@ -49,10 +51,10 @@ class BBMOutputParser:
         all_states = []
         global_sums = {}
         rows_for_log = []
-        for record in list(run_files.node_records or []):
+        for record in selected_records:
             display_id = str(record["display_node_id"])
             clade_key = str(record["clade_key"])
-            probabilities = combined.get(display_id, self._absent_probabilities(len(run_files.area_names)))
+            probabilities = combined[display_id]
             states = self._range_probabilities(probabilities, run_files.config, run_files.area_names)
             rows_for_log.append((record, states, probabilities))
             if not states:
@@ -77,11 +79,11 @@ class BBMOutputParser:
                 raw_method_payload={
                     "area_marginals": self._area_marginal_payload(probabilities, run_files.area_names),
                     "run1_area_marginals": self._area_marginal_payload(
-                        run1.get(display_id, self._absent_probabilities(len(run_files.area_names))),
+                        run1[display_id],
                         run_files.area_names,
                     ),
                     "run2_area_marginals": self._area_marginal_payload(
-                        run2.get(display_id, self._absent_probabilities(len(run_files.area_names))),
+                        run2[display_id],
                         run_files.area_names,
                     ),
                     "terminal_span": str(record.get("terminal_span", "")),
@@ -109,8 +111,10 @@ class BBMOutputParser:
             "discard_samples": int(run_files.config.discard_samples),
             "chains": int(run_files.config.chains),
             "temperature": float(run_files.config.temperature),
-            "selected_node_count": len(run_files.selected_node_ids),
+            "selected_node_count": len(selected_records),
+            "output_node_count": len(result.node_results),
             "node_count": len(run_files.node_records),
+            "sample_accounting": dict(self._sample_accounting),
             "run1_p_path": str(run_files.run1_p_path or ""),
             "run2_p_path": str(run_files.run2_p_path or ""),
             "mcmc_path": str(run_files.mcmc_path or ""),
@@ -132,6 +136,7 @@ class BBMOutputParser:
 
         header = lines[header_index].split("\t")
         data_lines = []
+        generations = []
         for line in lines[header_index + 1:]:
             if not line.strip() or line.lstrip().startswith("["):
                 continue
@@ -139,28 +144,50 @@ class BBMOutputParser:
             if not parts:
                 continue
             try:
-                float(parts[0])
+                generation_value = float(parts[0])
             except Exception:
                 continue
+            if not generation_value.is_integer():
+                raise ValueError(
+                    "BBM sample generation is not an integer in %s: %s"
+                    % (path, parts[0])
+                )
+            generations.append(int(generation_value))
             data_lines.append(parts)
+
+        expected_generations = list(range(
+            0,
+            int(run_files.config.chain_length) + 1,
+            int(run_files.config.sample_frequency),
+        ))
+        if generations != expected_generations:
+            first = generations[0] if generations else None
+            last = generations[-1] if generations else None
+            raise ValueError(
+                "Incomplete or non-sequential BBM samples in %s: expected %s rows "
+                "from generation 0 to %s, found %s rows from %s to %s."
+                % (
+                    path,
+                    len(expected_generations),
+                    int(run_files.config.chain_length),
+                    len(generations),
+                    first,
+                    last,
+                )
+            )
 
         skip_count = int(run_files.config.discard_samples) + 1
         kept = data_lines[skip_count:]
         if not kept:
             raise ValueError("No BBM samples remain after discarding %s samples." % run_files.config.discard_samples)
 
-        selected_records = [
-            record
-            for record in list(run_files.node_records or [])
-            if str(record["display_node_id"]) in set(run_files.selected_node_ids)
-        ]
+        selected_records = self._selected_records(run_files)
         area_count = len(run_files.area_names)
         values = {}
         for selected_index, record in enumerate(selected_records):
             node_id = str(record["display_node_id"])
             sums = [[0.0, 0.0] for _ in range(area_count)]
-            counts = [[0, 0] for _ in range(area_count)]
-            for parts in kept:
+            for row_index, parts in enumerate(kept):
                 for area_index in range(area_count):
                     p0_index, p1_index = self._column_indexes(
                         header=header,
@@ -169,25 +196,45 @@ class BBMOutputParser:
                         area_count=area_count,
                     )
                     for state_index, col_index in enumerate([p0_index, p1_index]):
-                        if col_index < len(parts):
-                            try:
-                                sums[area_index][state_index] += float(parts[col_index])
-                                counts[area_index][state_index] += 1
-                            except Exception:
-                                pass
+                        if col_index >= len(parts):
+                            raise ValueError(
+                                "Missing BBM probability column %s at retained sample row %s in %s."
+                                % (col_index, row_index + 1, path)
+                            )
+                        try:
+                            sums[area_index][state_index] += float(parts[col_index])
+                        except Exception as exc:
+                            raise ValueError(
+                                "Invalid BBM probability at retained sample row %s, column %s in %s: %s"
+                                % (row_index + 1, col_index, path, parts[col_index])
+                            ) from exc
             values[node_id] = [
                 (
-                    sums[idx][0] / counts[idx][0] if counts[idx][0] else 1.0,
-                    sums[idx][1] / counts[idx][1] if counts[idx][1] else 0.0,
+                    sums[idx][0] / len(kept),
+                    sums[idx][1] / len(kept),
                 )
                 for idx in range(area_count)
             ]
-
-        for record in list(run_files.node_records or []):
-            node_id = str(record["display_node_id"])
-            if node_id not in values:
-                values[node_id] = self._absent_probabilities(area_count)
+        accounting = {
+            "raw_sample_rows": len(data_lines),
+            "expected_sample_rows": len(expected_generations),
+            "discarded_sample_rows": skip_count,
+            "retained_sample_rows": len(kept),
+            "first_generation": generations[0],
+            "last_generation": generations[-1],
+        }
+        if not hasattr(self, "_sample_accounting"):
+            self._sample_accounting = {}
+        self._sample_accounting[str(Path(path))] = accounting
         return values
+
+    def _selected_records(self, run_files):
+        selected_ids = set(str(value) for value in list(run_files.selected_node_ids or []))
+        return [
+            record
+            for record in list(run_files.node_records or [])
+            if str(record["display_node_id"]) in selected_ids
+        ]
 
     def _find_header_index(self, lines) -> int:
         for index, line in enumerate(lines):
@@ -270,14 +317,14 @@ class BBMOutputParser:
     def _write_clade_log(self, run_files, run1, run2, combined):
         lines = []
         for source in [run1, run2, combined]:
-            for record in list(run_files.node_records or []):
+            for record in self._selected_records(run_files):
                 node_id = str(record["display_node_id"])
                 suffix = ""
                 if source is run1:
                     suffix = ".run1.p"
                 elif source is run2:
                     suffix = ".run2.p"
-                values = source.get(node_id, self._absent_probabilities(len(run_files.area_names)))
+                values = source[node_id]
                 line = "clade%s%s =" % (record["node_index"], suffix)
                 for p0, p1 in values:
                     line += "\t%.6f\t%.6f" % (float(p0), float(p1))
@@ -304,7 +351,7 @@ class BBMOutputParser:
             for record, _states, _probabilities in rows_for_log:
                 node_id = str(record["display_node_id"])
                 states = self._range_probabilities(
-                    source.get(node_id, self._absent_probabilities(len(run_files.area_names))),
+                    source[node_id],
                     run_files.config,
                     run_files.area_names,
                 )
@@ -327,7 +374,7 @@ class BBMOutputParser:
         for record, _states, _probabilities in rows_for_log:
             node_id = str(record["display_node_id"])
             line = "node %s:" % node_id
-            for p0, p1 in combined.get(node_id, self._absent_probabilities(len(run_files.area_names))):
+            for p0, p1 in combined[node_id]:
                 line += "\t%.6f\t%.6f" % (float(p0), float(p1))
             lines.append(line)
 
@@ -364,9 +411,6 @@ class BBMOutputParser:
             if bit == "1":
                 labels.append(str(area))
         return "".join(labels) if labels else "/"
-
-    def _absent_probabilities(self, area_count):
-        return [(1.0, 0.0) for _ in range(int(area_count or 0))]
 
     def _build_state_colors(self, states):
         colors = {}

@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "name": "RASP5 complex polygon fixture",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"area_code": "D", "display_name": "Dateline region", "color": "#4C78A8"},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[170, -10], [-170, -10], [-170, 10], [170, 10], [170, -10]],
+          [[175, -2], [175, 2], [-175, 2], [-175, -2], [175, -2]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {"area_code": "H", "display_name": "Polygon with hole", "color": "#F58518"},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]],
+          [[5, 5], [15, 5], [15, 15], [5, 15], [5, 5]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {"area_code": "M", "display_name": "Multipart region", "color": "#54A24B"},
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [[[40, 0], [50, 0], [50, 10], [40, 10], [40, 0]]],
+          [[[60, 0], [70, 0], [70, 10], [60, 10], [60, 0]]]
+        ]
+      }
+    }
+  ]
+}

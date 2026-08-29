@@ -15,6 +15,7 @@ from domain.models.bayestraits_config import (
     normalize_bayestraits_model,
 )
 from domain.models.continuous_trait_result import ContinuousTraitNodeResult, ContinuousTraitResult
+from domain.models.trait_model_result import TraitModelResult
 
 
 class BayesTraitsOutputParser:
@@ -148,6 +149,18 @@ class BayesTraitsOutputParser:
             "commands_path": str(run_files.commands_path),
             "marginal_likelihood": marginal_likelihood,
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "discrete_trait_nodes",
+            "trait_kind": "categorical",
+            "node_estimates": True,
+            "estimator": "BayesTraits V5 MultiState",
+            "estimation_method": str(run_files.config.analysis_method),
+            "uncertainty_kind": "ancestral_state_probability",
+            "trait_column": str(run_files.config.trait_column),
+            "experimental": False,
+        }
+        result.model_statistics.update(result.metadata)
         if not result.node_results:
             result.parse_warnings.append("BayesTraits output did not contain selected-node probabilities.")
         return result
@@ -316,6 +329,24 @@ class BayesTraitsOutputParser:
             "color_scale_min": result.color_scale_min,
             "color_scale_max": result.color_scale_max,
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "continuous_trait_nodes",
+            "trait_kind": "continuous",
+            "node_estimates": True,
+            "estimator": "BayesTraits V5 unknown-value MCMC",
+            "estimation_method": self._model_key(run_files),
+            "uncertainty_kind": "posterior_interval",
+            "summary_statistic": "median",
+            "interval_label": "95% posterior interval",
+            "trait_column": trait_name,
+            "transform": trait_transform,
+            "analysis_scale": trait_scale,
+            "display_scale": display_scale_label,
+            "plot_scale": plot_scale_label,
+            "experimental": False,
+        }
+        result.model_statistics.update(result.metadata)
         return result
 
     def _continuous_original_tip_values(self, tip_values, transform):
@@ -421,21 +452,27 @@ class BayesTraitsOutputParser:
         if not header or not rows:
             raise ValueError("BayesTraits log did not contain a parseable result table.")
 
-        result = BioGeoBEARSResult(reference_tree=reference_tree)
+        result = TraitModelResult(reference_tree=reference_tree)
         result.model_name = self._display_model_name(run_files)
         result.result_note = (
-            "BayesTraits statistical model output. This model does not produce "
-            "MultiState node probability pies in the current RASP view."
+            "This BayesTraits run reports model-level statistics. It does not estimate "
+            "internal-node ancestral states, so RASP does not open an ancestral tree view."
         )
         result.input_tree_count = int(run_files.tree_count)
         result.effective_tree_count = len(rows)
         result.config = run_files.config
-        result.state_order = []
-        result.state_colors = {}
 
         summaries = self._numeric_column_summaries(header, rows)
         self._write_statistical_analysis_log(run_files, output_log, header, rows, summaries)
         result.analysis_log_path = str(run_files.analysis_log_path)
+        result.output_log_path = str(output_log)
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "trait_model_statistics",
+            "trait_kind": str(BAYESTRAITS_MODELS.get(self._model_key(run_files), {}).get("trait_kind", "")),
+            "node_estimates": False,
+            "estimator": "BayesTraits V5",
+        }
         result.model_statistics = {
             "model_name": "BayesTraits",
             "bayestraits_model": self._model_key(run_files),
@@ -451,8 +488,9 @@ class BayesTraitsOutputParser:
             "commands_path": str(run_files.commands_path),
             "numeric_summaries": summaries,
         }
+        result.model_statistics.update(result.metadata)
         result.parse_warnings.append(
-            "%s completed, but this BayesTraits model has no MultiState node probability pies to draw."
+            "%s completed without internal-node ancestral-state estimates."
             % self._display_model_name(run_files)
         )
         return result

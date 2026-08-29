@@ -4,6 +4,9 @@ This file records the engine payload represented by
 `release/engine-bundle.json`. It is an engineering inventory, not legal advice.
 Official license texts and notices are included in the generated archive.
 
+RASP5's first-party Python and R wrapper source is MIT-licensed at the project
+root. That license does not relicense any component listed below.
+
 | Component | Bundled version | License | Upstream / source | RASP changes |
 | --- | --- | --- | --- | --- |
 | BayArea | 1.0.3, commit `e6918143cb9a79c3fedf55eed72e6a73961d131a` | MIT | https://github.com/mlandis/bayarea | Modern compiler, iterator safety, prior wiring, and rate-initialization fixes in `docs/patches/bayarea-v1.0.3-rasp.patch`. |

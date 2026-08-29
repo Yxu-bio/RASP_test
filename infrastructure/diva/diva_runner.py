@@ -1,6 +1,8 @@
 from pathlib import Path
 import subprocess
 
+from infrastructure.run_provenance import write_run_provenance
+
 
 class DivaRunner:
     """Run DIVA.exe with all generated files kept in the per-run directory."""
@@ -24,6 +26,11 @@ class DivaRunner:
             raise FileNotFoundError("DIVA batch file does not exist: %s" % batch_file)
 
         run_dir = batch_file.parent
+        write_run_provenance(
+            run_dir,
+            analysis="DIVA",
+            engine_paths={"diva_executable": self.diva_exe},
+        )
 
         wrapper_file = run_dir / wrapper_name
         wrapper_text = "proc %s;\nquit;\n" % batch_file.name

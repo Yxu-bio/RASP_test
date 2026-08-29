@@ -1,6 +1,6 @@
 # BayArea Release Status
 
-Last verified: 2026-07-11
+Last verified: 2026-08-29
 
 ## Release classification
 
@@ -42,7 +42,7 @@ The supported execution path includes:
 - Progress reporting and cooperative cancellation with partial logs retained.
 - Legacy `analysis_result.log` generation and NHX taxon-name restoration.
 
-The convergence diagnostics are lightweight application diagnostics. They are not rank-normalized Stan diagnostics and should not be described as such.
+The convergence diagnostics are lightweight application diagnostics. They are not rank-normalized Stan diagnostics and should not be described as such. The within-chain drift heuristic compares the first- and second-half means in units of the retained trace standard deviation. The older mean-relative value remains in metadata for compatibility, but is not used for warnings because it is misleading for broad posteriors near zero.
 
 ## Verification evidence
 
@@ -50,11 +50,14 @@ Final checks used the bundled Psychotria data and the rebuilt Windows executable
 
 - DISTANCE NORM 100,000-cycle smoke test: 18 internal nodes parsed; every tested node support sum was 100%.
 - Prior-wiring probe with scales `0.1` and `1.0`: initial gain, loss, and distance-power values each changed by exactly 10x under the same seed.
-- DISTANCE NORM 5,000,000-cycle two-seed test: previous verification produced split-Rhat values around `1.001-1.004` with reasonable ESS.
+- DISTANCE NORM systematic long-chain case: four independent 5,000,000-cycle chains, sample frequency 1,000, burn-in 500,000, and fixed base seed 20260829. The 1M checkpoint failed the operational convergence screen; the 2.5M checkpoint passed it; the final 5M checkpoint had split-Rhat `1.002-1.004`, minimum per-chain ESS `276.6`, and maximum standardized half-mean shift `0.249` posterior SD.
+- Final four-chain node posterior comparison: all 18 internal nodes had the same highest-probability range; median node-level maximum pairwise total-variation distance was `0.059` and the maximum was `0.109`.
 - Multi-chain fixed-seed repeat: sampled-history files were byte-for-byte reproducible.
 - Burn-in reparse: two 100,000-cycle chains changed the pooled per-node sample count from 200 at burn-in 0 to 102 at burn-in 50,000.
 - Cancellation test: two active 50,000,000-cycle chains stopped in about 0.8 seconds and left no BayArea process running.
 - INDEPENDENCE 5,000,000-cycle two-chain diagnostic: after burn-in 500,000, split-Rhat was approximately `1.130` for lnL, `1.633` for gain, and `3.122` for loss; gain/loss ESS remained around 5-6. This is why the model is not recommended.
+
+The fixed specification is `data/benchmarks/psychotria/bayarea_convergence_spec.json`, the executable benchmark is `tools/run_bayarea_convergence_benchmark.py`, the current summary is `docs/bayarea_convergence_latest.md`, and the GUI tutorial is `docs/tutorials/BayArea_distance_norm_convergence.md`. Raw chain outputs stay under ignored `runs/` directories and are not source-controlled.
 
 ## Packaging requirement
 

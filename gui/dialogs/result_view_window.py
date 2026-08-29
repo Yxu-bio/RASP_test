@@ -270,7 +270,10 @@ class ResultViewWindow(QMainWindow):
         export_pdf_action.triggered.connect(self._export_pdf)
         toolbar.addAction(export_pdf_action)
 
-        self.export_continuous_figure_action = QAction("Export Figure", self)
+        self.export_continuous_figure_action = QAction("Experimental Figure Export", self)
+        self.export_continuous_figure_action.setToolTip(
+            "Experimental publication-style A/B/C export; this is separate from ancestral-state estimation."
+        )
         self.export_continuous_figure_action.triggered.connect(self._export_continuous_figure)
         toolbar.addAction(self.export_continuous_figure_action)
         self.export_continuous_figure_action.setVisible(False)
@@ -286,7 +289,7 @@ class ResultViewWindow(QMainWindow):
             toolbar.addAction(self.temporal_playback_action)
 
     def _build_figure_group_panel(self):
-        box = QGroupBox("Figure Groups", self)
+        box = QGroupBox("Experimental Figure Groups", self)
         layout = QVBoxLayout(box)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
@@ -762,8 +765,12 @@ class ResultViewWindow(QMainWindow):
         existing = dict(getattr(result, "analysis_node_values", {}) or {})
         if existing:
             return {str(k): float(v) for k, v in existing.items()}
+        metadata = dict(getattr(result, "metadata", {}) or {})
+        use_median = str(metadata.get("summary_statistic", "mean") or "mean") == "median"
         return {
-            str(key): float(getattr(node, "mean", 0.0) or 0.0)
+            str(key): float(
+                getattr(node, "median" if use_median else "mean", 0.0) or 0.0
+            )
             for key, node in dict(getattr(result, "node_results", {}) or {}).items()
         }
 
@@ -773,13 +780,18 @@ class ResultViewWindow(QMainWindow):
             return {str(k): float(v) for k, v in existing.items()}
 
         transform = str(getattr(result, "trait_transform", "none") or "none")
+        metadata = dict(getattr(result, "metadata", {}) or {})
+        use_median = str(metadata.get("summary_statistic", "mean") or "mean") == "median"
+        original_key = "original_median" if use_median else "original_mean"
         values = {}
         for key, node in dict(getattr(result, "node_results", {}) or {}).items():
             payload = dict(getattr(node, "raw_method_payload", {}) or {})
-            if "original_mean" in payload:
-                values[str(key)] = float(payload.get("original_mean", 0.0) or 0.0)
+            if original_key in payload:
+                values[str(key)] = float(payload.get(original_key, 0.0) or 0.0)
                 continue
-            analysis_value = float(getattr(node, "mean", 0.0) or 0.0)
+            analysis_value = float(
+                getattr(node, "median" if use_median else "mean", 0.0) or 0.0
+            )
             if transform == "log":
                 values[str(key)] = math.exp(analysis_value)
             elif transform == "log10":
@@ -822,6 +834,12 @@ class ResultViewWindow(QMainWindow):
         stats["color_scale_min"] = float(getattr(result, "color_scale_min", 0.0) or 0.0)
         stats["color_scale_max"] = float(getattr(result, "color_scale_max", 1.0) or 1.0)
         result.model_statistics = stats
+        metadata = dict(getattr(result, "metadata", {}) or {})
+        metadata["display_scale_mode"] = stats["trait_display_scale"]
+        metadata["display_scale"] = stats["display_scale"]
+        metadata["plot_scale_mode"] = plot_scale
+        metadata["plot_scale"] = stats["plot_scale"]
+        result.metadata = metadata
 
     def _apply_continuous_display_scale_payloads(self) -> None:
         if not self._is_continuous_result():
@@ -1241,13 +1259,13 @@ class ResultViewWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Export unavailable",
-                "Publication-style figure is only available for continuous-trait results.",
+                "Experimental publication-style export is only available for continuous-trait results.",
             )
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export publication-style figure",
+            "Export experimental publication-style figure",
             "",
             "PNG Files (*.png);;PDF Files (*.pdf);;SVG Files (*.svg)",
         )
@@ -1264,7 +1282,7 @@ class ResultViewWindow(QMainWindow):
                 file_path,
                 method_name=self.current_method_name,
             )
-            self.statusBar().showMessage("Exported publication-style figure: %s" % file_path)
+            self.statusBar().showMessage("Exported experimental publication-style figure: %s" % file_path)
         except Exception as exc:
             QMessageBox.critical(self, "Export failed", str(exc))
 

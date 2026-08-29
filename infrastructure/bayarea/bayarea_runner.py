@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from application.services.bayarea_dataset_builder import BayAreaRunFiles
+from infrastructure.run_provenance import write_run_provenance
 
 
 @dataclass
@@ -52,6 +53,12 @@ class BayAreaRunner:
         config = run_files.config
         if config is None:
             raise ValueError("BayArea config is required.")
+        write_run_provenance(
+            run_files.workdir,
+            analysis="BayArea",
+            engine_paths={"bayarea_executable": exe},
+            extra={"model_type": str(getattr(config, "model_type", "") or "")},
+        )
 
         kwargs = config.engine_kwargs()
         input_path = self._path_arg(run_files.workdir)

@@ -160,7 +160,20 @@ class BioGeoBEARSDatasetBuilder:
         )
 
     def _write_geog_data(self, rows, area_names, geog_path: Path) -> None:
-        lines = [f"{len(rows)} {len(area_names)}"]
+        clean_area_names = [str(name or "").strip() for name in list(area_names or [])]
+        if any(
+            (not name)
+            or any(char.isspace() for char in name)
+            or "(" in name
+            or ")" in name
+            for name in clean_area_names
+        ):
+            raise ValueError(
+                "BioGeoBEARS area codes must be non-empty tokens without whitespace or parentheses."
+            )
+        lines = [
+            f"{len(rows)} {len(clean_area_names)} ({' '.join(clean_area_names)})"
+        ]
         for taxon, bits in rows:
             lines.append(f"{taxon}\t{bits}")
         geog_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -396,6 +409,7 @@ class BioGeoBEARSDatasetBuilder:
                     values.append(self._format_float(value))
                 lines.append("\t".join(values))
             lines.append("")
+        lines.append("END")
         path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
     def _matrix_filename(self, time_matrix_kind: str) -> str:

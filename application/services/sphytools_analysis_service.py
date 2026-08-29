@@ -12,6 +12,7 @@ from domain.models.phytools_config import (
     PHYTOOLS_DISCRETE_METHODS,
     phytools_method_kind,
 )
+from infrastructure.run_provenance import write_run_provenance
 
 
 class SPhytoolsAnalysisService:
@@ -57,6 +58,21 @@ class SPhytoolsAnalysisService:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         run_name_prefix = "%s_%s" % (str(run_name_prefix or "sphytools"), stamp)
         worker_count = min(max(1, int(getattr(config, "threads", 1) or 1)), len(tree_entries))
+        aggregate_run_dir = self.work_root / run_name_prefix
+        aggregate_run_dir.mkdir(parents=True, exist_ok=True)
+        phytools_runner = self.phytools_service.runner
+        write_run_provenance(
+            aggregate_run_dir,
+            analysis="%s aggregate" % run_label,
+            engine_paths={
+                "rscript_executable": phytools_runner.resolve_rscript_path(),
+            },
+            extra={
+                "method": str(config.method),
+                "input_tree_count": len(tree_entries),
+                "threads": worker_count,
+            },
+        )
 
         reference_records = self.phytools_service.dataset_builder.build_node_records(reference_tree)
         reference_by_clade = {
@@ -76,7 +92,7 @@ class SPhytoolsAnalysisService:
         )
 
         if method_kind == "continuous":
-            return self._aggregate_continuous(
+            result = self._aggregate_continuous(
                 reference_tree=reference_tree,
                 reference_by_clade=reference_by_clade,
                 tree_entries=tree_entries,
@@ -84,14 +100,17 @@ class SPhytoolsAnalysisService:
                 config=config,
                 worker_count=worker_count,
             )
-        return self._aggregate_discrete(
-            reference_tree=reference_tree,
-            reference_by_clade=reference_by_clade,
-            tree_entries=tree_entries,
-            per_tree_runs=per_tree_runs,
-            config=config,
-            worker_count=worker_count,
-        )
+        else:
+            result = self._aggregate_discrete(
+                reference_tree=reference_tree,
+                reference_by_clade=reference_by_clade,
+                tree_entries=tree_entries,
+                per_tree_runs=per_tree_runs,
+                config=config,
+                worker_count=worker_count,
+            )
+        result.run_dir = str(aggregate_run_dir)
+        return result
 
     def _run_per_tree_jobs(
         self,
@@ -292,6 +311,26 @@ class SPhytoolsAnalysisService:
             "threads": worker_count,
             "aggregation": "exact_reference_clade_match",
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "continuous_trait_nodes",
+            "trait_kind": "continuous",
+            "node_estimates": True,
+            "estimator": "per-tree %s" % method_label,
+            "estimation_method": str(config.method),
+            "uncertainty_kind": "across_tree_percentile_interval",
+            "summary_statistic": "mean",
+            "interval_label": "2.5%-97.5% across-tree interval",
+            "trait_column": result.trait_name,
+            "transform": result.trait_transform,
+            "analysis_scale": self._scale_label("analysis", result.trait_transform),
+            "display_scale": self._scale_label(result.trait_display_scale, result.trait_transform),
+            "plot_scale": self._scale_label(result.trait_plot_scale, result.trait_transform),
+            "experimental": False,
+            "tree_set": True,
+            "aggregation": "exact_reference_clade_match",
+        }
+        result.model_statistics.update(result.metadata)
         if not result.node_results:
             result.parse_warnings.append("S-phytools found no internal clades shared with the reference tree.")
         return result
@@ -390,6 +429,20 @@ class SPhytoolsAnalysisService:
             "threads": worker_count,
             "aggregation": "exact_reference_clade_match",
         }
+        result.metadata = {
+            "analysis_domain": "trait",
+            "result_kind": "discrete_trait_nodes",
+            "trait_kind": "categorical",
+            "node_estimates": True,
+            "estimator": "per-tree ape::ace",
+            "estimation_method": str(config.method),
+            "uncertainty_kind": "across_tree_mean_probability",
+            "trait_column": str(config.trait_column or ""),
+            "experimental": False,
+            "tree_set": True,
+            "aggregation": "exact_reference_clade_match",
+        }
+        result.model_statistics.update(result.metadata)
         if not result.node_results:
             result.parse_warnings.append("S-phytools found no internal clades shared with the reference tree.")
         return result

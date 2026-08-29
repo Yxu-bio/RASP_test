@@ -2,6 +2,7 @@ import argparse
 import csv
 import hashlib
 import json
+from itertools import combinations
 import subprocess
 import sys
 import time
@@ -41,7 +42,7 @@ DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "runs" / "benchmarks" / "dore_bsm_1000"
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Rebuild or validate the Dore-derived RASP adjacency-path DEC+J "
+            "Rebuild or validate the Dore-derived paper-rule DEC+J "
             "BSM benchmark."
         )
     )
@@ -51,11 +52,190 @@ def parse_args():
     parser.add_argument("--maxtries-per-branch", type=int, default=None)
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument(
+        "--reuse-fitted-run",
+        default=None,
+        help=(
+            "Reuse the fitted result referenced by a completed Dore benchmark manifest."
+        ),
+    )
+    parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Validate inputs and generated BioGeoBEARS files without fitting or running BSM.",
     )
     return parser.parse_args()
+
+
+def resolve_reusable_fit(value, spec_hash):
+    source = Path(value).resolve()
+    source_manifest = None
+    if source.is_file() and source.name.lower() == "benchmark_manifest.json":
+        source_manifest = json.loads(source.read_text(encoding="utf-8"))
+        if source_manifest.get("status") != "completed":
+            raise ValueError("Reusable benchmark manifest is not completed: %s" % source)
+        if source_manifest.get("benchmark_id") != "dore_ponerinae_decj_bsm_1000":
+            raise ValueError("Reusable benchmark manifest belongs to another benchmark.")
+        if str(source_manifest.get("spec_sha256", "") or "").upper() != spec_hash.upper():
+            raise ValueError("Reusable benchmark manifest was built from a different specification.")
+        run_dir = Path(source_manifest["result"]["source_run_directory"])
+        inputs_path = run_dir / "bsm" / "BSM_inputs_file.Rdata"
+        output_json_path = run_dir / "bgb_result.json"
+    else:
+        raise ValueError(
+            "--reuse-fitted-run must point to a completed Dore benchmark_manifest.json."
+        )
+    if not inputs_path.exists():
+        raise FileNotFoundError("Reusable BSM inputs are missing: %s" % inputs_path)
+    return {
+        "inputs_path": inputs_path,
+        "output_json_path": output_json_path,
+        "source_manifest_path": source if source_manifest is not None else None,
+        "source_manifest": source_manifest,
+    }
+
+
+def run_bsm_from_fitted_inputs(
+    *,
+    rscript,
+    site_library,
+    inputs_path,
+    output_dir,
+    nummaps,
+    seed,
+    maxnum_maps_to_try,
+    maxtries_per_branch,
+):
+    helper = PROJECT_ROOT / "tools" / "rerun_bsm_from_inputs.R"
+    if not helper.exists():
+        raise FileNotFoundError("Missing reusable BSM helper: %s" % helper)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    command = [
+        str(rscript),
+        str(helper),
+        "--lib",
+        str(site_library),
+        "--inputs",
+        str(inputs_path),
+        "--outdir",
+        str(output_dir),
+        "--nummaps",
+        str(int(nummaps)),
+        "--seed",
+        str(int(seed)),
+        "--maxnum-maps-to-try",
+        str(int(maxnum_maps_to_try)),
+        "--maxtries-per-branch",
+        str(int(maxtries_per_branch)),
+    ]
+    stdout_path = output_dir / "bsm_stdout.log"
+    stderr_path = output_dir / "bsm_stderr.log"
+    with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
+        "w", encoding="utf-8"
+    ) as stderr_handle:
+        completed = subprocess.run(
+            command,
+            cwd=str(output_dir),
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+        )
+    if completed.returncode != 0:
+        stderr_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-8000:]
+        stdout_tail = stdout_path.read_text(encoding="utf-8", errors="replace")[-8000:]
+        raise RuntimeError(
+            "Reusable BSM run failed with return code %s.\n%s\n%s"
+            % (completed.returncode, stdout_tail, stderr_tail)
+        )
+    return {
+        "helper": helper,
+        "stdout": stdout_path,
+        "stderr": stderr_path,
+    }
+
+
+def postprocess_bsm_source_areas(*, rscript, site_library, bsm_dir, seed):
+    helper = PROJECT_ROOT / "tools" / "postprocess_bsm_source_areas.R"
+    if not helper.exists():
+        raise FileNotFoundError("Missing BSM source-area postprocessor: %s" % helper)
+    command = [
+        str(rscript),
+        str(helper),
+        "--lib",
+        str(site_library),
+        "--bsm-dir",
+        str(bsm_dir),
+        "--seed",
+        str(int(seed)),
+    ]
+    stdout_path = Path(bsm_dir) / "source_assignment_stdout.log"
+    stderr_path = Path(bsm_dir) / "source_assignment_stderr.log"
+    with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
+        "w", encoding="utf-8"
+    ) as stderr_handle:
+        completed = subprocess.run(
+            command,
+            cwd=str(bsm_dir),
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+        )
+    if completed.returncode != 0:
+        stderr_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-8000:]
+        stdout_tail = stdout_path.read_text(encoding="utf-8", errors="replace")[-8000:]
+        raise RuntimeError(
+            "BSM source-area postprocessing failed with return code %s.\n%s\n%s"
+            % (completed.returncode, stdout_tail, stderr_tail)
+        )
+    return {
+        "helper": helper,
+        "stdout": stdout_path,
+        "stderr": stderr_path,
+        "reference_edges": Path(bsm_dir) / "bsm_dore_reference_edges.csv",
+    }
+
+
+def compare_network_to_reference(network_rows, reference_path, tolerance=1e-8):
+    with Path(reference_path).open("r", encoding="utf-8-sig", newline="") as handle:
+        reference_rows = list(csv.DictReader(handle))
+    keys = ("anagenetic_count", "founder_count", "total_count", "mean_per_map")
+    observed = dict(
+        ((str(row.get("source_area", "")), str(row.get("target_area", ""))), row)
+        for row in list(network_rows or [])
+    )
+    expected = dict(
+        ((str(row.get("source_area", "")), str(row.get("target_area", ""))), row)
+        for row in reference_rows
+    )
+    mismatches = []
+    max_abs_difference = 0.0
+    for edge_key in sorted(set(observed) | set(expected)):
+        observed_row = observed.get(edge_key, {})
+        expected_row = expected.get(edge_key, {})
+        for metric in keys:
+            observed_value = float(observed_row.get(metric, 0.0) or 0.0)
+            expected_value = float(expected_row.get(metric, 0.0) or 0.0)
+            difference = abs(observed_value - expected_value)
+            max_abs_difference = max(max_abs_difference, difference)
+            if difference > tolerance:
+                mismatches.append({
+                    "source_area": edge_key[0],
+                    "target_area": edge_key[1],
+                    "metric": metric,
+                    "observed": observed_value,
+                    "expected": expected_value,
+                    "absolute_difference": difference,
+                })
+    if mismatches:
+        raise AssertionError(
+            "RASP BSM network differs from BioGeoBEARS reference counts on %d values; "
+            "maximum absolute difference %.12g."
+            % (len(mismatches), max_abs_difference)
+        )
+    return {
+        "reference_edge_count": len(expected),
+        "observed_edge_count": len(observed),
+        "mismatch_count": 0,
+        "max_absolute_difference": max_abs_difference,
+        "tolerance": tolerance,
+    }
 
 
 def sha256(path):
@@ -186,6 +366,37 @@ def taxon_ranges(matrix):
         if state:
             values.append(state)
     return values
+
+
+def dore_allowed_ranges_by_period(area_codes, max_range_size, include_null_range, period_matrices):
+    codes = [str(value) for value in list(area_codes or [])]
+    labels = ["_"] if include_null_range else []
+    for size in range(1, min(int(max_range_size), len(codes)) + 1):
+        labels.extend("".join(combo) for combo in combinations(codes, size))
+
+    output = []
+    for matrix in list(period_matrices or []):
+        allowed_pairs = set()
+        for left in range(len(codes) - 1):
+            for right in range(left + 1, len(codes)):
+                if float(matrix[left][right]) != 0.0:
+                    allowed_pairs.add(codes[left] + codes[right])
+        valid = set(["_"] if include_null_range else [])
+        valid.update(codes)
+        valid.update(allowed_pairs)
+        for label in labels:
+            if len(label) <= 2:
+                continue
+            focal = list(label)
+            covered = set()
+            for left, right in combinations(focal, 2):
+                pair = "".join(code for code in codes if code in set([left, right]))
+                if pair in allowed_pairs:
+                    covered.update([left, right])
+            if all(code in covered for code in focal):
+                valid.add(label)
+        output.append([label for label in labels if label in valid])
+    return output
 
 
 def git_value(*args):
@@ -378,6 +589,7 @@ def main():
         "seed": seed,
         "maxnum_maps_to_try": maxnum_maps_to_try,
         "maxtries_per_branch": maxtries,
+        "reuse_fitted_run": str(args.reuse_fitted_run or ""),
     }
     fingerprint = payload_fingerprint(fingerprint_payload)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -428,6 +640,12 @@ def main():
             if not required.exists():
                 raise FileNotFoundError("Missing bundled engine asset: %s" % required)
 
+        reusable_fit = None
+        if args.reuse_fitted_run:
+            if args.validate_only:
+                raise ValueError("--validate-only and --reuse-fitted-run cannot be combined.")
+            reusable_fit = resolve_reusable_fit(args.reuse_fitted_run, spec_hash)
+
         tree_text = TreeReader().read_tree(str(paths["tree"]))
         tree = Tree(tree_text, format=1)
         source_matrix = CsvMatrixReader().read(str(paths["range_matrix"]))
@@ -461,6 +679,20 @@ def main():
         )
         run_name = "dore_decj_bsm_%s" % nummaps
         prepared = build_run_files(service, tree, matrix, config, run_name)
+        allowed_ranges_by_period = dore_allowed_ranges_by_period(
+            area_codes,
+            analysis["max_range_size"],
+            analysis["include_null_range"],
+            period_matrices,
+        )
+        areas_payload = json.loads(prepared.areas_json_path.read_text(encoding="utf-8"))
+        areas_payload["allowed_ranges_by_period"] = allowed_ranges_by_period
+        areas_payload["allowed_ranges_source"] = "Dore et al. manual adjacency-derived state rule"
+        areas_payload["period_state_lists_only"] = True
+        prepared.areas_json_path.write_text(
+            json.dumps(areas_payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
         manifest["inputs"] = input_metadata(paths)
         manifest["runtime"] = runtime_metadata(rscript, site_library, wrapper)
@@ -472,6 +704,8 @@ def main():
             "area_codes": area_codes,
             "matrix_taxon_aliases": taxon_aliases,
             "period_count": len(period_matrices),
+            "paper_allowed_state_counts": [len(values) for values in allowed_ranges_by_period],
+            "period_state_lists_only": bool(areas_payload.get("period_state_lists_only")),
             "runtime_include_range_count": len(config.runtime_include_ranges()),
             "runtime_max_include_range_size": max(
                 len(value)
@@ -497,22 +731,71 @@ def main():
         if args.validate_only:
             manifest["status"] = "validated"
         else:
-            result = service.generate_bsm_events(
-                tree=tree,
-                matrix=matrix,
-                config=config,
-                run_name=run_name,
-                nummaps=nummaps,
+            bsm_dir = prepared.workdir / "bsm"
+            if reusable_fit is None:
+                service.runner.run(
+                    prepared,
+                    bsm_outdir=bsm_dir,
+                    bsm_nummaps=nummaps,
+                    bsm_seed=seed,
+                    bsm_maxnum_maps_to_try=maxnum_maps_to_try,
+                    bsm_maxtries_per_branch=maxtries,
+                )
+                source_output_json_path = prepared.output_json_path
+            else:
+                reuse_outputs = run_bsm_from_fitted_inputs(
+                    rscript=rscript,
+                    site_library=site_library,
+                    inputs_path=reusable_fit["inputs_path"],
+                    output_dir=bsm_dir,
+                    nummaps=nummaps,
+                    seed=seed,
+                    maxnum_maps_to_try=maxnum_maps_to_try,
+                    maxtries_per_branch=maxtries,
+                )
+                source_output_json_path = reusable_fit["output_json_path"]
+                manifest["reused_fit"] = {
+                    "source_manifest_path": str(reusable_fit["source_manifest_path"] or ""),
+                    "source_bsm_inputs": {
+                        "path": str(reusable_fit["inputs_path"]),
+                        "size": reusable_fit["inputs_path"].stat().st_size,
+                        "sha256": sha256(reusable_fit["inputs_path"]),
+                    },
+                    "helper": {
+                        "path": str(reuse_outputs["helper"]),
+                        "size": reuse_outputs["helper"].stat().st_size,
+                        "sha256": sha256(reuse_outputs["helper"]),
+                    },
+                }
+            source_assignment_outputs = postprocess_bsm_source_areas(
+                rscript=rscript,
+                site_library=site_library,
+                bsm_dir=bsm_dir,
                 seed=seed,
-                maxnum_maps_to_try=maxnum_maps_to_try,
-                maxtries_per_branch=maxtries,
-                scale_tree_to_root_age=False,
+            )
+            manifest["source_assignment"] = {
+                "method": "biogeobears_probabilistic_unique_source",
+                "seed": seed,
+                "helper": {
+                    "path": str(source_assignment_outputs["helper"]),
+                    "size": source_assignment_outputs["helper"].stat().st_size,
+                    "sha256": sha256(source_assignment_outputs["helper"]),
+                },
+            }
+            result = service._load_existing_bsm_lightweight(
+                output_json_path=source_output_json_path,
+                bsm_dir=bsm_dir,
+                source_path=source_output_json_path.parent,
             )
             network_service = BSMDispersalNetworkService()
             network = network_service.build_network(
                 result,
                 range_matrix=matrix,
                 min_mean_per_map=0.0,
+            )
+            reference_comparison = compare_network_to_reference(
+                network.get("edge_rows", []) or [],
+                source_assignment_outputs["reference_edges"],
             )
             edge_path = execution_root / "bsm_network_edges.csv"
             node_path = execution_root / "bsm_network_nodes.csv"
@@ -525,19 +808,27 @@ def main():
             manifest["result"] = {
                 "source_run_directory": str(source_dir),
                 "bsm_directory": str(bsm_dir),
-                "parsed_event_count": len(getattr(result, "events", []) or []),
-                "raw_table_rows": {
-                    name: len(rows or [])
-                    for name, rows in dict(getattr(result, "raw_tables", {}) or {}).items()
-                },
+                "parsed_event_count": int((getattr(result, "summary", {}) or {}).get("normalized_event_count", 0) or 0),
+                "preview_event_count": len(getattr(result, "events", []) or []),
+                "events_complete": bool(getattr(result, "events_complete", False)),
+                "raw_table_rows": dict(getattr(result, "event_row_counts", {}) or {}),
                 "network_edge_count": len(network.get("edge_rows", []) or []),
                 "network_node_count": len(network.get("node_rows", []) or []),
+                "network_source_assignment_method": network.get("source_assignment_method", ""),
+                "source_assignment_warning_count": int(
+                    (getattr(result, "summary", {}) or {}).get("source_assignment_warning_count", 0) or 0
+                ),
+                "biogeobears_reference_comparison": reference_comparison,
                 "key_files": result_file_metadata(
                     [
-                        source_dir / "bgb_result.json",
+                        source_output_json_path,
                         bsm_dir / "bsm_ana_events.csv",
                         bsm_dir / "bsm_clado_events.csv",
                         bsm_dir / "bsm_summary.json",
+                        bsm_dir / "bsm_source_assigned_dispersal_events.csv",
+                        bsm_dir / "bsm_dore_reference_edges.csv",
+                        source_assignment_outputs["stdout"],
+                        source_assignment_outputs["stderr"],
                         edge_path,
                         node_path,
                     ]
