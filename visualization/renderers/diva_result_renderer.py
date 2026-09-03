@@ -58,6 +58,9 @@ class DivaResultRenderer(BaseResultRenderer):
     def set_display_profile(self, profile: str) -> None:
         self.adapter.set_display_profile(profile)
 
+    def set_range_color_mode(self, mode: str) -> None:
+        self.adapter.set_range_color_mode(mode)
+
     def get_display_profile(self) -> str:
         return self.adapter.get_display_profile()
 

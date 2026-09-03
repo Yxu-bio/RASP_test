@@ -47,6 +47,11 @@ class DivaResult:
 
     state_order: List[str] = field(default_factory=list)
     state_colors: Dict[str, str] = field(default_factory=dict)
+    independent_state_colors: Dict[str, str] = field(default_factory=dict)
+    biogeobears_state_colors: Dict[str, str] = field(default_factory=dict)
+    area_order: List[str] = field(default_factory=list)
+    area_colors: Dict[str, str] = field(default_factory=dict)
+    state_area_members: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_node_result(self, node_key: str) -> Optional[DivaNodeResult]:
         if not node_key:

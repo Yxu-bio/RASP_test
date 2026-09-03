@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from ete3 import Tree
 
 from domain.models.dec_result import DECResult, DECNodeResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
@@ -118,16 +119,7 @@ class DECOutputParser:
             result.reference_node_ids[clade_key] = display_node_id
 
         result.state_order = list(all_state_labels)
-        result.state_colors = {
-            state: self.PALETTE[i % len(self.PALETTE)]
-            for i, state in enumerate(result.state_order)
-        }
-
-        for node_result in result.node_results.values():
-            node_result.pie_colors = [
-                result.state_colors.get(label, "#808080")
-                for label in node_result.pie_labels
-            ]
+        RangeStateColorMapper.apply_to_result(result, area_order=area_names)
 
         desc = self._format_params_summary(params)
         if desc:

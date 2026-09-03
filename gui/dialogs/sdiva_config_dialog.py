@@ -105,8 +105,8 @@ class SDivaConfigDialog(QDialog):
         self.spin_threads.setMaximum(1024)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.button_box.button(QDialogButtonBox.Ok).setText("纭畾")
-        self.button_box.button(QDialogButtonBox.Cancel).setText("鍙栨秷")
+        self.button_box.button(QDialogButtonBox.Ok).setText("Run")
+        self.button_box.button(QDialogButtonBox.Cancel).setText("Close")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
 

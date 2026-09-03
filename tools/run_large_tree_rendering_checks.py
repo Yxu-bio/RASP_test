@@ -20,7 +20,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5 import sip
+try:
+    from PyQt5 import sip
+except ImportError:
+    import sip
 from PyQt5.QtCore import QCoreApplication, QEvent
 from PyQt5.QtGui import QImage
 from PyQt5.QtWidgets import QApplication
@@ -33,11 +36,13 @@ from domain.models.continuous_trait_result import (
 )
 from domain.models.dec_result import DECNodeResult, DECResult
 from domain.models.diva_result import DivaNodeResult, DivaResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from gui.dialogs.result_view_window import (
     LINEAGE_RANGE_DYNAMICS_ENABLED,
     ResultViewWindow,
 )
 from infrastructure.tree.tree_reader import TreeReader
+from infrastructure.tree.composite_range_pie_face import _CompositeRangePieItem
 from visualization.renderers.biogeobears_result_renderer import BioGeoBEARSResultRenderer
 from visualization.renderers.continuous_trait_result_renderer import (
     ContinuousTraitResultRenderer,
@@ -48,6 +53,7 @@ from visualization.renderers.diva_result_renderer import DivaResultRenderer
 
 COLORS = ["#4e79a7", "#59a14f", "#f28e2b", "#e15759", "#76b7b2", "#edc948", "#b07aa1"]
 STATES = list("ABCDEFG")
+RANGE_STATES = ["A", "B", "AB", "C", "ABC", "D", "CD"]
 RUN_STAMP = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 RUN_ROOT = PROJECT_ROOT / "runs" / "large_tree_rendering" / RUN_STAMP
 REPORT_PATH = RUN_ROOT / "report.json"
@@ -96,8 +102,7 @@ def internal_records(tree):
         records.append({
             "key": clade_key(node),
             "display_id": str(tip_count + internal_index),
-            "state": STATES[traversal_index % len(STATES)],
-            "color": COLORS[traversal_index % len(COLORS)],
+            "state": RANGE_STATES[traversal_index % len(RANGE_STATES)],
             "value": float(traversal_index % 101) / 100.0,
         })
     return records
@@ -112,8 +117,7 @@ def leaf_states(tree):
 
 def build_diva_result(tree):
     result = DivaResult(dataset=SimpleNamespace(reference_tree=tree))
-    result.state_order = list(STATES)
-    result.state_colors = dict(zip(STATES, COLORS))
+    result.state_order = list(RANGE_STATES)
     for record in internal_records(tree):
         result.node_results[record["key"]] = DivaNodeResult(
             node_key=record["key"],
@@ -123,15 +127,15 @@ def build_diva_result(tree):
             state_supports={record["state"]: 100.0},
             pie_labels=[record["state"]],
             pie_percents=[100.0],
-            pie_colors=[record["color"]],
+            pie_colors=[],
         )
+    RangeStateColorMapper.apply_to_result(result, area_order=STATES)
     return result
 
 
 def build_dec_result(tree):
     result = DECResult(reference_tree=tree)
-    result.state_order = list(STATES)
-    result.state_colors = dict(zip(STATES, COLORS))
+    result.state_order = list(RANGE_STATES)
     for record in internal_records(tree):
         result.node_results[record["key"]] = DECNodeResult(
             node_key=record["key"],
@@ -139,16 +143,16 @@ def build_dec_result(tree):
             states=[record["state"]],
             pie_labels=[record["state"]],
             pie_percents=[100.0],
-            pie_colors=[record["color"]],
+            pie_colors=[],
         )
         result.reference_node_ids[record["key"]] = record["display_id"]
+    RangeStateColorMapper.apply_to_result(result, area_order=STATES)
     return result
 
 
 def build_bgb_result(tree):
     result = BioGeoBEARSResult(reference_tree=tree, model_name="BioGeoBEARS-DEC")
-    result.state_order = list(STATES)
-    result.state_colors = dict(zip(STATES, COLORS))
+    result.state_order = list(RANGE_STATES)
     for record in internal_records(tree):
         result.node_results[record["key"]] = BioGeoBEARSNodeResult(
             node_key=record["key"],
@@ -157,9 +161,10 @@ def build_bgb_result(tree):
             state_supports={record["state"]: 100.0},
             pie_labels=[record["state"]],
             pie_percents=[100.0],
-            pie_colors=[record["color"]],
+            pie_colors=[],
         )
         result.reference_node_ids[record["key"]] = record["display_id"]
+    RangeStateColorMapper.apply_to_result(result, area_order=STATES)
     return result
 
 
@@ -238,12 +243,28 @@ def exercise_renderer(app, name, renderer, result):
     renderer.set_show_leaf_name(False)
     renderer.set_display_profile("auto")
     renderer.set_circular_enabled(True)
+    if getattr(result, "state_area_members", None):
+        if renderer.adapter._range_color_mode != "independent":
+            raise LargeTreeCheckFailure(
+                "%s did not default to independent range colors" % name
+            )
+        renderer.set_range_color_mode("composition")
     started = time.perf_counter()
     view = renderer.build_view()
     elapsed = time.perf_counter() - started
     if elapsed >= 20.0:
         raise LargeTreeCheckFailure("%s circular build took %.3f seconds" % (name, elapsed))
     metrics = assert_scene(view, name)
+    if getattr(result, "state_area_members", None):
+        composite_marker_count = sum(
+            isinstance(item, _CompositeRangePieItem)
+            for item in view.scene().items()
+        )
+        if composite_marker_count <= 0:
+            raise LargeTreeCheckFailure(
+                "%s large-tree overview lost composite range markers" % name
+            )
+        metrics["composite_marker_count"] = composite_marker_count
     view.resize(1400, 900)
     view.show()
     app.processEvents()

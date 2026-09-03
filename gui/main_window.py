@@ -91,6 +91,7 @@ from gui.widgets.progress_panel import ProgressPanel
 from gui.widgets.tree_collection_info_panel import TreeCollectionInfoPanel
 from domain.models.tree_collection_options import TreeCollectionOptions
 from domain.models.state_matrix import StateMatrix
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from domain.models.spatial_data import AreaSpatialRecord
 
 from visualization.renderers.diva_result_renderer import DivaResultRenderer
@@ -347,7 +348,11 @@ class MainWindow(QMainWindow):
         self._refresh_consensus_tree_summary()
         self._recompute_tree_collection_state()
         self.append_run_log("RASP5 workspace initialized.")
-        QTimer.singleShot(0, lambda: self._cleanup_old_run_artifacts(retention_days=5))
+
+    def closeEvent(self, event):
+        if self.current_result_window is not None:
+            self.current_result_window.close()
+        super().closeEvent(event)
 
     def _wrap_workspace_panel(self, title, widget):
         group = QGroupBox(str(title or ""), self)
@@ -599,13 +604,18 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.project_context_action)
 
     def _choose_file(self, title, file_filter):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            title,
-            "",
-            file_filter,
-        )
-        return file_path or ""
+        dialog = QFileDialog(self, title, "")
+        dialog.setOption(QFileDialog.DontUseNativeDialog, True)
+        dialog.setAcceptMode(QFileDialog.AcceptOpen)
+        dialog.setFileMode(QFileDialog.ExistingFile)
+        dialog.setNameFilter(file_filter)
+        dialog.setMinimumSize(640, 420)
+        dialog.resize(860, 560)
+        configure_resizable_window(dialog)
+        if dialog.exec_() != QDialog.Accepted:
+            return ""
+        selected_files = dialog.selectedFiles()
+        return selected_files[0] if selected_files else ""
 
     def append_run_log(self, text=""):
         if not hasattr(self, "run_log_box") or self.run_log_box is None:
@@ -859,8 +869,9 @@ class MainWindow(QMainWindow):
         return ctx, renderer
 
     def _refresh_result_window_if_open(self):
-        if self.current_result_window is not None:
-            self.open_result_window()
+        window = self.current_result_window
+        if window is not None and window.isVisible():
+            self._update_result_window(activate=False)
 
     def _build_leaf_state_payload_from_matrix(self):
         if self.current_matrix is None:
@@ -953,17 +964,7 @@ class MainWindow(QMainWindow):
             if state not in states:
                 states.append(state)
 
-        palette = [
-            "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
-            "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5",
-            "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f",
-            "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
-        ]
         states.sort(key=lambda x: (len(x), x))
-        state_colors = {
-            state: palette[i % len(palette)]
-            for i, state in enumerate(states)
-        }
 
         preferred_result = None
         if self._is_biogeobears_method(self.current_method_name) and self.current_biogeobears_result is not None:
@@ -977,15 +978,26 @@ class MainWindow(QMainWindow):
         elif self.current_result is not None:
             preferred_result = self.current_result
 
-        if preferred_result is not None and getattr(preferred_result, "state_colors", None):
-            preferred_colors = dict(preferred_result.state_colors)
-            for state in list(state_colors.keys()):
-                if state in preferred_colors:
-                    state_colors[state] = preferred_colors[state]
+        base_colors = {}
+        if preferred_result is not None:
+            base_colors = dict(getattr(preferred_result, "area_colors", {}) or {})
+        color_palette = RangeStateColorMapper.build(
+            states,
+            area_order=[
+                str(column).strip()
+                for column in list(getattr(matrix, "state_columns", []) or [])
+                if str(column).strip() and str(column).strip() not in ("ID", "Name")
+            ],
+            base_colors=base_colors,
+        )
+        state_colors = color_palette.state_colors
 
         return leaf_state_map, state_colors
 
     def open_result_window(self):
+        return self._update_result_window(activate=True)
+
+    def _update_result_window(self, activate):
         if self._is_trait_statistics_result(self.current_trait_result):
             self._show_trait_statistics_result(self.current_trait_result)
             return
@@ -1002,7 +1014,7 @@ class MainWindow(QMainWindow):
             return
 
         if self.current_result_window is None:
-            self.current_result_window = ResultViewWindow(self)
+            self.current_result_window = ResultViewWindow()
 
         if self.current_tree is None:
             QMessageBox.warning(self, "Cannot Open Result Window", "请先导入共识树。")
@@ -1048,9 +1060,11 @@ class MainWindow(QMainWindow):
         self.current_result_window.set_window_title_by_method(ctx["method_name"])
         self.current_result_window.set_result(ctx["result"])
 
-        self.current_result_window.show()
-        self.current_result_window.raise_()
-        self.current_result_window.activateWindow()
+        if not self.current_result_window.isVisible():
+            self.current_result_window.show()
+        if activate:
+            self.current_result_window.raise_()
+            self.current_result_window.activateWindow()
 
     @staticmethod
     def _trait_result_has_nodes(result):

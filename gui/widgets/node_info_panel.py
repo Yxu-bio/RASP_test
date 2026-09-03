@@ -1,7 +1,8 @@
+import html
 import math
 
 from PyQt5.QtCore import Qt, QPointF, QSize, pyqtSignal
-from PyQt5.QtGui import QColor, QBrush, QFont, QPainter, QPen
+from PyQt5.QtGui import QColor, QBrush, QFont, QPainter, QPen, QPolygonF
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -25,9 +26,52 @@ from PyQt5.QtWidgets import (
     QMessageBox,
 )
 
+from domain.services.range_state_color_mapper import RangeStateColorMapper
+
 
 TOTAL_EVENTS_LABEL = "Total events"
 NODE_DENSITY_LABEL = "Node density baseline"
+
+
+class SegmentedColorSwatch(QWidget):
+    def __init__(self, colors, parent=None) -> None:
+        super().__init__(parent)
+        self.colors = [str(color) for color in list(colors or []) if QColor(str(color)).isValid()]
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setMinimumSize(48, 18)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        rect = self.rect().adjusted(3, 3, -3, -3)
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
+        colors = self.colors or ["#808080"]
+        if len(colors) == 1:
+            painter.fillRect(rect, QColor(colors[0]))
+        else:
+            painter.save()
+            painter.setClipRect(rect)
+            painter.setPen(Qt.NoPen)
+            stripe_width = max(4.0, rect.height() / 2.5)
+            position = rect.left() - rect.height()
+            stripe_index = 0
+            while position < rect.right():
+                polygon = QPolygonF(
+                    [
+                        QPointF(position, rect.top()),
+                        QPointF(position + stripe_width, rect.top()),
+                        QPointF(position + stripe_width + rect.height(), rect.bottom()),
+                        QPointF(position + rect.height(), rect.bottom()),
+                    ]
+                )
+                painter.setBrush(QBrush(QColor(colors[stripe_index % len(colors)])))
+                painter.drawPolygon(polygon)
+                position += stripe_width
+                stripe_index += 1
+            painter.restore()
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor("#555555"), 1))
+        painter.drawRect(rect)
 
 
 class LegacyTimeDiagramWidget(QWidget):
@@ -813,6 +857,7 @@ class NodeInfoPanel(QWidget):
         self.current_payload = None
         self.current_standard_payload = None
         self.current_node_payloads = []
+        self.range_color_mode = "independent"
 
         self.main_layout = QVBoxLayout()
         self.main_layout.setContentsMargins(4, 4, 4, 4)
@@ -894,13 +939,23 @@ class NodeInfoPanel(QWidget):
 
         self.info_tab = QWidget()
         self.info_layout = QVBoxLayout(self.info_tab)
-        self.info_layout.setContentsMargins(8, 8, 8, 8)
+        self.info_layout.setContentsMargins(4, 4, 4, 4)
+        self.info_tabs = QTabWidget()
         self.info_placeholder = QTextEdit()
         self.info_placeholder.setReadOnly(True)
-        self.info_placeholder.setAcceptRichText(False)
-        self.info_placeholder.setLineWrapMode(QTextEdit.NoWrap)
-        self.info_placeholder.setStyleSheet("font-family: Consolas, 'Courier New', monospace;")
-        self.info_layout.addWidget(self.info_placeholder)
+        self.info_placeholder.setAcceptRichText(True)
+        self.info_placeholder.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.info_placeholder.setStyleSheet(
+            "QTextEdit { border: 0; background: #ffffff; font-family: 'Segoe UI', Tahoma, sans-serif; }"
+        )
+        self.info_raw_text = QTextEdit()
+        self.info_raw_text.setReadOnly(True)
+        self.info_raw_text.setAcceptRichText(False)
+        self.info_raw_text.setLineWrapMode(QTextEdit.NoWrap)
+        self.info_raw_text.setStyleSheet("font-family: Consolas, 'Courier New', monospace;")
+        self.info_tabs.addTab(self.info_placeholder, "Overview")
+        self.info_tabs.addTab(self.info_raw_text, "Raw details")
+        self.info_layout.addWidget(self.info_tabs)
 
         self.time_tab = QWidget()
         self.time_layout = QVBoxLayout(self.time_tab)
@@ -943,8 +998,9 @@ class NodeInfoPanel(QWidget):
         self.color_table.setRowCount(0)
         self.color_table.setColumnCount(0)
 
-        self.info_placeholder.setText("Information 页暂不实现")
-        self.time_placeholder.setText("Time 页暂不实现")
+        self.info_placeholder.setHtml(self._empty_information_html("No result loaded."))
+        self.info_raw_text.clear()
+        self.time_placeholder.setText("No time data loaded.")
 
     def set_standard_result(self, method_name: str, result, node_payloads: list) -> None:
         self.current_method_name = method_name or ""
@@ -956,41 +1012,68 @@ class NodeInfoPanel(QWidget):
         self._clear_selected_node_legend()
         self._refresh_information_tabs()
 
+    def set_range_color_mode(self, mode: str) -> None:
+        normalized = str(mode or "independent").strip().lower()
+        if normalized not in ("independent", "biogeobears", "composition"):
+            normalized = "independent"
+        self.range_color_mode = normalized
+        if normalized == "composition":
+            self.color_tip.setText(
+                "Double-click a base area color; composite ranges update from their member areas."
+            )
+        elif normalized == "biogeobears":
+            self.color_tip.setText(
+                "Double-click a base area color; solid range mixes update using the BioGeoBEARS rule."
+            )
+        else:
+            self.color_tip.setText(
+                "Double-click a color to edit that complete range independently."
+            )
+        self._refresh_color_tab()
+        if self.current_standard_payload is not None:
+            self._refresh_selected_legend(
+                self.current_payload or {},
+                self.current_standard_payload,
+            )
+        else:
+            self._show_global_legend()
+
     def show_basic_node_info(self, payload: dict) -> None:
         self.current_payload = payload
         self.current_standard_payload = None
 
         if not payload:
             self._show_global_legend()
+            self._refresh_information_overview()
             return
 
         if "error" in payload:
             self.selected_node_title.setText(str(payload.get("error", "")))
             self.legend_note.setText("")
             self._clear_legend_table()
+            self._refresh_information_overview()
             return
 
         name = str(payload.get("name", "") or "")
         clade = str(payload.get("clade_signature", "") or "")
-        node_id = str(payload.get("node_id", "") or "")
 
         lines = []
         if name:
             lines.append(f"名称: {name}")
-        if node_id:
-            lines.append(f"内部编号: {node_id}")
         if clade:
             lines.append(f"Clade: {clade}")
 
         self.selected_node_title.setText("\n".join(lines) if lines else "当前未选中节点")
         self.legend_note.setText("当前节点暂无方法结果，下面显示全局状态图例。")
         self._show_global_legend(title_override=self.selected_node_title.text())
+        self._refresh_information_overview()
 
     def show_standard_node_info(self, tree_payload: dict, standard_payload) -> None:
         self.current_payload = tree_payload
         self.current_standard_payload = standard_payload
         self._refresh_selected_legend(tree_payload, standard_payload)
         self.time_panel.set_selected_clade(str(getattr(standard_payload, "clade_key", "") or ""))
+        self._refresh_information_overview()
 
     def show_message(self, text: str) -> None:
         self.selected_node_title.setText(text or "")
@@ -1000,7 +1083,8 @@ class NodeInfoPanel(QWidget):
     def _refresh_information_tabs(self) -> None:
         result = self.current_result
         if result is None:
-            self.info_placeholder.setText("No result information is available.")
+            self.info_placeholder.setHtml(self._empty_information_html("No result information is available."))
+            self.info_raw_text.clear()
             self.time_placeholder.setText("No time/event data is available.")
             return
 
@@ -1031,11 +1115,215 @@ class NodeInfoPanel(QWidget):
                 "No structured time/event data is attached to this result."
             )
 
-        self.info_placeholder.setText(info_text)
+        self.info_raw_text.setPlainText(info_text)
+        self._refresh_information_overview()
         self.time_placeholder.setText(time_text)
         self.time_panel.set_result(result, self.current_node_payloads)
         if not getattr(result, "heuristic_time_data", None) and time_text:
             self.time_panel.output_text.setText(time_text)
+
+    def _refresh_information_overview(self) -> None:
+        if self.current_result is None:
+            self.info_placeholder.setHtml(self._empty_information_html("No result information is available."))
+            return
+        self.info_placeholder.setHtml(self._information_overview_html())
+
+    def _information_overview_html(self) -> str:
+        result = self.current_result
+        method_name = str(
+            self.current_method_name
+            or getattr(result, "model_name", "")
+            or type(result).__name__
+        )
+        node_count = len(self.current_node_payloads or list((getattr(result, "node_results", {}) or {}).values()))
+        events = list(getattr(result, "heuristic_events", []) or [])
+
+        parts = [self._information_style()]
+        parts.append("<h2>%s</h2>" % self._html(method_name))
+        parts.append("<div class='subtitle'>Result overview</div>")
+
+        summary_rows = [["Internal nodes", str(node_count)]]
+        tree_count_fields = [
+            ("Input trees", "input_tree_count"),
+            ("Effective trees", "effective_tree_count"),
+            ("Failed trees", "failed_tree_count"),
+            ("Unmatched trees", "unmatched_tree_count"),
+        ]
+        for label, attr in tree_count_fields:
+            value = getattr(result, attr, None)
+            if value not in (None, ""):
+                summary_rows.append([label, str(value)])
+        parts.append(self._information_table(summary_rows))
+
+        if events:
+            parts.append("<h3>Interpretation</h3>")
+            parts.append(
+                "<div class='note'><b>Legacy heuristic summary.</b> Counts are derived from the "
+                "highest-supported parent and child ranges. They are not branch histories, "
+                "BioGeoBEARS BSM events, or stochastic-map probabilities.</div>"
+            )
+            totals = dict(getattr(result, "heuristic_event_totals", {}) or {})
+            if not totals:
+                totals = {
+                    name: sum(int(event.get(name, 0) or 0) for event in events)
+                    for name in ("dispersal", "vicariance", "extinction")
+                }
+            parts.append("<h3>Counts across summarized nodes</h3>")
+            parts.append(
+                self._information_table(
+                    [
+                        ["Dispersal", str(int(totals.get("dispersal", 0) or 0))],
+                        ["Vicariance", str(int(totals.get("vicariance", 0) or 0))],
+                        ["Extinction", str(int(totals.get("extinction", 0) or 0))],
+                    ]
+                )
+            )
+
+        parts.append(self._selected_node_information_html(events))
+
+        stats = dict(getattr(result, "model_statistics", {}) or {})
+        if stats:
+            labels = {
+                "log_likelihood": "Log likelihood",
+                "num_params": "Parameters",
+                "sample_size": "Sample size",
+                "include_null_range": "Null range included",
+                "null_range_mode": "Null range mode",
+                "cores": "Cores used",
+            }
+            rows = [
+                [labels[key], self._format_information_value(stats.get(key))]
+                for key in labels
+                if key in stats and stats.get(key) not in (None, "")
+            ]
+            if rows:
+                parts.append("<h3>Model statistics</h3>")
+                parts.append(self._information_table(rows))
+
+        result_note = str(getattr(result, "result_note", "") or "").strip()
+        if result_note:
+            parts.append("<h3>Result note</h3><p>%s</p>" % self._html(result_note))
+
+        warnings = list(getattr(result, "parse_warnings", []) or [])
+        failures = list(getattr(result, "tree_failure_reasons", []) or [])
+        messages = warnings + [str(value) for value in failures if str(value) not in warnings]
+        if messages:
+            parts.append("<h3>Warnings</h3><ul>")
+            parts.extend("<li>%s</li>" % self._html(value) for value in messages[:50])
+            if len(messages) > 50:
+                parts.append("<li>%d additional warnings are listed in Raw details.</li>" % (len(messages) - 50))
+            parts.append("</ul>")
+
+        return "".join(parts)
+
+    def _selected_node_information_html(self, events: list) -> str:
+        payload = self.current_standard_payload
+        parts = ["<h3>Selected node</h3>"]
+        if payload is None:
+            parts.append("<p class='muted'>No internal node selected.</p>")
+            return "".join(parts)
+
+        node_id = str(getattr(payload, "display_node_id", "") or "").strip()
+        node_name = str((self.current_payload or {}).get("name", "") or "").strip()
+        if node_name == "<内部节点>":
+            node_name = ""
+        heading = "Node %s" % node_id if node_id else "Selected internal node"
+        if node_name:
+            heading += " - " + node_name
+        parts.append("<div class='node-title'>%s</div>" % self._html(heading))
+
+        clade_key = str(getattr(payload, "clade_key", "") or "")
+        event = next(
+            (item for item in events if str(item.get("clade_key", "") or "") == clade_key),
+            None,
+        )
+        if event is not None:
+            child_ranges = " | ".join(
+                str(value) for value in list(event.get("child_ranges", []) or [])
+            ) or "None"
+            weight = max(0.0, float(event.get("probability", 0.0) or 0.0)) * 100.0
+            rows = [
+                ["Parent top range", str(event.get("parent_range", "") or "None")],
+                ["Child top ranges", child_ranges],
+                ["Dispersal", str(int(event.get("dispersal", 0) or 0))],
+                ["Vicariance", str(int(event.get("vicariance", 0) or 0))],
+                ["Extinction", str(int(event.get("extinction", 0) or 0))],
+                ["Product of selected-state supports", "%.2f%%" % weight],
+            ]
+            parts.append(self._information_table(rows))
+            parts.append(
+                "<p class='muted'>This value multiplies the selected parent and child state supports; "
+                "it is not an independently estimated event probability.</p>"
+            )
+            interpretation = str(getattr(payload, "interpretation_note", "") or "").strip()
+            if interpretation:
+                parts.append("<p class='muted'>%s</p>" % self._html(interpretation))
+            return "".join(parts)
+
+        state_summary = str(getattr(payload, "state_summary", "") or "").strip()
+        support_summary = str(getattr(payload, "support_summary", "") or "").strip()
+        rows = []
+        if state_summary:
+            rows.append(["Reconstruction", state_summary])
+        if support_summary and support_summary != state_summary:
+            rows.append(["Support", support_summary])
+        event_summary = str(getattr(payload, "event_summary", "") or "").strip()
+        unavailable = ("not available", "无事件摘要", "不适用")
+        if event_summary and not any(marker in event_summary.lower() for marker in unavailable):
+            rows.append(["Event summary", event_summary])
+        if rows:
+            parts.append(self._information_table(rows))
+        else:
+            parts.append("<p class='muted'>No node-level summary is available.</p>")
+
+        interpretation = str(getattr(payload, "interpretation_note", "") or "").strip()
+        if interpretation:
+            parts.append("<p class='muted'>%s</p>" % self._html(interpretation))
+        return "".join(parts)
+
+    @staticmethod
+    def _html(value) -> str:
+        return html.escape(str(value), quote=True)
+
+    @classmethod
+    def _information_table(cls, rows: list) -> str:
+        body = []
+        for label, value in rows:
+            body.append(
+                "<tr><td class='label'>%s</td><td>%s</td></tr>"
+                % (cls._html(label), cls._html(value))
+            )
+        return "<table>%s</table>" % "".join(body)
+
+    @staticmethod
+    def _format_information_value(value) -> str:
+        if isinstance(value, bool):
+            return "Yes" if value else "No"
+        if isinstance(value, float):
+            return "%.6g" % value
+        return str(value)
+
+    @staticmethod
+    def _information_style() -> str:
+        return """
+        <style>
+          body { color: #202124; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 9pt; }
+          h2 { color: #1f2937; font-size: 15pt; margin: 2px 0 0 0; }
+          h3 { color: #374151; font-size: 10pt; margin: 16px 0 6px 0; }
+          .subtitle { color: #6b7280; margin: 0 0 12px 0; }
+          .note { background: #eef4fb; border-left: 3px solid #4f81bd; padding: 8px; }
+          .muted { color: #6b7280; margin: 6px 0; }
+          .node-title { color: #111827; font-weight: 600; margin: 0 0 6px 0; }
+          table { border-collapse: collapse; width: 100%; margin: 4px 0 8px 0; }
+          td { border-bottom: 1px solid #e5e7eb; padding: 5px 6px; vertical-align: top; }
+          td.label { color: #4b5563; font-weight: 600; width: 46%; }
+          ul { margin: 4px 0 0 18px; }
+        </style>
+        """
+
+    @classmethod
+    def _empty_information_html(cls, message: str) -> str:
+        return cls._information_style() + "<p class='muted'>%s</p>" % cls._html(message)
 
     def select_row_by_clade_key(self, clade_key: str) -> None:
         clade_key = str(clade_key or "").strip()
@@ -1157,7 +1445,7 @@ class NodeInfoPanel(QWidget):
             return
 
         headers = ["Range", "Color"]
-        rows = self._legend_rows_for_result()
+        rows = self._color_rows_for_result()
 
         self._populate_table(
             self.color_table,
@@ -1209,6 +1497,10 @@ class NodeInfoPanel(QWidget):
         for idx, state in enumerate(source_labels):
             if idx < len(pie_colors):
                 color_map[state] = pie_colors[idx]
+        if not bool(raw.get("continuous", False)):
+            display_colors = self._display_state_colors()
+            for state in source_labels:
+                color_map[state] = display_colors.get(state, color_map.get(state, "#808080"))
 
         rows = []
         headers = []
@@ -1291,6 +1583,17 @@ class NodeInfoPanel(QWidget):
             return
 
         state = state_item.text().strip().split(" (", 1)[0].strip()
+        members = list(
+            dict(getattr(self.current_result, "state_area_members", {}) or {}).get(state, [])
+        )
+        if self.range_color_mode != "independent" and len(members) > 1:
+            QMessageBox.information(
+                self,
+                "Derived range color",
+                "%s combines %s. Edit the member area colors instead."
+                % (state, ", ".join(members)),
+            )
+            return
         old_color = color_item.data(Qt.UserRole) or "#808080"
 
         qcolor = QColorDialog.getColor(QColor(old_color), self, f"选择状态颜色：{state}")
@@ -1343,7 +1646,7 @@ class NodeInfoPanel(QWidget):
 
     def _legend_rows_for_result(self) -> list:
         state_order = list(getattr(self.current_result, "state_order", []) or [])
-        state_colors = dict(getattr(self.current_result, "state_colors", {}) or {})
+        state_colors = self._display_state_colors()
         if not self._is_continuous_result():
             return [[state, state_colors.get(state, "#808080")] for state in state_order]
 
@@ -1360,6 +1663,32 @@ class NodeInfoPanel(QWidget):
             value = vmin + (vmax - vmin) * fraction
             display_value = self._continuous_display_value(value)
             rows.append(["%s (%.4g)" % (str(label), display_value), state_colors.get(label, "#808080")])
+        return rows
+
+    def _color_rows_for_result(self) -> list:
+        if self._is_continuous_result():
+            return self._legend_rows_for_result()
+
+        if self.range_color_mode == "independent" and self._range_color_segments_available():
+            state_order = list(getattr(self.current_result, "state_order", []) or [])
+            state_colors = self._display_state_colors()
+            return [[state, state_colors.get(state, "#808080")] for state in state_order]
+
+        area_order = list(getattr(self.current_result, "area_order", []) or [])
+        area_colors = dict(getattr(self.current_result, "area_colors", {}) or {})
+        if not area_order:
+            return self._legend_rows_for_result()
+
+        rows = [[area, area_colors.get(area, "#808080")] for area in area_order]
+        state_order = list(getattr(self.current_result, "state_order", []) or [])
+        state_colors = dict(getattr(self.current_result, "state_colors", {}) or {})
+        members_by_state = dict(
+            getattr(self.current_result, "state_area_members", {}) or {}
+        )
+        for state in state_order:
+            members = list(members_by_state.get(state, []) or [])
+            if len(members) > 1 or not members:
+                rows.append([state, state_colors.get(state, "#808080")])
         return rows
 
     def _continuous_display_value(self, value) -> float:
@@ -1417,7 +1746,20 @@ class NodeInfoPanel(QWidget):
             else:
                 self.legend_note.setText("Continuous color scale%s." % suffix)
         else:
-            self.legend_note.setText("Global state legend.")
+            if self.range_color_mode == "composition" and self._range_color_segments_available():
+                self.legend_note.setText(
+                    "Global range legend. Composite swatches show member-area stripes."
+                )
+            elif self.range_color_mode == "biogeobears" and self._range_color_segments_available():
+                self.legend_note.setText(
+                    "Global range legend. Composite ranges use BioGeoBEARS-style solid color mixes."
+                )
+            elif self._range_color_segments_available():
+                self.legend_note.setText(
+                    "Global range legend. Each complete range has an independent color."
+                )
+            else:
+                self.legend_note.setText("Global state legend.")
 
         self._populate_table(
             self.legend_table,
@@ -1459,10 +1801,69 @@ class NodeInfoPanel(QWidget):
                         item.setText(color_value)
 
                 table.setItem(row_idx, col_idx, item)
+                if col_idx == color_column and row:
+                    segments = self._range_color_segments(str(row[0]))
+                    if len(segments) > 1 or (
+                        segments and self.range_color_mode == "biogeobears"
+                    ):
+                        table.setCellWidget(
+                            row_idx,
+                            col_idx,
+                            SegmentedColorSwatch(segments, table),
+                        )
 
         table.resizeColumnsToContents()
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
+
+    def _range_color_segments(self, state):
+        if self.current_result is None:
+            return []
+        if self.range_color_mode == "biogeobears":
+            color = self._display_state_colors().get(str(state), "")
+            return [color] if QColor(str(color)).isValid() else []
+        if self.range_color_mode != "composition":
+            return []
+        return RangeStateColorMapper.segmented_colors(self.current_result, state)
+
+    def _range_color_segments_available(self) -> bool:
+        return bool(
+            self.current_result is not None
+            and list(getattr(self.current_result, "area_order", []) or [])
+            and dict(getattr(self.current_result, "state_area_members", {}) or {})
+        )
+
+    def _display_state_colors(self) -> dict:
+        if self.current_result is None:
+            return {}
+        if (
+            not self._range_color_segments_available()
+            or self._is_continuous_result()
+        ):
+            return dict(getattr(self.current_result, "state_colors", {}) or {})
+        if self.range_color_mode == "composition":
+            return dict(getattr(self.current_result, "state_colors", {}) or {})
+        if self.range_color_mode == "biogeobears":
+            colors = dict(
+                getattr(self.current_result, "biogeobears_state_colors", {}) or {}
+            )
+            if not colors:
+                colors = RangeStateColorMapper.build_biogeobears_state_colors(
+                    list(getattr(self.current_result, "state_order", []) or []),
+                    area_order=list(getattr(self.current_result, "area_order", []) or []),
+                    area_colors=dict(getattr(self.current_result, "area_colors", {}) or {}),
+                )
+                self.current_result.biogeobears_state_colors = dict(colors)
+            return colors
+        colors = dict(
+            getattr(self.current_result, "independent_state_colors", {}) or {}
+        )
+        if not colors:
+            colors = RangeStateColorMapper.build_independent_state_colors(
+                list(getattr(self.current_result, "state_order", []) or [])
+            )
+            self.current_result.independent_state_colors = dict(colors)
+        return colors
 
     @staticmethod
     def _node_sort_key(payload) -> tuple:

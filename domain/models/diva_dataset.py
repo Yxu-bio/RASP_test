@@ -14,5 +14,6 @@ class DivaDataset:
     numeric_newick: str                  # 例如 ((1,2),(3,4));
     distributions: List[str]             # 例如 ["A", "AB", "C", "D"]
 
+    area_names: List[str] = field(default_factory=list)
     area_column_to_letter: Dict[str, str] = field(default_factory=dict)
     source_matrix_path: str = ""

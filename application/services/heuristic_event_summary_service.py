@@ -700,26 +700,30 @@ class HeuristicEventSummaryService:
         for event in sorted(events, key=lambda item: self._node_sort_key(item.get("display_node_id", ""))):
             node_id = str(event.get("display_node_id", "") or "?")
             lines.append("NODE%s:" % node_id)
-            lines.append("EVENT MATRIX:")
+            lines.append("TOP-RANGE COMPARISON:")
+            lines.append(" Parent: %s" % str(event.get("parent_range", "") or "none"))
+            lines.append(
+                " Children: %s"
+                % (" | ".join(str(value) for value in list(event.get("child_ranges", []) or [])) or "none")
+            )
+            lines.append("HEURISTIC EVENT COUNTS:")
             lines.append(" Dispersal:%s" % int(event["dispersal"]))
             lines.append(" Vicariance:%s" % int(event["vicariance"]))
             lines.append(" Extinction:%s" % int(event["extinction"]))
-            lines.append("Event Route:")
-            lines.append(" %s" % str(event.get("route", "")))
-            lines.append("PROBABILITY:")
-            lines.append(" %.4f" % float(event.get("probability", 0.0)))
+            lines.append("PRODUCT OF SELECTED-STATE SUPPORTS:")
+            lines.append(" %.2f%%" % (100.0 * float(event.get("probability", 0.0))))
             lines.append("")
 
         lines.append("===================")
-        lines.append("Dispersal Between Areas:")
+        lines.append("Heuristic area transitions (source->destination):")
         for key, value in sorted(dispersal_routes.items(), key=lambda item: (-float(item[1]), item[0])):
             lines.append("%s:%s" % (key, self._format_number(value)))
 
-        lines.append("Speciation Within Areas:")
+        lines.append("Within-area child overlap:")
         for key, value in sorted(within_routes.items(), key=lambda item: (-float(item[1]), item[0])):
             lines.append("%s:%s" % (key, self._format_number(value)))
 
-        lines.append("Dispersal Table:")
+        lines.append("Heuristic area summary:")
         lines.append("\tfrom\tto\twithin")
         for area in area_names:
             from_value = sum(value for key, value in dispersal_routes.items() if key.startswith(str(area) + "->"))
@@ -736,10 +740,10 @@ class HeuristicEventSummaryService:
             )
 
         lines.append("===================")
-        lines.append("Global Cost:")
-        lines.append(" Global Dispersal: %s" % totals["dispersal"])
-        lines.append(" Global Vicariance: %s" % totals["vicariance"])
-        lines.append(" Global Extinction: %s" % totals["extinction"])
+        lines.append("Heuristic totals:")
+        lines.append(" Dispersal: %s" % totals["dispersal"])
+        lines.append(" Vicariance: %s" % totals["vicariance"])
+        lines.append(" Extinction: %s" % totals["extinction"])
         return "\n".join(lines), totals
 
     def _build_time_text(self, events, area_names=None):

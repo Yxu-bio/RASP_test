@@ -1,8 +1,8 @@
 # Phase 0 Smoke Test Latest
 
-- Started: `2026-08-29T14:48:53`
-- Finished: `2026-08-29T14:49:30`
-- Run root: `E:\RASP\runs\phase0_smoke\20260829_144852`
+- Started: `2026-09-03T16:28:08`
+- Finished: `2026-09-03T16:28:58`
+- Run root: `E:\RASP\runs\phase0_smoke\20260903_162807`
 - Data dir: `E:\RASP\data\benchmarks\psychotria`
 - Tree set sample size: `25`
 
@@ -19,93 +19,93 @@
 ### P0-004/P0-005 DIVA node result and export
 
 - Status: `ok`
-- Elapsed seconds: `0.075`
+- Elapsed seconds: `0.091`
 - class: `DivaResult`
 - node_count: `18`
 - warning_count: `0`
 - warnings: `[]`
-- run_dir: `E:\RASP\runs\diva\20260829_144853_607361_Psychotria_distribution`
+- run_dir: `E:\RASP\runs\diva\20260903_162808_301579_Psychotria_distribution`
 - has_information: `True`
 - has_time_data: `True`
-- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260829_144852\diva_node_summary.csv`
+- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260903_162807\diva_node_summary.csv`
 - node_summary_rows: `31`
 
 ### P0-004/P0-005 S-DIVA sampled node result and export
 
 - Status: `ok`
-- Elapsed seconds: `0.593`
+- Elapsed seconds: `0.631`
 - class: `SDivaResult`
 - node_count: `18`
 - warning_count: `0`
 - warnings: `[]`
-- run_dir: `E:\RASP\runs\sdiva\legacy_sdiva_20260829_144853_684542`
+- run_dir: `E:\RASP\runs\sdiva\legacy_sdiva_20260903_162808_398236`
 - has_information: `True`
 - has_time_data: `True`
 - input_tree_count: `25`
-- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260829_144852\s-diva_node_summary.csv`
+- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260903_162807\s-diva_node_summary.csv`
 - node_summary_rows: `270`
 
 ### P0-004/P0-005 DEC node result and export
 
 - Status: `ok`
-- Elapsed seconds: `0.303`
+- Elapsed seconds: `0.482`
 - class: `DECResult`
 - node_count: `18`
 - warning_count: `0`
 - warnings: `[]`
-- run_dir: `E:\RASP\runs\phase0_smoke\20260829_144852\dec\phase0_dec`
+- run_dir: `E:\RASP\runs\phase0_smoke\20260903_162807\dec\phase0_dec`
 - has_information: `True`
 - has_time_data: `True`
-- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260829_144852\dec_node_summary.csv`
+- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260903_162807\dec_node_summary.csv`
 - node_summary_rows: `140`
 
 ### P0-004/P0-005 S-DEC sampled node result and export
 
 - Status: `ok`
-- Elapsed seconds: `2.738`
+- Elapsed seconds: `4.411`
 - class: `SDECResult`
 - node_count: `18`
 - warning_count: `0`
 - warnings: `[]`
-- run_dir: `E:\RASP\runs\sdec\sdec_20260829_144854_588324`
+- run_dir: `E:\RASP\runs\sdec\sdec_20260903_162809_526036`
 - has_information: `True`
 - has_time_data: `True`
-- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260829_144852\s-dec_node_summary.csv`
+- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260903_162807\s-dec_node_summary.csv`
 - node_summary_rows: `163`
 
 ### P0-002/P0-004/P0-005 BioGeoBEARS DEC result and export
 
 - Status: `ok`
-- Elapsed seconds: `7.672`
+- Elapsed seconds: `10.619`
 - class: `BioGeoBEARSResult`
 - node_count: `18`
 - warning_count: `0`
 - warnings: `[]`
-- run_dir: `E:\RASP\runs\phase0_smoke\20260829_144852\biogeobears\phase0_bgb_dec`
+- run_dir: `E:\RASP\runs\phase0_smoke\20260903_162807\biogeobears\phase0_bgb_dec`
 - has_information: `True`
 - has_time_data: `True`
-- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260829_144852\biogeobears-dec_node_summary.csv`
+- node_summary_csv: `E:\RASP\runs\phase0_smoke\20260903_162807\biogeobears-dec_node_summary.csv`
 - node_summary_rows: `270`
 
 ### P0-003 BioGeoBEARS model test six models
 
 - Status: `ok`
-- Elapsed seconds: `18.422`
+- Elapsed seconds: `24.165`
 - class: `BioGeoBEARSModelTestResult`
 - effective_model_count: `6`
 - failed_model_count: `0`
 - best_model_name: `DECJ`
 - criterion_used: `AICc`
-- teststable_path: `E:\RASP\runs\phase0_smoke\20260829_144852\biogeobears\phase0_bgb_model_test_batch\teststable.txt`
+- teststable_path: `E:\RASP\runs\phase0_smoke\20260903_162807\biogeobears\phase0_bgb_model_test_batch\teststable.txt`
 - rows: `[{"model": "DEC", "success": true, "aicc": 73.831361528575, "weight": 2.149093978372951e-06, "error": ""}, {"model": "DECJ", "success": true, "aicc": 49.4951767183824, "weight": 0.41380029326767426, "error": ""}, {"model": "DIVALIKE", "success": true, "aicc": 71.0466610374798, "weight": 8.648592521812276e-06, "error": ""}, {"model": "DIVALIKEJ", "success": true, "aicc": 49.7724184238102, "weight": 0.3602371704420458, "error": ""}, {"model": "BAYAREALIKE", "success": true, "aicc": 85.4012617942632, "weight": 6.605162194894386e-09, "error": ""}, {"model": "BAYAREALIKEJ", "success": true, "aicc":`
 
 ### P0-006/P0-007/P0-008/P0-009 BioGeoBEARS BSM events
 
 - Status: `ok`
-- Elapsed seconds: `7.549`
+- Elapsed seconds: `10.079`
 - class: `BioGeoBEARSEventResult`
 - event_count: `128`
 - raw_tables: `{"anagenetic": 38, "cladogenetic": 185}`
-- summary: `{"enabled": true, "directory": "E:\\RASP\\runs\\phase0_smoke\\20260829_144852\\biogeobears\\phase0_bgb_bsm\\bsm", "source": "loaded_existing_bsm_result", "source_treefile": "E:\\RASP\\runs\\phase0_smoke\\20260829_144852\\biogeobears\\phase0_bgb_bsm\\input_tree.nwk", "source_tip_count": 19, "source_internal_node_count": 18, "area_names": ["A", "B", "C", "D"], "format": "rasp5_biogeobears_bsm_summary", "version": 1, "nummaps": 5, "seed": 12345, "maxnum_maps_to_try": 5, "maxtries_per_branch": 40000, "source_assignment_method": "biogeobears_probabilistic_unique_source", "source_assignment_seed": 1`
+- summary: `{"enabled": true, "directory": "E:\\RASP\\runs\\phase0_smoke\\20260903_162807\\biogeobears\\phase0_bgb_bsm\\bsm", "source": "loaded_existing_bsm_result", "source_treefile": "E:\\RASP\\runs\\phase0_smoke\\20260903_162807\\biogeobears\\phase0_bgb_bsm\\input_tree.nwk", "source_tip_count": 19, "source_internal_node_count": 18, "area_names": ["A", "B", "C", "D"], "format": "rasp5_biogeobears_bsm_summary", "version": 1, "nummaps": 5, "seed": 12345, "maxnum_maps_to_try": 5, "maxtries_per_branch": 40000, "source_assignment_method": "biogeobears_probabilistic_unique_source", "source_assignment_seed": 1`
 - warnings: `[]`
 

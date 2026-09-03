@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from application.services.diva_dataset_builder import DivaDatasetBuilder
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from domain.models.diva_result import DivaRunArtifacts
 from infrastructure.diva.diva_batch_exporter import DivaBatchExporter
 from infrastructure.diva.diva_output_parser import DivaOutputParser
@@ -105,10 +106,12 @@ class DivaAnalysisService:
 
     def _attach_pie_chart_data(self, result) -> None:
         state_order = self._infer_state_order(result)
-        state_colors = self._build_state_color_map(state_order)
-
         result.state_order = state_order
-        result.state_colors = state_colors
+        RangeStateColorMapper.apply_to_result(
+            result,
+            area_order=list(getattr(result.dataset, "area_names", []) or []),
+        )
+        state_colors = result.state_colors
 
         for node_result in result.node_results.values():
             states = []
@@ -154,34 +157,6 @@ class DivaAnalysisService:
 
         states.sort(key=lambda x: (len(x), x))
         return states
-
-    def _build_state_color_map(self, state_order: list) -> dict:
-        palette = [
-            "#e41a1c",
-            "#377eb8",
-            "#4daf4a",
-            "#984ea3",
-            "#ff7f00",
-            "#ffff33",
-            "#a65628",
-            "#f781bf",
-            "#999999",
-            "#66c2a5",
-            "#fc8d62",
-            "#8da0cb",
-            "#e78ac3",
-            "#a6d854",
-            "#ffd92f",
-            "#1b9e77",
-            "#d95f02",
-            "#7570b3",
-            "#e7298a",
-            "#66a61e",
-        ]
-        return {
-            state: palette[i % len(palette)]
-            for i, state in enumerate(state_order)
-        }
 
     def _equal_percents(self, n: int) -> list:
         if n <= 0:

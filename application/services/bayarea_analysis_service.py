@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 from application.services.bayarea_dataset_builder import BayAreaDatasetBuilder, BayAreaRunFiles
 from domain.models.biogeobears_result import BioGeoBEARSNodeResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.bayarea.bayarea_output_parser import BayAreaOutputParser
 from infrastructure.bayarea.bayarea_runner import BayAreaRunCancelled, BayAreaRunner
 
@@ -297,11 +298,11 @@ class BayAreaAnalysisService:
             bit_counts_by_node[clade_key] = bit_counts
             samples_by_node[clade_key] = total
 
-        combined.state_colors = self.output_parser._build_state_colors(combined.state_order)
-        for node_result in combined.node_results.values():
-            node_result.pie_colors = [
-                combined.state_colors.get(label, "#808080") for label in node_result.pie_labels
-            ]
+        RangeStateColorMapper.apply_to_result(
+            combined,
+            area_order=list(getattr(results[0], "area_order", []) or []),
+            base_colors=dict(getattr(results[0], "area_colors", {}) or {}),
+        )
 
         chain_runs = [self._chain_run_record(result, run_files) for result, run_files in zip(results, run_files_list)]
         statistics = dict(results[0].model_statistics or {})

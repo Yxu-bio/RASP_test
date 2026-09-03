@@ -35,6 +35,7 @@ class ETEAdapter:
         self._show_branch_support = False
         self._branch_vertical_margin = 2
         self._display_profile = "auto"
+        self._range_color_mode = "independent"
 
         # 当前被外部选中的内部节点（用 clade_key 标识）
         self._selected_clade_key = ""
@@ -131,6 +132,13 @@ class ETEAdapter:
         if profile not in ("auto", "overview", "detailed"):
             raise ValueError("Unsupported tree display profile: %s" % profile)
         self._display_profile = profile
+        self.tree_style = self._build_tree_style()
+
+    def set_range_color_mode(self, mode: str) -> None:
+        normalized = str(mode or "independent").strip().lower()
+        if normalized not in ("independent", "biogeobears", "composition"):
+            raise ValueError("Unsupported range color mode: %s" % mode)
+        self._range_color_mode = normalized
         self.tree_style = self._build_tree_style()
 
     def get_display_profile(self) -> str:
@@ -409,6 +417,8 @@ class ETEAdapter:
     def _layout_internal_node(self, node, node_result) -> None:
         from ete3 import PieChartFace, faces
 
+        from infrastructure.tree.composite_range_pie_face import CompositeRangePieFace
+
         overview = self._use_overview_profile()
         is_selected = (
             self._selected_clade_key
@@ -424,27 +434,98 @@ class ETEAdapter:
 
         if overview and not is_selected:
             percents = list(getattr(node_result, "pie_percents", []) or [])
-            colors = list(getattr(node_result, "pie_colors", []) or [])
+            colors = self._display_pie_colors(node_result)
             if percents:
                 top_index = max(range(len(percents)), key=lambda index: float(percents[index] or 0.0))
+                labels = list(getattr(node_result, "pie_labels", []) or [])
+                label = labels[top_index] if top_index < len(labels) else ""
+                area_colors = dict(getattr(self._diva_result, "area_colors", {}) or {})
+                state_members = dict(getattr(self._diva_result, "state_area_members", {}) or {})
+                member_colors = [
+                    area_colors[area]
+                    for area in list(state_members.get(label, []) or [])
+                    if area in area_colors
+                ]
+                if self._range_color_mode == "composition" and len(member_colors) > 1:
+                    marker = CompositeRangePieFace(
+                        [100.0],
+                        width=6,
+                        height=6,
+                        color_patterns=[member_colors],
+                    )
+                    faces.add_face_to_node(marker, node, column=0, position="float")
+                    return
                 color = colors[top_index] if top_index < len(colors) else "#808080"
+                if self._range_color_mode == "biogeobears":
+                    marker = PieChartFace(
+                        [100.0],
+                        width=6,
+                        height=6,
+                        colors=[color],
+                        line_color="#555555",
+                    )
+                    faces.add_face_to_node(marker, node, column=0, position="float")
+                    return
                 node.img_style["size"] = 3
                 node.img_style["shape"] = "circle"
                 node.img_style["fgcolor"] = color
             return
 
         # 高亮只作用在饼图本体：描边 + 更高透明度，不放大
-        pie = PieChartFace(
-            node_result.pie_percents,
-            width=16 if overview else self._pie_size,
-            height=16 if overview else self._pie_size,
-            colors=node_result.pie_colors,
-            line_color="#111111" if is_selected else None,
-        )
+        labels = list(getattr(node_result, "pie_labels", []) or [])
+        area_colors = dict(getattr(self._diva_result, "area_colors", {}) or {})
+        state_members = dict(getattr(self._diva_result, "state_area_members", {}) or {})
+        fallback_colors = self._display_pie_colors(node_result)
+        if self._range_color_mode == "composition" and area_colors and state_members:
+            color_patterns = []
+            for index, label in enumerate(labels):
+                member_colors = [
+                    area_colors[area]
+                    for area in list(state_members.get(label, []) or [])
+                    if area in area_colors
+                ]
+                if not member_colors:
+                    fallback = fallback_colors[index] if index < len(fallback_colors) else "#808080"
+                    member_colors = [fallback]
+                color_patterns.append(member_colors)
+            pie = CompositeRangePieFace(
+                node_result.pie_percents,
+                width=16 if overview else self._pie_size,
+                height=16 if overview else self._pie_size,
+                color_patterns=color_patterns,
+                line_color="#111111" if is_selected else None,
+            )
+        else:
+            line_color = "#111111" if is_selected else None
+            if self._range_color_mode == "biogeobears" and not is_selected:
+                line_color = "#555555"
+            pie = PieChartFace(
+                node_result.pie_percents,
+                width=16 if overview else self._pie_size,
+                height=16 if overview else self._pie_size,
+                colors=fallback_colors,
+                line_color=line_color,
+            )
         pie.opacity = 0.95 if is_selected else self._pie_opacity
         pie.margin_left = self._pie_shift_x
 
         faces.add_face_to_node(pie, node, column=0, position="float")
+
+    def _display_pie_colors(self, node_result) -> list:
+        labels = list(getattr(node_result, "pie_labels", []) or [])
+        if self._range_color_mode == "independent" and self._diva_result is not None:
+            independent = dict(
+                getattr(self._diva_result, "independent_state_colors", {}) or {}
+            )
+            if independent:
+                return [independent.get(label, "#808080") for label in labels]
+        if self._range_color_mode == "biogeobears" and self._diva_result is not None:
+            mixed = dict(
+                getattr(self._diva_result, "biogeobears_state_colors", {}) or {}
+            )
+            if mixed:
+                return [mixed.get(label, "#808080") for label in labels]
+        return list(getattr(node_result, "pie_colors", []) or [])
 
     def _layout_node(self, node) -> None:
         # ETE3 moves crowded circular-layout items outwards to avoid overlap.

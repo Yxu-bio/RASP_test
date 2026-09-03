@@ -1403,6 +1403,7 @@ class BioGeoBEARSAnalysisService:
         result = self.output_parser.parse(
             reference_tree=tree,
             output_json_path=run_files.output_json_path,
+            area_names=run_files.area_names,
         )
         result.result_note += " workdir=%s" % run_files.workdir
         return result

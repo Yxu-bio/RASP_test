@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from domain.models.sdec_result import SDECResult, SDECNodeResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
@@ -315,10 +316,10 @@ class SDECAnalysisService:
             state
             for state, _weight in sorted(global_state_percent_sums.items(), key=lambda x: (-x[1], x[0]))
         ]
-        result.state_colors = {
-            state: self.PALETTE[i % len(self.PALETTE)]
-            for i, state in enumerate(result.state_order)
-        }
+        RangeStateColorMapper.apply_to_result(
+            result,
+            area_order=list(getattr(getattr(result, "config", None), "area_names", []) or []),
+        )
 
         for node_result in result.node_results.values():
             node_result.total_tree_count = effective_count

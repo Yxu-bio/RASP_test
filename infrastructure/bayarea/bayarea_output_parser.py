@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from domain.models.biogeobears_result import BioGeoBEARSNodeResult, BioGeoBEARSResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 
 
 class BayAreaOutputParser:
@@ -110,12 +111,10 @@ class BayAreaOutputParser:
             result.reference_node_ids[clade_key] = node_result.display_node_id
 
         result.state_order = all_states
-        result.state_colors = self._build_state_colors(all_states)
-        for node_result in result.node_results.values():
-            node_result.pie_colors = [
-                result.state_colors.get(label, "#808080")
-                for label in node_result.pie_labels
-            ]
+        RangeStateColorMapper.apply_to_result(
+            result,
+            area_order=run_files.area_names,
+        )
 
         ln_likelihoods = [
             ln_likelihood_by_cycle[key]
@@ -170,17 +169,6 @@ class BayAreaOutputParser:
         if len(text) > area_count:
             text = text[:area_count]
         return text
-
-    def _build_state_colors(self, states):
-        colors = {}
-        palette_index = 0
-        for state in states:
-            if state == "/":
-                colors[state] = "#ffffff"
-            else:
-                colors[state] = self.PALETTE[palette_index % len(self.PALETTE)]
-                palette_index += 1
-        return colors
 
     def _build_model_statistics(self, run_files, run_output, ln_likelihoods):
         metadata = dict(getattr(run_files, "extra_metadata", {}) or {})

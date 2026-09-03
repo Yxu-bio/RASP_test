@@ -6,6 +6,7 @@ from domain.models.biogeobears_result import (
     BioGeoBEARSResult,
     BioGeoBEARSNodeResult,
 )
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
 
@@ -33,7 +34,7 @@ class BioGeoBEARSOutputParser:
         "#66a61e",
     ]
 
-    def parse(self, *, reference_tree, output_json_path):
+    def parse(self, *, reference_tree, output_json_path, area_names=None):
         output_json_path = Path(output_json_path)
         payload = json.loads(output_json_path.read_text(encoding="utf-8"))
 
@@ -109,22 +110,8 @@ class BioGeoBEARSOutputParser:
         result.state_order = list(all_states)
         if full_state_order:
             result.model_statistics["full_state_order"] = list(full_state_order)
-        result.state_colors = {}
-        palette_index = 0
-        for state in result.state_order:
-            if state == "/":
-                result.state_colors[state] = "#ffffff"
-            elif state == "*":
-                result.state_colors[state] = "#000000"
-            else:
-                result.state_colors[state] = self.PALETTE[palette_index % len(self.PALETTE)]
-                palette_index += 1
-
-        for node_result in result.node_results.values():
-            node_result.pie_colors = [
-                result.state_colors.get(label, "#808080")
-                for label in node_result.pie_labels
-            ]
+        parsed_area_names = list(area_names or attrs.get("area_names", []) or [])
+        RangeStateColorMapper.apply_to_result(result, area_order=parsed_area_names)
 
         if payload.get("optim_summary", None):
             result.result_note += " optim_summary_present=True"

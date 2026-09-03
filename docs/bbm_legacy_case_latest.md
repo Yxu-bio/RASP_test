@@ -2,9 +2,9 @@
 
 状态：**Passed**
 
-- 运行时间：`2026-08-28T03:37:00`
-- Git commit：`a50296cae17e3f018d580b49557688fa75595eb7`
-- 机器可读报告：`E:\RASP\runs\bbm_legacy_case\20260828_033641_180066\report.json`
+- 运行时间：`2026-09-03T16:28:31`
+- Git commit：`5e17ebb699992951f3d016ad8822300c570cd5f3`
+- 机器可读报告：`E:\RASP\runs\bbm_legacy_case\20260903_162807_829580\report.json`
 - 当前 MrBayes SHA256：`a7358c7e5b906c1872c8948a89bacf5e3a1966f69adff57f3c5d8f6346d19e62`
 - 旧版 Large dataset MrBayes SHA256：`a7358c7e5b906c1872c8948a89bacf5e3a1966f69adff57f3c5d8f6346d19e62`
 - 两个 MrBayes 二进制完全相同：`True`
@@ -19,8 +19,8 @@
 ## 数值结果
 
 - 10-chain 对照选中/输出节点：`18/18`
-- 当前原生运行耗时：`6.428 s`
-- 旧约束原生运行耗时：`6.511 s`
+- 当前原生运行耗时：`10.165 s`
+- 旧约束原生运行耗时：`7.125 s`
 - 当前安全默认链数：`4`；warning 数：`0`
 - `raw_current_TID_vs_legacy_numeric_constraints_combined` 最大绝对差：`0`
 - `raw_current_TID_vs_legacy_numeric_constraints_run1` 最大绝对差：`0`
@@ -32,7 +32,7 @@
 - `raw_faithful_precision_TID_vs_numeric_constraints` 最大绝对差：`0`
 - `precision_current_full_precision_states_vs_legacy_Single_F6_formula` 最大绝对差：`0.000148394356742`
 - `precision_current_full_precision_vs_legacy_F6_marginals` 最大绝对差：`1.0483378905e-06`
-- 高级参数原生运行耗时：`1.544 s`
+- 高级参数原生运行耗时：`1.694 s`
 - 高级参数选中节点：`9`；输出节点：`9`
 - `advanced_raw_parser_vs_raw_oracle_combined` 最大绝对差：`0`
 - `advanced_raw_parser_vs_raw_oracle_run1` 最大绝对差：`0`

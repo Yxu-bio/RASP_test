@@ -40,6 +40,11 @@ class DECResult:
 
     state_order: List[str] = field(default_factory=list)
     state_colors: Dict[str, str] = field(default_factory=dict)
+    independent_state_colors: Dict[str, str] = field(default_factory=dict)
+    biogeobears_state_colors: Dict[str, str] = field(default_factory=dict)
+    area_order: List[str] = field(default_factory=list)
+    area_colors: Dict[str, str] = field(default_factory=dict)
+    state_area_members: Dict[str, List[str]] = field(default_factory=dict)
 
     # 节点显示号，仍然保持 clade_key -> display_node_id 的映射思路
     reference_node_ids: Dict[str, str] = field(default_factory=dict)

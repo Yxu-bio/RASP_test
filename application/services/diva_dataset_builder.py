@@ -52,6 +52,7 @@ class DivaDatasetBuilder:
             index_to_name=index_to_name,
             numeric_newick=numeric_newick,
             distributions=distributions,
+            area_names=list(area_columns),
             area_column_to_letter=dict(getattr(matrix, "area_label_to_code", {}) or {}),
             source_matrix_path=getattr(matrix, "source_path", "") or "",
         )

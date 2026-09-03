@@ -6,6 +6,7 @@ import time
 
 from domain.models.sdiva_config import EMPTY_STATE_TOKENS
 from domain.models.sdiva_result import SDivaResult, SDivaNodeResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
@@ -106,7 +107,19 @@ class SDivaAnalysisService:
         reference_numeric_newick = self._build_numeric_newick(reference_tree, name_to_index) + ";"
         reference_nodes = self._build_reference_nodes(reference_tree, name_to_index, index_to_name)
         state_order = self._build_legacy_state_order(matrix, config)
-        state_colors = self._build_state_color_map(state_order)
+        area_order = [
+            str(area).strip().upper()
+            for area in list(getattr(config, "area_names", []) or [])
+            if str(area).strip()
+        ]
+        if not area_order:
+            area_order = [
+                str(column).strip().upper()
+                for column in list(getattr(matrix, "state_columns", []) or [])
+                if str(column).strip() and str(column).strip() not in ("ID", "Name")
+            ]
+        color_palette = RangeStateColorMapper.build(state_order, area_order=area_order)
+        state_colors = color_palette.state_colors
 
         run_final_tree = self._should_run_final_tree(config)
         proc_paths = self._write_legacy_proc_files(
@@ -189,6 +202,9 @@ class SDivaAnalysisService:
             config_path=config_path,
             state_order=state_order,
             state_colors=state_colors,
+            area_order=color_palette.area_order,
+            area_colors=color_palette.area_colors,
+            state_area_members=color_palette.state_area_members,
             reference_diva_node_ids={
                 node["node_key"]: node["display_id"]
                 for node in reference_nodes
@@ -879,15 +895,6 @@ class SDivaAnalysisService:
         if state in state_order:
             return state_order.index(state)
         return 10 ** 9
-
-    def _build_state_color_map(self, state_order: list) -> dict:
-        palette = [
-            "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
-            "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5",
-            "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f",
-            "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
-        ]
-        return {state: palette[i % len(palette)] for i, state in enumerate(state_order)}
 
     def _count_internal_nodes(self, tree) -> int:
         if tree is None:

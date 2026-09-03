@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from domain.models.sbgb_config import normalize_sbgb_null_range_mode
 from domain.models.biogeobears_result import BioGeoBEARSResult, BioGeoBEARSNodeResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from infrastructure.run_provenance import write_run_provenance
 from infrastructure.tree.clade_node_identity import CladeNodeIdentityService
 
@@ -390,7 +391,12 @@ class SBGBAnalysisService:
         result.model_statistics["failed_tree_count"] = result.failed_tree_count
         result.model_statistics["zero_contribution_tree_count"] = result.unmatched_tree_count
 
-        self._finalize_node_results(result, effective_count, global_state_percent_sums)
+        self._finalize_node_results(
+            result,
+            effective_count,
+            global_state_percent_sums,
+            area_order=list(getattr(config, "area_names", []) or []),
+        )
         result.unmatched_clade_count = sum(
             node.unmatched_tree_count for node in result.node_results.values()
         )
@@ -406,21 +412,21 @@ class SBGBAnalysisService:
         result.analysis_log_path = str(analysis_log)
         return result
 
-    def _finalize_node_results(self, result, effective_count, global_state_percent_sums) -> None:
+    def _finalize_node_results(
+        self,
+        result,
+        effective_count,
+        global_state_percent_sums,
+        area_order=None,
+    ) -> None:
         result.state_order = [
             state
             for state, _weight in sorted(global_state_percent_sums.items(), key=lambda x: (-x[1], x[0]))
         ]
-        result.state_colors = {}
-        palette_index = 0
-        for state in result.state_order:
-            if state == "/":
-                result.state_colors[state] = "#ffffff"
-            elif state == "*":
-                result.state_colors[state] = "#000000"
-            else:
-                result.state_colors[state] = self.PALETTE[palette_index % len(self.PALETTE)]
-                palette_index += 1
+        RangeStateColorMapper.apply_to_result(
+            result,
+            area_order=list(area_order or []),
+        )
 
         for node_result in result.node_results.values():
             node_result.total_tree_count = effective_count

@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
 
 from application.services.export_service import ExportService
 from application.services.result_schema_adapter import ResultSchemaAdapterFactory
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 from gui.widgets.node_info_panel import NodeInfoPanel
 from gui.widgets.tree_graph_panel import TreeGraphPanel
 from gui.window_behavior import configure_resizable_window
@@ -128,6 +129,8 @@ class ResultViewWindow(QMainWindow):
         self.standard_node_payloads = {}
         self._updating_continuous_scale_controls = False
         self._updating_tree_display_controls = False
+        self._updating_range_color_controls = False
+        self._range_color_mode = "independent"
         self._large_tree_tip_count = 0
 
         self.export_service = ExportService()
@@ -223,6 +226,22 @@ class ResultViewWindow(QMainWindow):
         self.tree_detail_combo_action = toolbar.addWidget(self.tree_detail_combo)
         self.tree_detail_label_action.setVisible(False)
         self.tree_detail_combo_action.setVisible(False)
+
+        self.range_color_label = QLabel("Range colors:", self)
+        self.range_color_combo = QComboBox(self)
+        self.range_color_combo.addItem("Independent (legacy)", "independent")
+        self.range_color_combo.addItem("BioGeoBEARS-style mix", "biogeobears")
+        self.range_color_combo.addItem("Composition stripes", "composition")
+        self.range_color_combo.setToolTip(
+            "Choose independent range colors, BioGeoBEARS-style solid mixes, or member-area stripes."
+        )
+        self.range_color_combo.currentIndexChanged.connect(
+            self._on_range_color_mode_changed
+        )
+        self.range_color_label_action = toolbar.addWidget(self.range_color_label)
+        self.range_color_combo_action = toolbar.addWidget(self.range_color_combo)
+        self.range_color_label_action.setVisible(False)
+        self.range_color_combo_action.setVisible(False)
 
         toolbar.addSeparator()
 
@@ -323,6 +342,9 @@ class ResultViewWindow(QMainWindow):
 
     def set_renderer(self, renderer) -> None:
         self.renderer = renderer
+        set_range_color_mode = getattr(renderer, "set_range_color_mode", None)
+        if callable(set_range_color_mode):
+            set_range_color_mode(self._range_color_mode)
         self._configure_tree_display_for_renderer()
         self.tree_panel.set_renderer(renderer)
 
@@ -361,12 +383,15 @@ class ResultViewWindow(QMainWindow):
         self._ensure_continuous_plot_values()
         if self._is_continuous_result():
             self._apply_continuous_display_scale_payloads()
+        self._configure_range_color_controls()
         self._rebuild_standard_context()
         self._sync_node_info_panel()
         self._configure_continuous_scale_controls()
         self._refresh_figure_group_panel()
         self._configure_temporal_playback_action()
         self._update_context_status()
+        if self._is_range_color_result():
+            self._apply_range_color_mode_to_renderer(rebuild=True)
 
     def set_window_title_by_method(self, method_name: str) -> None:
         self.current_method_name = method_name or ""
@@ -495,9 +520,113 @@ class ResultViewWindow(QMainWindow):
             result=self.current_result,
             node_payloads=payloads,
         )
+        self.node_info_panel.set_range_color_mode(self._range_color_mode)
 
     def _is_continuous_result(self) -> bool:
         return type(self.current_result).__name__ == "ContinuousTraitResult"
+
+    def _is_range_color_result(self) -> bool:
+        if self.current_result is None or self._is_continuous_result():
+            return False
+        return bool(
+            list(getattr(self.current_result, "area_order", []) or [])
+            and dict(getattr(self.current_result, "state_area_members", {}) or {})
+        )
+
+    def _configure_range_color_controls(self) -> None:
+        if not hasattr(self, "range_color_combo"):
+            return
+        visible = self._is_range_color_result()
+        self.range_color_label_action.setVisible(visible)
+        self.range_color_combo_action.setVisible(visible)
+        if not visible:
+            return
+
+        independent = dict(
+            getattr(self.current_result, "independent_state_colors", {}) or {}
+        )
+        self.current_result.independent_state_colors = (
+            RangeStateColorMapper.build_independent_state_colors(
+                self._range_display_state_order(),
+                base_colors=independent,
+            )
+        )
+
+        self._updating_range_color_controls = True
+        try:
+            index = self.range_color_combo.findData(self._range_color_mode)
+            self.range_color_combo.setCurrentIndex(max(0, index))
+        finally:
+            self._updating_range_color_controls = False
+        self._apply_range_color_mode_to_renderer(rebuild=False)
+
+    def _display_state_colors(self) -> dict:
+        if self.current_result is None:
+            return {}
+        if self._range_color_mode == "composition":
+            colors = dict(getattr(self.current_result, "state_colors", {}) or {})
+            palette = RangeStateColorMapper.build(
+                self._range_display_state_order(),
+                area_order=list(getattr(self.current_result, "area_order", []) or []),
+                base_colors=dict(getattr(self.current_result, "area_colors", {}) or {}),
+            )
+            generated = dict(palette.state_colors)
+            generated.update(colors)
+            return generated
+        if self._range_color_mode == "biogeobears":
+            colors = RangeStateColorMapper.build_biogeobears_state_colors(
+                self._range_display_state_order(),
+                area_order=list(getattr(self.current_result, "area_order", []) or []),
+                area_colors=dict(getattr(self.current_result, "area_colors", {}) or {}),
+            )
+            self.current_result.biogeobears_state_colors = dict(colors)
+            return colors
+        colors = dict(
+            getattr(self.current_result, "independent_state_colors", {}) or {}
+        )
+        colors = RangeStateColorMapper.build_independent_state_colors(
+            self._range_display_state_order(),
+            base_colors=colors,
+        )
+        self.current_result.independent_state_colors = dict(colors)
+        return colors
+
+    def _range_display_state_order(self) -> list:
+        states = []
+        for value in list(getattr(self.current_result, "state_order", []) or []):
+            state = str(value or "").strip()
+            if state and state not in states:
+                states.append(state)
+        for value in self.leaf_state_map.values():
+            state = str(value or "").strip()
+            if state and state not in states:
+                states.append(state)
+        return states
+
+    def _apply_range_color_mode_to_renderer(self, rebuild: bool) -> None:
+        if self.renderer is None or not self._is_range_color_result():
+            return
+        set_mode = getattr(self.renderer, "set_range_color_mode", None)
+        if callable(set_mode):
+            set_mode(self._range_color_mode)
+        self.renderer.apply_leaf_states(
+            self.leaf_state_map,
+            self._display_state_colors(),
+        )
+        self.renderer.set_result(self.current_result)
+        if self.current_selected_clade_key:
+            self.renderer.select_node_by_clade_key(self.current_selected_clade_key)
+        if rebuild:
+            self.tree_panel.refresh_tree(preserve_view=True)
+
+    def _on_range_color_mode_changed(self, *args) -> None:
+        if self._updating_range_color_controls or not self._is_range_color_result():
+            return
+        self._range_color_mode = str(
+            self.range_color_combo.currentData() or "independent"
+        )
+        self.node_info_panel.set_range_color_mode(self._range_color_mode)
+        self._apply_range_color_mode_to_renderer(rebuild=True)
 
     def _configure_continuous_scale_controls(self) -> None:
         if not hasattr(self, "continuous_display_combo"):
@@ -968,6 +1097,7 @@ class ResultViewWindow(QMainWindow):
 
     def _display_payload_only(self, payload: dict) -> None:
         self.current_payload = payload
+        standard_payload = None
 
         if self.current_result is None or self.result_adapter is None:
             self.node_info_panel.show_basic_node_info(payload)
@@ -982,9 +1112,17 @@ class ResultViewWindow(QMainWindow):
                 )
 
         if payload and "error" not in payload:
-            self.statusBar().showMessage(
-                f"当前节点: {payload.get('name', '')} ({payload.get('node_id', '')})"
-            )
+            display_node_id = str(
+                getattr(standard_payload, "display_node_id", "") or ""
+            ).strip()
+            if display_node_id:
+                status_text = "当前节点: node %s" % display_node_id
+            else:
+                node_name = str(payload.get("name", "") or "").strip()
+                if not node_name or node_name == "<内部节点>":
+                    node_name = "已选择内部节点"
+                status_text = "当前节点: %s" % node_name
+            self.statusBar().showMessage(status_text)
         else:
             self.statusBar().showMessage(str(payload.get("error", "")) if payload else "")
 
@@ -1068,18 +1206,34 @@ class ResultViewWindow(QMainWindow):
         if not state or not color:
             return
 
-        self.current_result.state_colors[state] = color
-
-        for node_result in self.current_result.node_results.values():
-            labels = list(getattr(node_result, "pie_labels", []) or [])
-            if not labels:
-                labels = list(getattr(node_result, "states", []) or [])
-                node_result.pie_labels = labels
-
-            node_result.pie_colors = [
-                self.current_result.state_colors.get(label, "#808080")
-                for label in labels
-            ]
+        if self._range_color_mode == "independent" and self._is_range_color_result():
+            independent = self._display_state_colors()
+            independent[state] = color
+            self.current_result.independent_state_colors = independent
+        else:
+            state_members = dict(getattr(self.current_result, "state_area_members", {}) or {})
+            members = list(state_members.get(state, []) or [])
+            if not members and state in list(getattr(self.current_result, "area_order", []) or []):
+                members = [state]
+            if len(members) == 1:
+                area_colors = dict(getattr(self.current_result, "area_colors", {}) or {})
+                area_colors[members[0]] = color
+                RangeStateColorMapper.apply_to_result(
+                    self.current_result,
+                    area_order=list(getattr(self.current_result, "area_order", []) or []),
+                    base_colors=area_colors,
+                )
+            else:
+                self.current_result.state_colors[state] = color
+                for node_result in self.current_result.node_results.values():
+                    labels = list(getattr(node_result, "pie_labels", []) or [])
+                    if not labels:
+                        labels = list(getattr(node_result, "states", []) or [])
+                        node_result.pie_labels = labels
+                    node_result.pie_colors = [
+                        self.current_result.state_colors.get(label, "#808080")
+                        for label in labels
+                    ]
 
         self._rebuild_standard_context()
         self._sync_node_info_panel()
@@ -1088,9 +1242,15 @@ class ResultViewWindow(QMainWindow):
             self._display_payload_only(self.current_payload)
 
         if self.renderer is not None:
-            self.renderer.apply_leaf_states(self.leaf_state_map, self.current_result.state_colors)
-            self.renderer.set_result(self.current_result)
-            self.refresh_view()
+            if self._is_range_color_result():
+                self._apply_range_color_mode_to_renderer(rebuild=True)
+            else:
+                self.renderer.apply_leaf_states(
+                    self.leaf_state_map,
+                    self.current_result.state_colors,
+                )
+                self.renderer.set_result(self.current_result)
+                self.refresh_view()
 
     def _toggle_leaf_name(self, checked: bool) -> None:
         if self.renderer is None:

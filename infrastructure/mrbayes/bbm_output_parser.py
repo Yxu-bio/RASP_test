@@ -3,6 +3,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from domain.models.biogeobears_result import BioGeoBEARSNodeResult, BioGeoBEARSResult
+from domain.services.range_state_color_mapper import RangeStateColorMapper
 
 
 class BBMOutputParser:
@@ -95,12 +96,10 @@ class BBMOutputParser:
             result.reference_node_ids[clade_key] = display_id
 
         result.state_order = all_states
-        result.state_colors = self._build_state_colors(all_states)
-        for node_result in result.node_results.values():
-            node_result.pie_colors = [
-                result.state_colors.get(label, "#808080")
-                for label in node_result.pie_labels
-            ]
+        RangeStateColorMapper.apply_to_result(
+            result,
+            area_order=run_files.area_names,
+        )
 
         self._write_analysis_log(run_files, rows_for_log, run1, run2, combined)
         result.analysis_log_path = str(run_files.analysis_log_path)
@@ -411,17 +410,6 @@ class BBMOutputParser:
             if bit == "1":
                 labels.append(str(area))
         return "".join(labels) if labels else "/"
-
-    def _build_state_colors(self, states):
-        colors = {}
-        palette_index = 0
-        for state in states:
-            if state == "/":
-                colors[state] = "#ffffff"
-            else:
-                colors[state] = self.PALETTE[palette_index % len(self.PALETTE)]
-                palette_index += 1
-        return colors
 
     def _display_sort_key(self, value):
         text = str(value or "").strip()
